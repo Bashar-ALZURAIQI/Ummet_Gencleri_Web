@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    font-family: 'Cairo', 'Tajawal', sans-serif;
+    background-color: #f8fafc;
+    color: #16263f;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer components {
+  .container-app {
+    @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-navy-800 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-navy-900/20 transition-all hover:bg-navy-700 hover:shadow-navy-900/30 active:scale-[0.98];
+  }
+  .btn-gold {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-gold-400 px-6 py-3 text-sm font-bold text-navy-950 shadow-lg shadow-gold-500/30 transition-all hover:bg-gold-300 hover:shadow-gold-500/40 active:scale-[0.98];
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-navy-200 bg-white px-6 py-3 text-sm font-semibold text-navy-700 transition-all hover:bg-navy-50 active:scale-[0.98];
+  }
+  .card {
+    @apply rounded-2xl border border-gray-100 bg-white shadow-sm;
+  }
+  .input-field {
+    @apply w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-navy-900 outline-none transition-all placeholder:text-gray-400 focus:border-navy-500 focus:ring-2 focus:ring-navy-500/20;
+  }
+  .input-field-error {
+    @apply w-full rounded-xl border-2 border-rose-500 bg-rose-50/30 px-4 py-3 text-sm text-navy-900 outline-none transition-all placeholder:text-gray-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20;
+  }
+  .input-field-dark-error {
+    @apply w-full rounded-xl border-2 border-rose-400 bg-white/10 px-4 py-3 text-sm text-white outline-none transition-all placeholder:text-gray-400 focus:border-rose-300 focus:ring-2 focus:ring-rose-400/30;
+  }
+  .label-field {
+    @apply mb-1.5 block text-sm font-semibold text-navy-800;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}

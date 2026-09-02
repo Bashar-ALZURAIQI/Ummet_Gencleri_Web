@@ -1,0 +1,21 @@
+{
+  "id": "/",
+  "name": "اتحاد شباب الأمة",
+  "short_name": "شباب الأمة",
+  "description": "البوابة الرسمية لاتحاد شباب الأمة",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0b1739",
+  "theme_color": "#0b1739",
+  "icons": [
+    {
+      "src": "/icons/union-push-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

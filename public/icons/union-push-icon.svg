@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="اتحاد شباب الأمة">
+  <rect width="512" height="512" rx="112" fill="#0b1739"/>
+  <circle cx="256" cy="210" r="92" fill="#d9ab45"/>
+  <path d="M104 424c18-94 74-140 152-140s134 46 152 140" fill="#fff"/>
+  <path d="M176 210h160M256 130v160" stroke="#0b1739" stroke-width="34" stroke-linecap="round"/>
+</svg>

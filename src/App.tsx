@@ -1,0 +1,129 @@
+import { useEffect } from 'react';
+import { AppProvider, useApp } from './context/AppContext';
+import Navbar from './components/Navbar';
+import DynamicFavicon from './components/DynamicFavicon';
+import Footer from './components/Footer';
+import ErrorBoundary from './components/ErrorBoundary';
+import { InlineEditProvider } from './components/InlineEditOverlay';
+import HomePage from './pages/HomePage';
+import AboutPage from './pages/AboutPage';
+import ProgramsPage from './pages/ProgramsPage';
+import ContactPage from './pages/ContactPage';
+import MediaGallery from './pages/MediaGallery';
+import NewsPage from './pages/NewsPage';
+import StudentGuide from './pages/StudentGuide';
+import FAQPage from './pages/FAQPage';
+import {
+  ForgotPasswordPage,
+  LoginPage,
+  RegisterPage,
+  UpdatePasswordPage,
+} from './pages/AuthPages';
+import StudentDashboard from './pages/StudentDashboard';
+import AdminDashboard from './pages/AdminDashboard';
+import BoardPage from './pages/BoardPage';
+import CommitteePage from './pages/CommitteePage';
+import { canExposeAdminUi } from './domain/liveIdentityRouting';
+import { pushDestinationFromUrl } from './domain/webPushClient';
+
+function Router() {
+  const {
+    view,
+    currentUser,
+    setView,
+    updateSiteField,
+    updateSiteFields,
+    updateAboutField,
+    updateAboutFields,
+    authInitializing,
+    identityRefreshing,
+    realtimeWarning,
+  } = useApp();
+
+  const isAuthPage = ['login', 'register', 'forgot-password', 'update-password'].includes(view.kind);
+  const isDashboard = view.kind === 'admin' || view.kind === 'student-dashboard';
+
+  useEffect(() => {
+    const currentUrl = new URL(window.location.href);
+    if (currentUrl.searchParams.get('auth') === 'recovery') {
+      setView({ kind: 'update-password' });
+      return;
+    }
+
+    const destination = pushDestinationFromUrl(window.location.href);
+    if (!destination) return;
+    setView({ kind: destination });
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.searchParams.delete('push');
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`,
+    );
+  }, [setView]);
+
+  // Guard admin route: only president / committee-head may view it
+  useEffect(() => {
+    if (!authInitializing && !identityRefreshing && view.kind === 'admin'
+      && !canExposeAdminUi(currentUser?.role, false, false)) {
+      setView(currentUser?.role === 'STUDENT' ? { kind: 'student-dashboard' } : { kind: 'home' });
+    }
+  }, [view, currentUser?.role, setView, authInitializing, identityRefreshing]);
+
+  const adminAllowed = canExposeAdminUi(
+    currentUser?.role,
+    authInitializing,
+    identityRefreshing,
+  );
+
+  return (
+    <InlineEditProvider value={{ updateSiteField, updateSiteFields, updateAboutField, updateAboutFields }}>
+      <div className="flex min-h-screen flex-col">
+        <Navbar />
+        {realtimeWarning && (
+          <div role="status" className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm font-semibold text-amber-900">
+            {realtimeWarning}
+          </div>
+        )}
+        <main className="flex-1">
+          <ErrorBoundary>
+          {(authInitializing || identityRefreshing) && isDashboard ? (
+            <div className="flex min-h-[50vh] items-center justify-center text-sm text-gray-500">
+              جارٍ التحقق من جلسة الحساب...
+            </div>
+          ) : (
+          <>
+          {view.kind === 'home' && <HomePage />}
+          {view.kind === 'about' && <AboutPage />}
+          {view.kind === 'programs' && <ProgramsPage />}
+          {view.kind === 'contact' && <ContactPage />}
+          {view.kind === 'gallery' && <MediaGallery />}
+          {view.kind === 'news' && <NewsPage />}
+          {view.kind === 'guide' && <StudentGuide />}
+          {view.kind === 'faq' && <FAQPage />}
+          {view.kind === 'login' && <LoginPage />}
+          {view.kind === 'register' && <RegisterPage />}
+          {view.kind === 'forgot-password' && <ForgotPasswordPage />}
+          {view.kind === 'update-password' && <UpdatePasswordPage />}
+          {view.kind === 'student-dashboard' && <StudentDashboard />}
+          {adminAllowed && view.kind === 'admin' && <AdminDashboard />}
+          {view.kind === 'board' && <BoardPage />}
+          {view.kind === 'committee' && <CommitteePage committeeId={view.committeeId} />}
+          </>
+          )}
+        </ErrorBoundary>
+      </main>
+      {!isAuthPage && !isDashboard && <Footer />}
+    </div>
+    </InlineEditProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <AppProvider>
+      <DynamicFavicon />
+      <Router />
+    </AppProvider>
+  );
+}
