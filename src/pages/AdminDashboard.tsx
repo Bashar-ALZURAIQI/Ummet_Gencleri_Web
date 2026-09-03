@@ -70,19 +70,6 @@ export default function AdminDashboard() {
     authInitializing, identityRefreshing,
   } = useApp();
 
-
-  const committeeLabel: Record<string, string> = {
-    presidency: 'رئاسة الاتحاد',
-    'vice-presidency': 'نائب الرئيس',
-    media: 'اللجنة الإعلامية',
-    academic: 'اللجنة الأكاديمية',
-    supervisory: 'اللجنة الرقابية',
-    activities: 'لجنة الأنشطة',
-    finance: 'اللجنة المالية',
-  };
-
-  const roleLabel = currentUser ? ROLE_LABEL[currentUser.role] : 'عضو الهيئة';
-
   const tabs: { id: AdminTab; label: string; icon: typeof BarChart3; show: boolean }[] = [
     { id: 'stats', label: 'الإحصائيات', icon: BarChart3, show: !!currentUser && isLeadershipRole(currentUser.role) },
     { id: 'board', label: 'الهيئة التنفيذية', icon: Crown, show: canEditSection('board') },
@@ -116,49 +103,14 @@ export default function AdminDashboard() {
   }, [authInitializing, identityRefreshing, tab, visibleTabs]);
 
   return (
-    <div className="min-h-screen bg-gray-50 pt-16 lg:pt-20">
-      <div className="container-app py-8">
-        {/* Header */}
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gold-600">
-              <LayoutDashboard className="h-4 w-4" />
-              لوحة الإدارة
-            </div>
-            <h1 className="mt-1 text-2xl font-extrabold text-navy-900 lg:text-3xl">لوحة تحكم الإدارة</h1>
-            <p className="mt-1 text-sm text-gray-500">إدارة الفعاليات والأعضاء والخطط والتقارير.</p>
-          </div>
-          <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm">
-            <UserAvatar
-              name={currentUser?.name}
-              photo={currentUser?.photo}
-              avatarPath={currentUser?.avatarPath}
-              updatedAt={currentUser?.updatedAt}
-              className="h-8 w-8"
-              fallbackClassName="bg-navy-800 text-xs text-white"
-            />
-            <div>
-              <div className="font-bold text-navy-900">{currentUser?.name || 'مدير الاتحاد'}</div>
-              <div className="text-xs text-gray-400">{roleLabel} · {currentUser?.email || '—'}</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Permission info for committee heads */}
-        {currentUser && isLeadershipRole(currentUser.role) && (
-          <div className="mb-4 flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-2.5 text-sm text-sky-800">
-            <Info className="h-4 w-4" />
-            <span className="font-semibold">صلاحياتك:</span>
-            <span>{currentUser.committee ? `يمكنك التعديل والإضافة في الأقسام المخصصة لـ ${committeeLabel[currentUser.committee] ?? currentUser.committee} فقط.` : 'يمكنك إدارة الاتحاد بالكامل.'}</span>
-          </div>
-        )}
-
-        <SidebarLayout
-          items={visibleTabs}
-          activeId={tab}
-          onSelect={setTab}
-          title="أقسام الإدارة"
-        >
+    <div className="h-screen overflow-hidden bg-gray-50 pt-16 lg:pt-20">
+      <SidebarLayout
+        items={visibleTabs}
+        activeId={tab}
+        onSelect={setTab}
+        title="أقسام الإدارة"
+      >
+        <div className="container-app py-8">
           {tab === 'stats' && <StatsTab events={events} students={students} suggestions={getVisibleSuggestions()} contactMessages={contactMessages} applications={applications} currentUser={currentUser} respondToSuggestion={respondToSuggestion} canRespondToSuggestion={canRespondToSuggestion} />}
           {tab === 'board' && canEditSection('board') && <BoardTab committees={committees} setCommittees={setCommittees} students={students} currentUser={currentUser} updateBoardHead={updateBoardHead} setMembers={setMembers} />}
           {tab === 'pending-edits' && currentUser?.role === 'PRESIDENT' && (
@@ -204,8 +156,8 @@ export default function AdminDashboard() {
           {tab === 'task-management' && canManageTasks(currentUser?.role) && <TaskManagementDashboard />}
           {tab === 'member-points' && currentUser && canManageMemberPoints(currentUser.role) && <MemberPointsAdminPanel role={currentUser.role} />}
           {tab === 'profile' && currentUser && isLeadershipRole(currentUser.role) && <ProfileTab currentUser={currentUser} />}
-        </SidebarLayout>
-      </div>
+        </div>
+      </SidebarLayout>
     </div>
   );
 }
@@ -413,8 +365,54 @@ function StatsTab({ events, students, suggestions, contactMessages, applications
     }
   };
 
+  const roleLabel = currentUser ? ROLE_LABEL[currentUser.role] : 'عضو الهيئة';
+  const committeeLabel: Record<string, string> = {
+    presidency: 'رئاسة الاتحاد',
+    'vice-presidency': 'نائب الرئيس',
+    media: 'اللجنة الإعلامية',
+    academic: 'اللجنة الأكاديمية',
+    supervisory: 'اللجنة الرقابية',
+    activities: 'لجنة الأنشطة',
+    finance: 'اللجنة المالية',
+  };
+
   return (
     <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gold-600">
+            <LayoutDashboard className="h-4 w-4" />
+            لوحة الإدارة
+          </div>
+          <h1 className="mt-1 text-2xl font-extrabold text-navy-900 lg:text-3xl">لوحة تحكم الإدارة</h1>
+          <p className="mt-1 text-sm text-gray-500">إدارة الفعاليات والأعضاء والخطط والتقارير.</p>
+        </div>
+        <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm">
+          <UserAvatar
+            name={currentUser?.name}
+            photo={currentUser?.photo}
+            avatarPath={currentUser?.avatarPath}
+            updatedAt={currentUser?.updatedAt}
+            className="h-8 w-8"
+            fallbackClassName="bg-navy-800 text-xs text-white"
+          />
+          <div>
+            <div className="font-bold text-navy-900">{currentUser?.name || 'مدير الاتحاد'}</div>
+            <div className="text-xs text-gray-400">{roleLabel} · {currentUser?.email || '—'}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Permission info for committee heads */}
+      {currentUser && isLeadershipRole(currentUser.role) && (
+        <div className="flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-2.5 text-sm text-sky-800">
+          <Info className="h-4 w-4" />
+          <span className="font-semibold">صلاحياتك:</span>
+          <span>{currentUser.committee ? `يمكنك التعديل والإضافة في الأقسام المخصصة لـ ${committeeLabel[currentUser.committee] ?? currentUser.committee} فقط.` : 'يمكنك إدارة الاتحاد بالكامل.'}</span>
+        </div>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
           { icon: Users, label: 'إجمالي الطلاب', value: students.length, color: 'bg-navy-800' },
