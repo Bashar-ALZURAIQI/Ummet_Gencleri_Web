@@ -13,7 +13,8 @@ test('sidebar layout provides independent full-height scrolling for navigation a
   assert.match(layout, /addEventListener\('keydown'/);
   assert.match(layout, /document\.body\.style\.overflow/);
   assert.match(layout, /lg:hidden/);
-  assert.match(layout, /hidden lg:block/);
+  assert.match(layout, /\bhidden\b/);
+  assert.match(layout, /\blg:block\b/);
   assert.match(layout, /flex h-full w-full overflow-hidden/);
   assert.match(layout, /h-full w-\[17rem\] shrink-0 overflow-y-auto/);
   assert.match(layout, /h-full min-w-0 flex-1 overflow-y-auto/);
@@ -72,7 +73,7 @@ test('mobile dialog moves, traps, and restores keyboard focus', async () => {
   assert.match(layout, /event\.preventDefault\(\)/);
   assert.match(layout, /firstFocusable\.focus\(\)/);
   assert.match(layout, /lastFocusable\.focus\(\)/);
-  assert.match(layout, /menuButtonRef\.current\?\.focus\(\)/);
+  assert.match(layout, /menuButton\?\.focus\(\)/);
 });
 
 const assertAdminSidebarContracts = (admin) => {

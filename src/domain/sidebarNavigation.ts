@@ -6,7 +6,7 @@ export const toggleSidebar = (state: SidebarDrawerState): SidebarDrawerState => 
   open: !state.open,
 });
 
-export const closeSidebar = (_state?: SidebarDrawerState): SidebarDrawerState => ({
+export const closeSidebar = (): SidebarDrawerState => ({
   open: false,
 });
 

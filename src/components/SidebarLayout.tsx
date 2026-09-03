@@ -52,6 +52,7 @@ export function SidebarLayout<TId extends string>({
   useEffect(() => {
     if (!drawer.open) return;
 
+    const menuButton = menuButtonRef.current;
     const previousOverflow = document.body.style.overflow;
     const getFocusableElements = () =>
       Array.from(drawerRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR) ?? []);
@@ -93,7 +94,7 @@ export function SidebarLayout<TId extends string>({
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = previousOverflow;
-      menuButtonRef.current?.focus();
+      menuButton?.focus();
     };
   }, [drawer.open]);
 

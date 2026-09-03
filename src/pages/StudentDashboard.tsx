@@ -148,9 +148,16 @@ export default function StudentDashboard() {
   };
 
   return (
-    <div className="animate-fade-in bg-gray-50 pt-16 lg:pt-20">
-      {/* Header */}
-      <div className="bg-gradient-to-l from-navy-800 to-navy-950">
+    <div className="h-screen overflow-hidden bg-gray-50 pt-16 lg:pt-20">
+      <SidebarLayout<StudentPortalTabId>
+        items={studentTabs}
+        activeId={tab}
+        onSelect={setTab}
+        title="أقسام الطالب"
+      >
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="bg-gradient-to-l from-navy-800 to-navy-950">
         <div className="container-app py-10">
           <div className="flex flex-col items-start gap-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">
@@ -209,7 +216,7 @@ export default function StudentDashboard() {
         </div>
       </div>
 
-      <div className="container-app py-10">
+      <div className="container-app pb-10">
         {/* Application status banner */}
         {myApplication && currentUser && (
           <ApplicationBanner
@@ -221,12 +228,6 @@ export default function StudentDashboard() {
 
         {isAccepted && <PushNotificationControl />}
 
-        <SidebarLayout<StudentPortalTabId>
-          items={studentTabs}
-          activeId={tab}
-          onSelect={setTab}
-          title="أقسام الطالب"
-        >
         {tab === 'activities' ? (
           <div>
             {/* Profile card */}
@@ -413,8 +414,9 @@ export default function StudentDashboard() {
         ) : tab === 'application' && myApplication ? (
           <ApplicationDetails application={myApplication} isAccepted={isAccepted} />
         ) : null}
-        </SidebarLayout>
-      </div>
+          </div>
+        </div>
+      </SidebarLayout>
 
       <Modal open={editOpen} onClose={() => setEditOpen(false)} title="تعديل الملف الشخصي" maxWidth="max-w-4xl">
         {currentUser && (
