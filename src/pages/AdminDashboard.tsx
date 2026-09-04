@@ -7,6 +7,7 @@ import {
   Images, Camera, Film, MapPin,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { useTranslation } from 'react-i18next';
 import Modal from '../components/Modal';
 import ProfileEditsPanel from '../components/ProfileEditsPanel';
 import SiteEditsPanel from '../components/SiteEditsPanel';
@@ -53,6 +54,7 @@ import {
 type AdminTab = 'stats' | 'board' | 'pending-edits' | 'site-pending' | 'branding' | 'history' | 'events' | 'gallery' | 'news' | 'members' | 'applications' | 'inbox' | 'plans' | 'suggestions' | 'guide-suggestions' | 'excuses' | 'oversight' | 'task-management' | 'member-points' | 'profile';
 
 export default function AdminDashboard() {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<AdminTab>('stats');
   const {
     events, students, plans, setPlans, reports, contactMessages,
@@ -94,7 +96,35 @@ export default function AdminDashboard() {
     { id: 'profile', label: 'الملف الشخصي', icon: User, show: !!currentUser && isLeadershipRole(currentUser.role) },
   ];
 
-  const visibleTabs = tabs.filter((t) => t.show);
+  const adminTabLabels: Record<AdminTab, string> = {
+    stats: t('admin.tabs.stats', 'الإحصائيات'),
+    board: t('admin.tabs.board', 'الهيئة التنفيذية'),
+    'pending-edits': t('admin.tabs.pendingEdits', 'طلبات تعديل الهيئة'),
+    'site-pending': t('admin.tabs.sitePending', 'مراجعة تعديلات الموقع'),
+    branding: t('admin.tabs.branding', 'هوية المنصة'),
+    history: t('admin.tabs.history', 'سجل التعديلات والقرارات'),
+    events: t('admin.tabs.events', 'إدارة الفعاليات والبرامج'),
+    gallery: t('admin.tabs.gallery', 'إدارة معرض الصور'),
+    news: t('admin.tabs.news', 'إدارة الأخبار'),
+    members: t('admin.tabs.members', 'إدارة الأعضاء'),
+    applications: t('admin.tabs.applications', 'طلبات الانضمام'),
+    inbox: t('admin.tabs.inbox', 'رسائل الزوار / البريد الوارد'),
+    plans: t('admin.tabs.plans', 'الخطط والتقارير'),
+    suggestions: t('admin.tabs.suggestions', 'الاقتراحات والشكاوى'),
+    'guide-suggestions': t('admin.tabs.guideSuggestions', 'اقتراحات الدليل'),
+    excuses: t('admin.tabs.excuses', 'إدارة الأعذار'),
+    oversight: t('admin.tabs.oversight', 'الرقابة والتحضير'),
+    'task-management': t('admin.tabs.taskManagement', 'إدارة المهام'),
+    'member-points': t('admin.tabs.memberPoints', 'نقاط الأعضاء'),
+    profile: t('admin.tabs.profile', 'الملف الشخصي'),
+  };
+
+  const visibleTabs = tabs
+    .filter((t) => t.show)
+    .map((tabItem) => ({
+      ...tabItem,
+      label: adminTabLabels[tabItem.id] ?? tabItem.label,
+    }));
 
   useEffect(() => {
     if (authInitializing || identityRefreshing) return;
@@ -109,7 +139,7 @@ export default function AdminDashboard() {
         items={visibleTabs}
         activeId={tab}
         onSelect={setTab}
-        title="أقسام الإدارة"
+        title={t('admin.sidebarTitle', 'أقسام الإدارة')}
       >
         <div className="container-app py-8">
           {tab === 'stats' && <StatsTab events={events} students={students} suggestions={getVisibleSuggestions()} contactMessages={contactMessages} applications={applications} currentUser={currentUser} respondToSuggestion={respondToSuggestion} canRespondToSuggestion={canRespondToSuggestion} />}
@@ -300,6 +330,7 @@ function StatsTab({ events, students, suggestions, contactMessages, applications
   respondToSuggestion: ReturnType<typeof useApp>['respondToSuggestion'];
   canRespondToSuggestion: ReturnType<typeof useApp>['canRespondToSuggestion'];
 }) {
+  const { t } = useTranslation();
   const [replyOpen, setReplyOpen] = useState(false);
   const [activeSuggestion, setActiveSuggestion] = useState<Suggestion | null>(null);
   const [status, setStatus] = useState<SuggestionStatus>('reviewing');
@@ -366,15 +397,22 @@ function StatsTab({ events, students, suggestions, contactMessages, applications
     }
   };
 
-  const roleLabel = currentUser ? ROLE_LABEL[currentUser.role] : 'عضو الهيئة';
+  const roleLabels: Record<string, string> = {
+    PRESIDENT: t('roles.unionPresident', 'رئيس الاتحاد'),
+    VICE_PRESIDENT: t('roles.vicePresident', 'نائب الرئيس'),
+    COMMITTEE_HEAD: t('roles.committeeHead', 'مسؤول لجنة'),
+    STUDENT: t('roles.student', 'طالب'),
+    MEMBER: t('roles.member', 'عضو'),
+  };
+  const roleLabel = currentUser ? (roleLabels[currentUser.role] || ROLE_LABEL[currentUser.role]) : t('admin.boardMemberDefault', 'عضو الهيئة');
   const committeeLabel: Record<string, string> = {
-    presidency: 'رئاسة الاتحاد',
-    'vice-presidency': 'نائب الرئيس',
-    media: 'اللجنة الإعلامية',
-    academic: 'اللجنة الأكاديمية',
-    supervisory: 'اللجنة الرقابية',
-    activities: 'لجنة الأنشطة',
-    finance: 'اللجنة المالية',
+    presidency: t('admin.committees.presidency', 'رئاسة الاتحاد'),
+    'vice-presidency': t('admin.committees.vicePresidency', 'نائب الرئيس'),
+    media: t('admin.committees.media', 'اللجنة الإعلامية'),
+    academic: t('admin.committees.academic', 'اللجنة الأكاديمية'),
+    supervisory: t('admin.committees.supervisory', 'اللجنة الرقابية'),
+    activities: t('admin.committees.activities', 'لجنة الأنشطة'),
+    finance: t('admin.committees.finance', 'اللجنة المالية'),
   };
 
   return (
@@ -384,10 +422,10 @@ function StatsTab({ events, students, suggestions, contactMessages, applications
         <div>
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gold-600">
             <LayoutDashboard className="h-4 w-4" />
-            لوحة الإدارة
+            {t('admin.badge', 'لوحة الإدارة')}
           </div>
-          <h1 className="mt-1 text-2xl font-extrabold text-navy-900 lg:text-3xl">لوحة تحكم الإدارة</h1>
-          <p className="mt-1 text-sm text-gray-500">إدارة الفعاليات والأعضاء والخطط والتقارير.</p>
+          <h1 className="mt-1 text-2xl font-extrabold text-navy-900 lg:text-3xl">{t('admin.title', 'لوحة تحكم الإدارة')}</h1>
+          <p className="mt-1 text-sm text-gray-500">{t('admin.subtitle', 'إدارة الفعاليات والأعضاء والخطط والتقارير.')}</p>
         </div>
         <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm">
           <UserAvatar
@@ -399,7 +437,7 @@ function StatsTab({ events, students, suggestions, contactMessages, applications
             fallbackClassName="bg-navy-800 text-xs text-white"
           />
           <div>
-            <div className="font-bold text-navy-900">{currentUser?.name || 'مدير الاتحاد'}</div>
+            <div className="font-bold text-navy-900">{currentUser?.name || t('admin.defaultAdminName', 'مدير الاتحاد')}</div>
             <div className="text-xs text-gray-400">{roleLabel} · {currentUser?.email || '—'}</div>
           </div>
         </div>
@@ -409,17 +447,17 @@ function StatsTab({ events, students, suggestions, contactMessages, applications
       {currentUser && isLeadershipRole(currentUser.role) && (
         <div className="flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-2.5 text-sm text-sky-800">
           <Info className="h-4 w-4" />
-          <span className="font-semibold">صلاحياتك:</span>
-          <span>{currentUser.committee ? `يمكنك التعديل والإضافة في الأقسام المخصصة لـ ${committeeLabel[currentUser.committee] ?? currentUser.committee} فقط.` : 'يمكنك إدارة الاتحاد بالكامل.'}</span>
+          <span className="font-semibold">{t('admin.permissionsLabel', 'صلاحياتك:')}</span>
+          <span>{currentUser.committee ? t('admin.committeePermissionNotice', 'يمكنك التعديل والإضافة في الأقسام المخصصة لـ {{committee}} فقط.', { committee: committeeLabel[currentUser.committee] ?? currentUser.committee }) : t('admin.fullPermissionNotice', 'يمكنك إدارة الاتحاد بالكامل.')}</span>
         </div>
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          { icon: Users, label: 'إجمالي الطلاب', value: students.length, color: 'bg-navy-800' },
-          { icon: CheckCircle2, label: 'طلاب نشطون', value: activeStudents, color: 'bg-emerald-600' },
-          { icon: CalendarDays, label: 'فعاليات قادمة', value: upcoming, color: 'bg-gold-500' },
-          { icon: Inbox, label: 'طلبات قيد المراجعة', value: pendingApps, color: 'bg-sky-600' },
+          { icon: Users, label: t('admin.stats.totalStudents', 'إجمالي الطلاب'), value: students.length, color: 'bg-navy-800' },
+          { icon: CheckCircle2, label: t('admin.stats.activeStudents', 'طلاب نشطون'), value: activeStudents, color: 'bg-emerald-600' },
+          { icon: CalendarDays, label: t('admin.stats.upcomingEvents', 'فعاليات قادمة'), value: upcoming, color: 'bg-gold-500' },
+          { icon: Inbox, label: t('admin.stats.pendingApplications', 'طلبات قيد المراجعة'), value: pendingApps, color: 'bg-sky-600' },
         ].map((k) => {
           const Icon = k.icon;
           return (
@@ -441,20 +479,20 @@ function StatsTab({ events, students, suggestions, contactMessages, applications
         <div className="card p-6 lg:col-span-2">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="flex items-center gap-2 text-base font-bold text-navy-900">
-              <BarChart3 className="h-5 w-5 text-navy-600" /> نمو التسجيلات والمشاركات (آخر 6 أشهر)
+              <BarChart3 className="h-5 w-5 text-navy-600" /> {t('admin.stats.growthTitle', 'نمو التسجيلات والمشاركات (آخر 6 أشهر)')}
             </h3>
-            <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-700">مباشر</span>
+            <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-700">{t('admin.stats.liveBadge', 'مباشر')}</span>
           </div>
           <LineChart data={monthlyData} height={220} />
         </div>
         <div className="card p-6">
           <h3 className="mb-4 flex items-center gap-2 text-base font-bold text-navy-900">
-            <PieChart className="h-5 w-5 text-navy-600" /> توزيع الفعاليات
+            <PieChart className="h-5 w-5 text-navy-600" /> {t('admin.stats.eventDistribution', 'توزيع الفعاليات')}
           </h3>
           {catData.length > 0 ? (
             <DonutChart data={catData} />
           ) : (
-            <p className="py-8 text-center text-sm text-gray-400">لا فعاليات مضافة بعد.</p>
+            <p className="py-8 text-center text-sm text-gray-400">{t('admin.stats.noEventsYet', 'لا فعاليات مضافة بعد.')}</p>
           )}
         </div>
       </div>
@@ -462,7 +500,7 @@ function StatsTab({ events, students, suggestions, contactMessages, applications
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="card p-6">
           <h3 className="mb-4 flex items-center gap-2 text-base font-bold text-navy-900">
-            <BarChart3 className="h-5 w-5 text-navy-600" /> المشاركة حسب نوع الفعالية
+            <BarChart3 className="h-5 w-5 text-navy-600" /> {t('admin.stats.participationByCategory', 'المشاركة حسب نوع الفعالية')}
           </h3>
           <BarChart
             data={(Object.keys(categoryLabels) as EventCategory[]).map((c) => ({
@@ -475,18 +513,18 @@ function StatsTab({ events, students, suggestions, contactMessages, applications
         </div>
         <div className="card p-6">
           <h3 className="mb-4 flex items-center gap-2 text-base font-bold text-navy-900">
-            <Clock className="h-5 w-5 text-navy-600" /> آخر الاقتراحات والرسائل
+            <Clock className="h-5 w-5 text-navy-600" /> {t('admin.stats.recentSuggestionsAndMessages', 'آخر الاقتراحات والرسائل')}
           </h3>
           <div className="space-y-3">
             {(!suggestions || suggestions.length === 0) && visibleContactMessages.length === 0 ? (
               <div className="py-8 text-center">
                 <Inbox className="mx-auto h-10 w-10 text-gray-300" />
-                <p className="mt-2 text-sm text-gray-400">لا توجد اقتراحات أو رسائل حالية.</p>
+                <p className="mt-2 text-sm text-gray-400">{t('admin.stats.noSuggestionsOrMessages', 'لا توجد اقتراحات أو رسائل حالية.')}</p>
               </div>
             ) : (
               <>
                 {(!suggestions || suggestions.length === 0) ? (
-                  <p className="text-sm text-gray-400">لا توجد اقتراحات حالية.</p>
+                  <p className="text-sm text-gray-400">{t('admin.stats.noSuggestions', 'لا توجد اقتراحات حالية.')}</p>
                 ) : (
                   suggestions.slice(0, 4).map((s) => (
                 <button
@@ -497,9 +535,9 @@ function StatsTab({ events, students, suggestions, contactMessages, applications
                   <UserAvatar name={s?.studentName} className="h-8 w-8" fallbackClassName="bg-navy-50 text-xs text-navy-700" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="truncate text-sm font-bold text-navy-900">{s?.title ?? 'بدون عنوان'}</div>
+                      <div className="truncate text-sm font-bold text-navy-900">{s?.title ?? t('admin.stats.noTitle', 'بدون عنوان')}</div>
                       {s && s.responses.length > 0 && (
-                        <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">تم الرد</span>
+                        <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">{t('status.replied', 'تم الرد')}</span>
                       )}
                     </div>
                     <div className="truncate text-xs text-gray-500">{s?.content ?? ''}</div>
@@ -508,13 +546,13 @@ function StatsTab({ events, students, suggestions, contactMessages, applications
               ))
                 )}
             {visibleContactMessages.length === 0 ? (
-              <p className="text-sm text-gray-400">لا رسائل جديدة.</p>
+              <p className="text-sm text-gray-400">{t('admin.stats.noNewMessages', 'لا رسائل جديدة.')}</p>
             ) : (
               visibleContactMessages.slice(0, 2).map((m) => (
                 <div key={m?.id ?? Math.random()} className="flex items-start gap-3 rounded-xl border border-gray-100 p-3">
                   <Mail className="h-4 w-4 shrink-0 text-navy-500 mt-0.5" />
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-bold text-navy-900">{m?.subject ?? 'بدون موضوع'}</div>
+                    <div className="truncate text-sm font-bold text-navy-900">{m?.subject ?? t('admin.stats.noSubject', 'بدون موضوع')}</div>
                     <div className="truncate text-xs text-gray-500">{m?.senderName ?? ''} - {m?.message ?? ''}</div>
                   </div>
                 </div>
@@ -544,7 +582,7 @@ function StatsTab({ events, students, suggestions, contactMessages, applications
       {toast && (
         <div className="fixed bottom-6 left-1/2 z-[200] -translate-x-1/2 animate-slide-up rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-2xl">
           <CheckCircle2 className="ml-2 inline h-4 w-4" />
-          تم إرسال الرد وتحديث حالة الاقتراح
+          {t('admin.stats.replyToast', 'تم إرسال الرد وتحديث حالة الاقتراح')}
         </div>
       )}
     </div>
