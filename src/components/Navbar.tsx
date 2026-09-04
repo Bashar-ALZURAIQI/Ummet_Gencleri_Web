@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Menu, X, ChevronDown, Shield, Home, Info, CalendarDays, Mail,
   LogIn, LogOut, LayoutDashboard, Crown, UserCog, Megaphone, GraduationCap,
@@ -22,18 +23,9 @@ const committeeIcons: Record<CommitteeId, typeof Crown> = {
   finance: Wallet,
 };
 
-const navItems: { label: string; view: View; icon: typeof Home }[] = [
-  { label: 'الرئيسية', view: { kind: 'home' }, icon: Home },
-  { label: 'عن الاتحاد', view: { kind: 'about' }, icon: Info },
-  { label: 'البرامج والأنشطة', view: { kind: 'programs' }, icon: CalendarDays },
-  { label: 'معرض الصور', view: { kind: 'gallery' }, icon: Images },
-  { label: 'آخر الأخبار', view: { kind: 'news' }, icon: Newspaper },
-  { label: 'دليل الطالب', view: { kind: 'guide' }, icon: BookOpen },
-  { label: 'الأسئلة الشائعة', view: { kind: 'faq' }, icon: HelpCircle },
-  { label: 'اتصل بنا', view: { kind: 'contact' }, icon: Mail },
-];
 
 export default function Navbar() {
+  const { t } = useTranslation();
   const {
     view,
     setView,
@@ -51,6 +43,17 @@ export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [boardOpen, setBoardOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+
+  const navItems: { label: string; view: View; icon: typeof Home }[] = [
+    { label: t('navigation.home'), view: { kind: 'home' }, icon: Home },
+    { label: t('navigation.about'), view: { kind: 'about' }, icon: Info },
+    { label: t('navigation.programs'), view: { kind: 'programs' }, icon: CalendarDays },
+    { label: t('navigation.gallery'), view: { kind: 'gallery' }, icon: Images },
+    { label: t('navigation.news'), view: { kind: 'news' }, icon: Newspaper },
+    { label: t('navigation.guide'), view: { kind: 'guide' }, icon: BookOpen },
+    { label: t('navigation.faq'), view: { kind: 'faq' }, icon: HelpCircle },
+    { label: t('navigation.contact'), view: { kind: 'contact' }, icon: Mail },
+  ];
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -79,10 +82,12 @@ export default function Navbar() {
   };
 
   const roleLabel = (role: string, committee?: CommitteeId) => {
-    if (role === 'PRESIDENT') return 'رئيس الاتحاد';
-    if (role === 'VICE_PRESIDENT') return 'نائب الرئيس';
-    if (committee && committeeMeta[committee]) return `مسؤول ${committeeMeta[committee].shortName}`;
-    return 'عضو';
+    if (role === 'PRESIDENT') return t('roles.unionPresident');
+    if (role === 'VICE_PRESIDENT') return t('roles.vicePresident');
+    if (committee && committeeMeta[committee]) {
+      return t('roles.committeeOfficer', { committee: committeeMeta[committee].shortName });
+    }
+    return t('roles.member');
   };
 
   return (
@@ -159,7 +164,7 @@ export default function Navbar() {
               }`}
             >
               <Network className="h-4 w-4" />
-              الهيئة التنفيذية
+              {t('navigation.executiveBoard')}
               <ChevronDown className={`h-4 w-4 transition-transform ${boardOpen ? 'rotate-180' : ''}`} />
             </button>
             {boardOpen && (
@@ -169,7 +174,7 @@ export default function Navbar() {
                   className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-start text-sm font-bold text-navy-900 transition-colors hover:bg-navy-50"
                 >
                   <Network className="h-4 w-4 text-navy-600" />
-                  نظرة عامة على الهيئة
+                  {t('navigation.executiveBoardOverview')}
                 </button>
                 <div className="my-1 h-px bg-gray-100" />
                 {committeeOrder.map((id) => {
@@ -200,7 +205,7 @@ export default function Navbar() {
             }`}
           >
             <LayoutDashboard className="h-4 w-4" />
-            بوابة الطالب
+            {t('dashboard.studentPortal')}
           </button>
         </div>
 
@@ -223,7 +228,7 @@ export default function Navbar() {
                   className="h-7 w-7"
                   fallbackClassName={currentUser.role === 'PRESIDENT' ? 'bg-gold-500 text-xs text-navy-950' : 'bg-navy-700 text-xs text-white'}
                 />
-                {(currentUser.name || '').split(' ')[0] || 'المستخدم'}
+                {(currentUser.name || '').split(' ')[0] || t('common.user')}
                 <ChevronDown className={`h-3.5 w-3.5 transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
               </button>
               {profileOpen && (
@@ -239,7 +244,7 @@ export default function Navbar() {
                         className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-start text-sm font-bold text-navy-900 transition-colors hover:bg-navy-50"
                       >
                         <Shield className="h-4 w-4 text-navy-600" />
-                        لوحة الإدارة
+                        {t('admin.adminDashboard')}
                       </button>
                     )}
                     {currentUser.role === 'STUDENT' && (
@@ -248,7 +253,7 @@ export default function Navbar() {
                         className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-start text-sm font-medium text-gray-700 transition-colors hover:bg-navy-50 hover:text-navy-800"
                       >
                         <LayoutDashboard className="h-4 w-4 text-navy-600" />
-                        بوابة الطالب
+                        {t('dashboard.studentPortal')}
                       </button>
                     )}
                     <button
@@ -256,7 +261,7 @@ export default function Navbar() {
                       className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-start text-sm font-medium text-rose-600 transition-colors hover:bg-rose-50"
                     >
                       <LogOut className="h-4 w-4" />
-                      تسجيل الخروج
+                      {t('auth.logout')}
                     </button>
                   </div>
                 </div>
@@ -268,7 +273,7 @@ export default function Navbar() {
               className="hidden items-center gap-1.5 rounded-xl bg-navy-800 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-navy-900/20 transition-all hover:bg-navy-700 sm:flex"
             >
               <LogIn className="h-4 w-4" />
-              دخول
+              {t('auth.login')}
             </button>
           )}
 
@@ -308,7 +313,7 @@ export default function Navbar() {
               className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold ${isBoardActive ? 'bg-navy-50 text-navy-800' : 'text-gray-700 hover:bg-gray-50'}`}
             >
               <Network className="h-5 w-5" />
-              الهيئة التنفيذية
+              {t('navigation.executiveBoard')}
             </button>
             {committeeOrder.map((id) => {
               const Icon = committeeIcons[id];
@@ -330,7 +335,7 @@ export default function Navbar() {
               className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
             >
               <LayoutDashboard className="h-5 w-5" />
-              بوابة الطالب
+              {t('dashboard.studentPortal')}
             </button>
             {currentUser && adminUiAllowed && (
               <button
@@ -338,7 +343,7 @@ export default function Navbar() {
                 className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-navy-800 hover:bg-navy-50"
               >
                 <Shield className="h-5 w-5" />
-                لوحة الإدارة
+                {t('admin.adminDashboard')}
               </button>
             )}
 
@@ -348,7 +353,7 @@ export default function Navbar() {
                 className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 px-4 py-3 text-sm font-semibold text-red-600"
               >
                 <LogOut className="h-4 w-4" />
-                تسجيل الخروج
+                {t('auth.logout')}
               </button>
             )}
 

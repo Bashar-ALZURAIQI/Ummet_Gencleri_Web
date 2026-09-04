@@ -1,27 +1,29 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Users, Mail, Phone, MapPin, Facebook, Twitter, Instagram, Youtube } from 'lucide-react';
 import { useApp, type View } from '../context/AppContext';
 import { EditableCard } from './InlineEditOverlay';
 import RequiredMark from './RequiredMark';
 import { fieldId } from '../utils/formValidation';
 
-const links: { label: string; view: View }[] = [
-  { label: 'الرئيسية', view: { kind: 'home' } },
-  { label: 'عن الاتحاد', view: { kind: 'about' } },
-  { label: 'البرامج والأنشطة', view: { kind: 'programs' } },
-  { label: 'اتصل بنا', view: { kind: 'contact' } },
-  { label: 'الهيئة التنفيذية', view: { kind: 'board' } },
-  { label: 'بوابة الطالب', view: { kind: 'student-dashboard' } },
-  { label: 'لوحة الإدارة', view: { kind: 'admin' } },
-];
-
 export default function Footer() {
+  const { t } = useTranslation();
   const { setView, siteContent, currentUser, canEditSection } = useApp();
   const sc = siteContent;
   const canEdit = !!currentUser && canEditSection('homepage');
   const [subEmail, setSubEmail] = useState('');
   const [subInvalid, setSubInvalid] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
+
+  const links: { label: string; view: View }[] = [
+    { label: t('navigation.home'), view: { kind: 'home' } },
+    { label: t('navigation.about'), view: { kind: 'about' } },
+    { label: t('navigation.programs'), view: { kind: 'programs' } },
+    { label: t('navigation.contact'), view: { kind: 'contact' } },
+    { label: t('navigation.executiveBoard'), view: { kind: 'board' } },
+    { label: t('dashboard.studentPortal'), view: { kind: 'student-dashboard' } },
+    { label: t('admin.adminDashboard'), view: { kind: 'admin' } },
+  ];
   const go = (v: View) => {
     setView(v);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -36,13 +38,13 @@ export default function Footer() {
     if (!subEmail.trim()) {
       setSubInvalid(true);
       focusSub();
-      alert('يرجى إدخال بريدك الإلكتروني قبل الاشتراك');
+      alert(t('footer.enterEmail'));
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(subEmail)) {
       setSubInvalid(true);
       focusSub();
-      alert('يرجى إدخال بريد إلكتروني صالح');
+      alert(t('footer.enterValidEmail'));
       return;
     }
     setSubInvalid(false);
@@ -87,8 +89,7 @@ export default function Footer() {
               </EditableCard>
             </div>
             <p className="mt-4 text-sm leading-relaxed text-gray-400">
-              اتحاد شبابي يهدف إلى بناء جيل واعٍ، مسؤول، ومنتمٍ لأمته، عبر برامج
-              تثقيفية وتدريبية وتطوعية متنوعة.
+              {t('footer.aboutText')}
             </p>
             <EditableCard
               canEdit={canEdit}
@@ -124,7 +125,7 @@ export default function Footer() {
           {/* Quick links */}
           <div>
             <h4 className="mb-4 text-sm font-bold uppercase tracking-wider text-white">
-              روابط سريعة
+              {t('footer.quickLinks')}
             </h4>
             <ul className="space-y-2.5">
               {links.map((l) => (
@@ -143,7 +144,7 @@ export default function Footer() {
           {/* Contact */}
           <div>
             <h4 className="mb-4 text-sm font-bold uppercase tracking-wider text-white">
-              تواصل معنا
+              {t('footer.contactUs')}
             </h4>
             <ul className="space-y-3 text-sm text-gray-400">
               <EditableCard
@@ -178,17 +179,17 @@ export default function Footer() {
           {/* Newsletter */}
           <div>
             <h4 className="mb-4 text-sm font-bold uppercase tracking-wider text-white">
-              النشرة البريدية
+              {t('footer.newsletter')}
             </h4>
             <p className="text-sm text-gray-400">
-              اشترك لتصلك آخر أخبار وأنشطة الاتحاد.
+              {t('footer.newsletterSubtitle')}
             </p>
             <form
               onSubmit={subscribe}
               className="mt-3 space-y-2"
             >
               <label htmlFor={fieldId('subscribeEmail')} className="block text-xs text-gray-400">
-                بريدك الإلكتروني <RequiredMark />
+                {t('footer.emailLabel')} <RequiredMark />
               </label>
               <div className="flex gap-2">
                 <input
@@ -202,11 +203,11 @@ export default function Footer() {
                   onChange={(e) => { setSubEmail(e.target.value); setSubInvalid(false); }}
                 />
                 <button className="shrink-0 rounded-lg bg-gold-400 px-4 py-2 text-sm font-bold text-navy-950 transition-colors hover:bg-gold-300">
-                  اشترك
+                  {t('footer.subscribeButton')}
                 </button>
               </div>
               {subscribed && (
-                <p className="text-xs font-semibold text-emerald-400">تم الاشتراك بنجاح! شكرًا لك.</p>
+                <p className="text-xs font-semibold text-emerald-400">{t('footer.subscribeSuccess')}</p>
               )}
             </form>
           </div>

@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AppProvider, useApp } from './context/AppContext';
 import Navbar from './components/Navbar';
 import DynamicFavicon from './components/DynamicFavicon';
@@ -27,6 +28,7 @@ import { canExposeAdminUi } from './domain/liveIdentityRouting';
 import { pushDestinationFromUrl } from './domain/webPushClient';
 
 function Router() {
+  const { t } = useTranslation();
   const {
     view,
     currentUser,
@@ -89,7 +91,7 @@ function Router() {
           <ErrorBoundary>
           {(authInitializing || identityRefreshing) && isDashboard ? (
             <div className="flex min-h-[50vh] items-center justify-center text-sm text-gray-500">
-              جارٍ التحقق من جلسة الحساب...
+              {t('auth.checkingSession')}
             </div>
           ) : (
           <>
