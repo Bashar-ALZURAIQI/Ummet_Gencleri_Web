@@ -4,7 +4,7 @@ import {
   Plus, Search, Trash2, Edit3, Mail, GraduationCap, CheckCircle2, Clock, FileText, Target, ChevronLeft, User,
   Video, UserCheck, UserX, CalendarClock, Link2, Inbox, Info, Crown, Save, Image, MessageSquareReply, Send,
   Download, Eye, EyeOff, Lightbulb, MessageCircle, ClipboardCheck, RefreshCw,
-  Images, Camera, Film, MapPin,
+  Images, Camera, Film, MapPin, AlertCircle,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import Modal from '../components/Modal';
@@ -37,6 +37,24 @@ import type {
 import type { ActivityType } from '../domain/internalEconomyTypes.ts';
 import { toDateTimeLocalValue } from '../domain/internalEconomyInteraction.ts';
 import { canCreateExecutiveContent, canManageExcuses, canManageMemberPoints, canManageOversight, canManageTasks } from '../domain/phaseThreeEconomy.ts';
+import {
+  loadAdminDashboardMetrics,
+  type DashboardAnalyticsMetrics,
+} from '../services/dashboardAnalyticsService.ts';
+import {
+  getStatCardNavigation,
+  getStatCardAffordance,
+  type StatCardId,
+} from '../domain/adminStatsNavigation.ts';
+
+type AdminTab = 'stats' | 'board' | 'pending-edits' | 'site-pending' | 'branding' | 'history' | 'events' | 'gallery' | 'news' | 'members' | 'applications' | 'inbox' | 'plans' | 'suggestions' | 'guide-suggestions' | 'excuses' | 'oversight' | 'task-management' | 'member-points' | 'profile';
+import {
+  generateSixMonthBuckets,
+  deriveAuthoritativeMemberGrowthSeries,
+  deriveAuthoritativeEventParticipationSeries,
+  calculateCategoryDistribution,
+  deriveParticipationByCategory,
+} from '../domain/dashboardAnalytics.ts';
 
 import {
   categoryLabels, categoryColors, applicationStatusLabels, applicationStatusColors,
@@ -49,10 +67,12 @@ import {
   type GalleryAlbum, type GalleryCategory, type GalleryMedia,
 } from '../data/mockData';
 
-type AdminTab = 'stats' | 'board' | 'pending-edits' | 'site-pending' | 'branding' | 'history' | 'events' | 'gallery' | 'news' | 'members' | 'applications' | 'inbox' | 'plans' | 'suggestions' | 'guide-suggestions' | 'excuses' | 'oversight' | 'task-management' | 'member-points' | 'profile';
-
 export default function AdminDashboard() {
   const [tab, setTab] = useState<AdminTab>('stats');
+  const [membersInitialFilter, setMembersInitialFilter] = useState<'all' | 'active'>('all');
+  const [analytics, setAnalytics] = useState<DashboardAnalyticsMetrics | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState<string | null>(null);
   const {
     events, students, plans, setPlans, reports, contactMessages,
     contactMessagesLoading, contactMessagesError, markContactMessageRead, replyToContactMessage, retryContactReplyEmail,
@@ -93,6 +113,48 @@ export default function AdminDashboard() {
     { id: 'profile', label: 'الملف الشخصي', icon: User, show: !!currentUser && isLeadershipRole(currentUser.role) },
   ];
 
+  useEffect(() => {
+    if (authInitializing || identityRefreshing) return;
+    if (!currentUser || !isLeadershipRole(currentUser.role)) return;
+
+    let cancelled = false;
+    setAnalyticsLoading(true);
+    setAnalyticsError(null);
+
+    loadAdminDashboardMetrics()
+      .then((result) => {
+        if (cancelled) return;
+        if (result.ok) {
+          setAnalytics(result.data);
+          setAnalyticsError(null);
+        } else {
+          setAnalytics(null);
+          setAnalyticsError('تعذر تحميل الإحصائيات الحية حالياً');
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setAnalytics(null);
+        setAnalyticsError('تعذر تحميل الإحصائيات الحية حالياً');
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setAnalyticsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser, authInitializing, identityRefreshing]);
+
+  const handleCardNavigate = (targetTab: AdminTab, initialFilter?: 'all' | 'active') => {
+    if (targetTab === 'members') {
+      setMembersInitialFilter(initialFilter ?? 'all');
+    }
+    setTab(targetTab);
+  };
+
   const visibleTabs = tabs.filter((t) => t.show);
 
   useEffect(() => {
@@ -107,11 +169,29 @@ export default function AdminDashboard() {
       <SidebarLayout
         items={visibleTabs}
         activeId={tab}
-        onSelect={setTab}
+        onSelect={(nextTab) => {
+          if (nextTab === 'members') {
+            setMembersInitialFilter('all');
+          }
+          setTab(nextTab);
+        }}
         title="أقسام الإدارة"
       >
         <div className="container-app py-8">
-          {tab === 'stats' && <StatsTab events={events} students={students} suggestions={getVisibleSuggestions()} contactMessages={contactMessages} applications={applications} currentUser={currentUser} respondToSuggestion={respondToSuggestion} canRespondToSuggestion={canRespondToSuggestion} />}
+          {tab === 'stats' && (
+            <StatsTab
+              events={events}
+              suggestions={getVisibleSuggestions()}
+              contactMessages={contactMessages}
+              currentUser={currentUser}
+              respondToSuggestion={respondToSuggestion}
+              canRespondToSuggestion={canRespondToSuggestion}
+              analytics={analytics}
+              analyticsLoading={analyticsLoading}
+              analyticsError={analyticsError}
+              onNavigate={handleCardNavigate}
+            />
+          )}
           {tab === 'board' && canEditSection('board') && <BoardTab committees={committees} setCommittees={setCommittees} students={students} currentUser={currentUser} updateBoardHead={updateBoardHead} setMembers={setMembers} />}
           {tab === 'pending-edits' && currentUser?.role === 'PRESIDENT' && (
             <div className="card p-6">
@@ -128,7 +208,16 @@ export default function AdminDashboard() {
           {tab === 'events' && currentUser && isLeadershipRole(currentUser.role) && <EventsTab events={events} currentUser={currentUser} />}
           {tab === 'gallery' && currentUser && isLeadershipRole(currentUser.role) && <GalleryTab galleryAlbums={galleryAlbums} setGalleryAlbums={setGalleryAlbums} galleryCategories={galleryCategories} currentUser={currentUser} />}
           {tab === 'news' && canEditSection('news') && <NewsTab news={news} currentUser={currentUser} submitSiteEdit={submitSiteEdit} />}
-          {tab === 'members' && currentUser?.role === 'PRESIDENT' && <MembersTab members={members} currentUser={currentUser} transferMemberRole={transferMemberRole} getRoleHolder={getRoleHolder} removeMember={removeMember} />}
+          {tab === 'members' && currentUser?.role === 'PRESIDENT' && (
+            <MembersTab
+              members={members}
+              currentUser={currentUser}
+              transferMemberRole={transferMemberRole}
+              getRoleHolder={getRoleHolder}
+              removeMember={removeMember}
+              initialStatusFilter={membersInitialFilter}
+            />
+          )}
           {tab === 'applications' && (
             <ApplicationsTab
               applications={applications}
@@ -290,14 +379,28 @@ function ContactInboxTab({ messages, loading, error, markRead, reply, retryEmail
 }
 
 /* ---------------- Stats Tab ---------------- */
-function StatsTab({ events, students, suggestions, contactMessages, applications, currentUser, respondToSuggestion, canRespondToSuggestion }: {
-  events: UEvent[]; students: ReturnType<typeof useApp>['students'];
+function StatsTab({
+  events,
+  suggestions,
+  contactMessages,
+  currentUser,
+  respondToSuggestion,
+  canRespondToSuggestion,
+  analytics,
+  analyticsLoading,
+  analyticsError,
+  onNavigate,
+}: {
+  events: UEvent[];
   suggestions: ReturnType<typeof useApp>['suggestions'];
   contactMessages: ReturnType<typeof useApp>['contactMessages'];
-  applications: StudentApplication[];
   currentUser: ReturnType<typeof useApp>['currentUser'];
   respondToSuggestion: ReturnType<typeof useApp>['respondToSuggestion'];
   canRespondToSuggestion: ReturnType<typeof useApp>['canRespondToSuggestion'];
+  analytics: DashboardAnalyticsMetrics | null;
+  analyticsLoading: boolean;
+  analyticsError: string | null;
+  onNavigate: (targetTab: AdminTab, initialFilter?: 'all' | 'active') => void;
 }) {
   const [replyOpen, setReplyOpen] = useState(false);
   const [activeSuggestion, setActiveSuggestion] = useState<Suggestion | null>(null);
@@ -306,45 +409,88 @@ function StatsTab({ events, students, suggestions, contactMessages, applications
   const [toast, setToast] = useState(false);
   const [invalid, setInvalid] = useState<string[]>([]);
 
-  const activeStudents = students.filter((s) => s.status === 'active').length;
-  const upcoming = events.filter((e) => e.status === 'upcoming').length;
-  const pendingApps = applications.filter((a) => a.status === 'pending' || a.status === 'interview').length;
+  const upcomingEventsCount = useMemo(
+    () => events.filter((e) => e.status === 'upcoming').length,
+    [events]
+  );
+
+  const formatStatValue = (val: number | undefined | null, isLoading: boolean, hasError: boolean) => {
+    if (isLoading) return '...';
+    if (hasError || val == null) return '—';
+    return val.toLocaleString('ar-EG');
+  };
+
+  const statCards: {
+    id: StatCardId;
+    icon: typeof Users;
+    label: string;
+    value: string;
+    color: string;
+  }[] = [
+    {
+      id: 'totalStudents',
+      icon: Users,
+      label: 'إجمالي الطلاب',
+      value: formatStatValue(analytics?.totalMembersCount, analyticsLoading, !!analyticsError),
+      color: 'bg-navy-800',
+    },
+    {
+      id: 'activeStudents',
+      icon: CheckCircle2,
+      label: 'طلاب نشطون',
+      value: formatStatValue(analytics?.activeMembersCount, analyticsLoading, !!analyticsError),
+      color: 'bg-emerald-600',
+    },
+    {
+      id: 'upcomingEvents',
+      icon: CalendarDays,
+      label: 'فعاليات قادمة',
+      value: upcomingEventsCount.toLocaleString('ar-EG'),
+      color: 'bg-gold-500',
+    },
+    {
+      id: 'pendingApplications',
+      icon: Inbox,
+      label: 'طلبات قيد المراجعة',
+      value: formatStatValue(analytics?.pendingApplicationsCount, analyticsLoading, !!analyticsError),
+      color: 'bg-sky-600',
+    },
+  ];
+
   const visibleContactMessages = canAccessContactInbox(currentUser?.role)
     ? contactMessages
     : [];
 
-  const catColors: Record<EventCategory, string> = {
-    workshop: '#1e3454', lecture: '#d49a24', volunteer: '#10b981',
-    training: '#0ea5e9', trip: '#f43f5e', entertainment: '#8b5cf6', visit: '#ec4899',
-  };
-  const catData = (Object.keys(categoryLabels) as EventCategory[]).map((c) => ({
-    label: categoryLabels[c],
-    value: events.filter((e) => e.category === c).length,
-    color: catColors[c],
-  })).filter((d) => d.value > 0);
+  const buckets = useMemo(() => generateSixMonthBuckets(), []);
 
-  const monthlyData = useMemo(() => {
-    const months = [
-      { key: 0, label: 'ينا' }, { key: 1, label: 'فبر' }, { key: 2, label: 'مار' },
-      { key: 3, label: 'أبر' }, { key: 4, label: 'ماي' }, { key: 5, label: 'يون' },
-      { key: 6, label: 'يول' }, { key: 7, label: 'أغس' }, { key: 8, label: 'سبت' },
-      { key: 9, label: 'أكت' }, { key: 10, label: 'نوف' }, { key: 11, label: 'ديس' },
-    ];
-    const now = new Date();
-    const curMonth = now.getMonth();
-    const last6 = [4, 5, 6, 7, 8, 9].map((back) => (curMonth - back + 12) % 12);
-    return last6.reverse().map((m) => {
-      const monthLabel = months[m].label;
-      const joiners = students.filter((s) => {
-        const d = new Date(s.joinedAt);
-        return d.getMonth() === m && d.getFullYear() === now.getFullYear();
-      }).length;
-      const registrants = events
-        .filter((e) => { const d = new Date(e.date); return d.getMonth() === m && d.getFullYear() === now.getFullYear(); })
-        .reduce((sum, e) => sum + e.registered, 0);
-      return { label: monthLabel, value: joiners + registrants };
-    });
-  }, [students, events]);
+  const memberGrowthSeriesData = useMemo(() => {
+    return deriveAuthoritativeMemberGrowthSeries(analytics, buckets);
+  }, [analytics, buckets]);
+
+  const eventParticipationSeriesData = useMemo(() => {
+    return deriveAuthoritativeEventParticipationSeries(analytics, buckets);
+  }, [analytics, buckets]);
+
+  const lineChartSeries = useMemo(() => [
+    {
+      label: 'نمو الأعضاء المقبولين',
+      color: '#1e3454',
+      data: memberGrowthSeriesData,
+    },
+    {
+      label: 'تسجيلات الفعاليات',
+      color: '#d49a24',
+      data: eventParticipationSeriesData,
+    },
+  ], [memberGrowthSeriesData, eventParticipationSeriesData]);
+
+  const catData = useMemo(() => {
+    return calculateCategoryDistribution(events);
+  }, [events]);
+
+  const participationData = useMemo(() => {
+    return deriveParticipationByCategory(events, analytics);
+  }, [events, analytics]);
 
   const openSuggestion = (s: Suggestion) => {
     setActiveSuggestion(s);
@@ -413,23 +559,47 @@ function StatsTab({ events, students, suggestions, contactMessages, applications
         </div>
       )}
 
+      {/* Unobtrusive live analytics error banner */}
+      {analyticsError && (
+        <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>{analyticsError}</span>
+        </div>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {[
-          { icon: Users, label: 'إجمالي الطلاب', value: students.length, color: 'bg-navy-800' },
-          { icon: CheckCircle2, label: 'طلاب نشطون', value: activeStudents, color: 'bg-emerald-600' },
-          { icon: CalendarDays, label: 'فعاليات قادمة', value: upcoming, color: 'bg-gold-500' },
-          { icon: Inbox, label: 'طلبات قيد المراجعة', value: pendingApps, color: 'bg-sky-600' },
-        ].map((k) => {
+        {statCards.map((k) => {
           const Icon = k.icon;
+          const nav = getStatCardNavigation(k.id, currentUser?.role);
+          const affordance = getStatCardAffordance(nav);
+
           return (
-            <div key={k.label} className="card p-5">
+            <div
+              key={k.id}
+              onClick={() => {
+                if (nav.canNavigate && nav.targetTab) {
+                  onNavigate(nav.targetTab, nav.initialFilter);
+                }
+              }}
+              className={`card p-5 ${affordance.cursorClass}`}
+              role={affordance.isClickable ? 'button' : undefined}
+              tabIndex={affordance.isClickable ? 0 : undefined}
+              onKeyDown={(e) => {
+                if (affordance.isClickable && nav.targetTab && (e.key === 'Enter' || e.key === ' ')) {
+                  e.preventDefault();
+                  onNavigate(nav.targetTab, nav.initialFilter);
+                }
+              }}
+            >
               <div className="flex items-center justify-between">
                 <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${k.color} text-white`}>
                   <Icon className="h-5 w-5" />
                 </div>
-                <ChevronLeft className="h-5 w-5 text-gray-300" />
+                {affordance.showChevron && (
+                  <ChevronLeft className="h-5 w-5 text-gray-400" />
+                )}
               </div>
-              <div className="mt-4 text-3xl font-extrabold text-navy-900">{k.value.toLocaleString('ar-EG')}</div>
+              <div className="mt-4 text-3xl font-extrabold text-navy-900">{k.value}</div>
               <div className="text-sm text-gray-500">{k.label}</div>
             </div>
           );
@@ -440,11 +610,11 @@ function StatsTab({ events, students, suggestions, contactMessages, applications
         <div className="card p-6 lg:col-span-2">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="flex items-center gap-2 text-base font-bold text-navy-900">
-              <BarChart3 className="h-5 w-5 text-navy-600" /> نمو التسجيلات والمشاركات (آخر 6 أشهر)
+              <BarChart3 className="h-5 w-5 text-navy-600" /> نمو الأعضاء والتسجيلات (آخر 6 أشهر)
             </h3>
             <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-700">مباشر</span>
           </div>
-          <LineChart data={monthlyData} height={220} />
+          <LineChart series={lineChartSeries} height={220} />
         </div>
         <div className="card p-6">
           <h3 className="mb-4 flex items-center gap-2 text-base font-bold text-navy-900">
@@ -464,11 +634,7 @@ function StatsTab({ events, students, suggestions, contactMessages, applications
             <BarChart3 className="h-5 w-5 text-navy-600" /> المشاركة حسب نوع الفعالية
           </h3>
           <BarChart
-            data={(Object.keys(categoryLabels) as EventCategory[]).map((c) => ({
-              label: categoryLabels[c],
-              value: events.filter((e) => e.category === c).reduce((s, e) => s + e.registered, 0),
-              color: catColors[c],
-            }))}
+            data={participationData}
             height={200}
           />
         </div>
@@ -2209,14 +2375,23 @@ function NewsTab({ news, currentUser, submitSiteEdit }: {
 }
 
 /* ---------------- Members Tab ---------------- */
-function MembersTab({ members, currentUser, transferMemberRole, getRoleHolder, removeMember }: {
+function MembersTab({
+  members,
+  currentUser,
+  transferMemberRole,
+  getRoleHolder,
+  removeMember,
+  initialStatusFilter = 'all',
+}: {
   members: ReturnType<typeof useApp>['members'];
   currentUser: ReturnType<typeof useApp>['currentUser'];
   transferMemberRole: ReturnType<typeof useApp>['transferMemberRole'];
   getRoleHolder: ReturnType<typeof useApp>['getRoleHolder'];
   removeMember: ReturnType<typeof useApp>['removeMember'];
+  initialStatusFilter?: 'all' | 'active';
 }) {
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active'>(initialStatusFilter);
   const [roleModal, setRoleModal] = useState<ReturnType<typeof useApp>['members'][0] | null>(null);
   const [removeCandidate, setRemoveCandidate] = useState<ReturnType<typeof useApp>['members'][0] | null>(null);
   const [roleForm, setRoleForm] = useState<Exclude<UserRole, 'STUDENT'> | ''>('');
@@ -2227,8 +2402,16 @@ function MembersTab({ members, currentUser, transferMemberRole, getRoleHolder, r
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ kind: 'success' | 'warning' | 'error'; text: string } | null>(null);
 
-  const filtered = members.filter((member) =>
-    member.name.includes(search) || member.email.toLowerCase().includes(search.toLowerCase()));
+  useEffect(() => {
+    setStatusFilter(initialStatusFilter);
+  }, [initialStatusFilter]);
+
+  const filtered = members.filter((member) => {
+    const matchesSearch =
+      member.name.includes(search) || member.email.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || member.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   const openRoleModal = (member: ReturnType<typeof useApp>['members'][0]) => {
     setRoleModal(member);
@@ -2316,12 +2499,36 @@ function MembersTab({ members, currentUser, transferMemberRole, getRoleHolder, r
               : 'border-rose-200 bg-rose-50 text-rose-800'
         }`}>{feedback.text}</div>
       )}
-      <div className="mb-4 flex items-center justify-between gap-4">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative max-w-sm flex-1">
           <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input type="text" value={search} onChange={(event) => setSearch(event.target.value)} className="input-field pr-10" placeholder="ابحث بالاسم أو بريد الدخول..." />
         </div>
-        <span className="text-sm text-gray-500">{members.length} حساب مرتبط</span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setStatusFilter('all')}
+            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+              statusFilter === 'all'
+                ? 'bg-navy-800 text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            الكل ({members.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('active')}
+            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+              statusFilter === 'active'
+                ? 'bg-emerald-600 text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            النشطون ({members.filter((m) => m.status === 'active').length})
+          </button>
+          <span className="text-sm text-gray-500 mr-2">{filtered.length} حساب معروض</span>
+        </div>
       </div>
 
       <div className="card overflow-hidden">

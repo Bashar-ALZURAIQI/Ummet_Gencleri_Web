@@ -90,53 +90,117 @@ export function DonutChart({
   );
 }
 
+export interface ChartSeries {
+  label: string;
+  color: string;
+  data: { label: string; value: number }[];
+}
+
+export interface LineChartProps {
+  data?: { label: string; value: number }[];
+  series?: ChartSeries[];
+  height?: number;
+}
+
 export function LineChart({
   data,
+  series,
   height = 200,
-}: {
-  data: { label: string; value: number }[];
-  height?: number;
-}) {
-  const max = Math.max(...data.map((d) => d.value), 1);
-  const min = Math.min(...data.map((d) => d.value), 0);
-  const range = max - min || 1;
-  const w = 100;
-  const points = data
-    .map((d, i) => {
-      const x = (i / (data.length - 1)) * w;
-      const y = 100 - ((d.value - min) / range) * 90 - 5;
-      return `${x},${y}`;
-    })
-    .join(' ');
+}: LineChartProps) {
+  const normalizedSeries: ChartSeries[] = useMemo(() => {
+    if (series && series.length > 0) return series;
+    if (data && data.length > 0) {
+      return [{ label: '', color: '#1e3454', data }];
+    }
+    return [];
+  }, [series, data]);
+
+  const xLabels = useMemo(() => {
+    return normalizedSeries[0]?.data.map((d) => d.label) || [];
+  }, [normalizedSeries]);
+
+  const { min, range } = useMemo(() => {
+    const allValues = normalizedSeries.flatMap((s) => s.data.map((d) => d.value));
+    const maxVal = Math.max(...allValues, 1);
+    const minVal = Math.min(...allValues, 0);
+    return {
+      max: maxVal,
+      min: minVal,
+      range: maxVal - minVal || 1,
+    };
+  }, [normalizedSeries]);
+
+  const seriesWithPoints = useMemo(() => {
+    return normalizedSeries.map((s) => {
+      const len = s.data.length;
+      const points = s.data
+        .map((d, i) => {
+          const x = len > 1 ? (i / (len - 1)) * 100 : 50;
+          const y = 100 - ((d.value - min) / range) * 90 - 5;
+          return `${x},${y}`;
+        })
+        .join(' ');
+      return {
+        ...s,
+        points,
+      };
+    });
+  }, [normalizedSeries, min, range]);
+
+  if (normalizedSeries.length === 0) {
+    return (
+      <div className="flex w-full items-center justify-center text-sm text-gray-400" style={{ height }}>
+        لا توجد بيانات متاحة
+      </div>
+    );
+  }
 
   return (
-    <div className="w-full" style={{ height }}>
-      <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-full w-full">
-        <defs>
-          <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#1e3454" stopOpacity="0.25" />
-            <stop offset="100%" stopColor="#1e3454" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <polyline
-          points={`0,100 ${points} 100,100`}
-          fill="url(#lineGrad)"
-          stroke="none"
-        />
-        <polyline
-          points={points}
-          fill="none"
-          stroke="#1e3454"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-      <div className="mt-2 flex justify-between text-[10px] font-medium text-gray-400">
-        {data.map((d, i) => (
-          <span key={i}>{d.label}</span>
-        ))}
+    <div className="w-full">
+      {normalizedSeries.length > 1 && (
+        <div className="mb-3 flex items-center justify-end gap-4 text-xs">
+          {normalizedSeries.map((s, idx) => (
+            <div key={idx} className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
+              <span className="font-medium text-gray-600">{s.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="w-full" style={{ height }}>
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-full w-full">
+          <defs>
+            {normalizedSeries.map((s, idx) => (
+              <linearGradient key={idx} id={`lineGrad-${idx}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={s.color} stopOpacity="0.25" />
+                <stop offset="100%" stopColor={s.color} stopOpacity="0" />
+              </linearGradient>
+            ))}
+          </defs>
+          {seriesWithPoints.map((s, idx) => (
+            <g key={idx}>
+              <polyline
+                points={`0,100 ${s.points} 100,100`}
+                fill={`url(#lineGrad-${idx})`}
+                stroke="none"
+              />
+              <polyline
+                points={s.points}
+                fill="none"
+                stroke={s.color}
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                vectorEffect="non-scaling-stroke"
+              />
+            </g>
+          ))}
+        </svg>
+        <div className="mt-2 flex justify-between text-[10px] font-medium text-gray-400">
+          {xLabels.map((lbl, i) => (
+            <span key={i}>{lbl}</span>
+          ))}
+        </div>
       </div>
     </div>
   );
