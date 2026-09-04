@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CalendarDays, RefreshCw } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import ActivityDecisionControls from './ActivityDecisionControls';
 import Modal from './Modal';
 import RequiredMark from './RequiredMark';
@@ -12,6 +13,7 @@ import {
 } from '../services/internalEconomyService';
 
 export default function StudentActivitiesPanel({ onJoiningCountChange }: { onJoiningCountChange?: (count: number) => void }) {
+  const { t } = useTranslation();
   const [items, setItems] = useState<StudentActivityBoardItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -65,12 +67,12 @@ export default function StudentActivitiesPanel({ onJoiningCountChange }: { onJoi
       return false;
     }
     await load();
-    setToast({ id: Date.now(), type: 'success', text: 'تم تحديث قرار النشاط وحفظه في حسابك.' });
+    setToast({ id: Date.now(), type: 'success', text: t('activities.decisionUpdated', 'تم تحديث قرار النشاط وحفظه في حسابك.') });
     return true;
-  }, [load]);
+  }, [load, t]);
 
   if (loading) {
-    return <div className="flex items-center justify-center gap-2 py-12 text-sm font-semibold text-gray-500"><RefreshCw className="h-4 w-4 animate-spin" /> جارٍ تحميل أنشطتك...</div>;
+    return <div className="flex items-center justify-center gap-2 py-12 text-sm font-semibold text-gray-500"><RefreshCw className="h-4 w-4 animate-spin" /> {t('activities.loading', 'جارٍ تحميل أنشطتك...')}</div>;
   }
 
   return (
@@ -78,13 +80,13 @@ export default function StudentActivitiesPanel({ onJoiningCountChange }: { onJoi
       {error && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
           <p>{error}</p>
-          <button type="button" onClick={() => void load()} className="mt-3 font-bold underline">إعادة المحاولة</button>
+          <button type="button" onClick={() => void load()} className="mt-3 font-bold underline">{t('activities.retry', 'إعادة المحاولة')}</button>
         </div>
       )}
       {!error && decidedItems.length === 0 && (
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <CalendarDays className="h-10 w-10 text-gray-300" />
-          <p className="mt-3 text-sm text-gray-500">لم تتخذ قراراً بشأن أي نشاط بعد.</p>
+          <p className="mt-3 text-sm text-gray-500">{t('activities.noDecided', 'لم تتخذ قراراً بشأن أي نشاط بعد.')}</p>
         </div>
       )}
       {decidedItems.map((item) => (
@@ -111,7 +113,7 @@ export default function StudentActivitiesPanel({ onJoiningCountChange }: { onJoi
         </article>
       ))}
 
-      <Modal open={Boolean(excuseItem)} onClose={() => { if (!busyId) setExcuseItem(null); }} title="تحديث عذر الغياب" maxWidth="max-w-lg">
+      <Modal open={Boolean(excuseItem)} onClose={() => { if (!busyId) setExcuseItem(null); }} title={t('activities.excuseModalTitle', 'تحديث عذر الغياب')} maxWidth="max-w-lg">
         <form onSubmit={async (event) => {
           event.preventDefault();
           if (!excuseItem) return;
@@ -119,12 +121,12 @@ export default function StudentActivitiesPanel({ onJoiningCountChange }: { onJoi
           if (saved) setExcuseItem(null);
         }} className="space-y-4">
           <div>
-            <label className="label-field">عذر الغياب <RequiredMark /></label>
+            <label className="label-field">{t('activities.excuseLabel', 'عذر الغياب')} <RequiredMark /></label>
             <textarea rows={5} maxLength={4000} value={excuseText} onChange={(event) => setExcuseText(event.target.value)} className="input-field resize-none" />
           </div>
           <div className="flex justify-end gap-2">
-            <button type="button" disabled={Boolean(busyId)} onClick={() => setExcuseItem(null)} className="btn-ghost">إلغاء</button>
-            <button type="submit" disabled={Boolean(busyId)} className="btn-primary disabled:opacity-60">{busyId ? 'جارٍ الحفظ...' : 'حفظ العذر'}</button>
+            <button type="button" disabled={Boolean(busyId)} onClick={() => setExcuseItem(null)} className="btn-ghost">{t('common.cancel', 'إلغاء')}</button>
+            <button type="submit" disabled={Boolean(busyId)} className="btn-primary disabled:opacity-60">{busyId ? t('activities.savingExcuse', 'جارٍ الحفظ...') : t('activities.saveExcuse', 'حفظ العذر')}</button>
           </div>
         </form>
       </Modal>
