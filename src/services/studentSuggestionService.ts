@@ -31,3 +31,10 @@ export function respondToStudentSuggestion(
 ): Promise<ServiceResult<{ message: string }>> {
   return gateway.respondToSuggestion(params);
 }
+
+export function subscribeToStudentSuggestionUpdates(
+  onUpdate: () => void,
+  options?: { debounceMs?: number },
+): () => void {
+  return gateway.subscribeToUpdates(onUpdate, options);
+}

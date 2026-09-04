@@ -14,6 +14,13 @@ export function loadAdminDashboardMetrics(): Promise<ServiceResult<DashboardAnal
   return gateway.loadMetrics();
 }
 
+export function subscribeToDashboardAnalyticsUpdates(
+  onUpdate: () => void,
+  options?: { debounceMs?: number },
+): () => void {
+  return gateway.subscribeToUpdates(onUpdate, options);
+}
+
 export {
   deriveParticipationByCategory,
   calculateParticipationByCategory,

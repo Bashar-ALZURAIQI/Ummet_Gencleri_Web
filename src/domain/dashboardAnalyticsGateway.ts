@@ -23,6 +23,27 @@ export type ServiceResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: ServiceError };
 
+export interface RealtimeSubscriptionFilter {
+  event: string;
+  schema: string;
+  table: string;
+  filter?: string;
+}
+
+export interface DashboardRealtimeChannel {
+  on(
+    type: 'postgres_changes',
+    filter: RealtimeSubscriptionFilter,
+    callback: (payload: unknown) => void,
+  ): DashboardRealtimeChannel;
+  subscribe(callback?: (status: string, error?: unknown) => void): DashboardRealtimeChannel;
+}
+
+export interface DashboardRealtimeClient {
+  channel(topic: string): DashboardRealtimeChannel;
+  removeChannel(channel: DashboardRealtimeChannel): Promise<unknown> | unknown;
+}
+
 export interface DashboardAnalyticsClient {
   rpc(
     name: 'get_admin_dashboard_metrics',
@@ -90,7 +111,9 @@ export function mapDashboardAnalyticsMetrics(raw: unknown): DashboardAnalyticsMe
   };
 }
 
-export function createDashboardAnalyticsGateway(client: DashboardAnalyticsClient) {
+export function createDashboardAnalyticsGateway(
+  client: DashboardAnalyticsClient & Partial<DashboardRealtimeClient>,
+) {
   return {
     async loadMetrics(): Promise<ServiceResult<DashboardAnalyticsMetrics>> {
       try {
@@ -122,6 +145,47 @@ export function createDashboardAnalyticsGateway(client: DashboardAnalyticsClient
           },
         };
       }
+    },
+
+    subscribeToUpdates(
+      onUpdate: () => void,
+      options: { debounceMs?: number } = {},
+    ): () => void {
+      if (typeof client.channel !== 'function' || typeof client.removeChannel !== 'function') {
+        return () => {};
+      }
+
+      const debounceMs = options.debounceMs ?? 300;
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      let disposed = false;
+
+      const trigger = () => {
+        if (disposed) return;
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(() => {
+          if (disposed) return;
+          onUpdate();
+        }, debounceMs);
+      };
+
+      const channel = client
+        .channel('dashboard-analytics-events')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'dashboard_analytics_events' },
+          trigger,
+        );
+
+      channel.subscribe();
+
+      return () => {
+        disposed = true;
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        void client.removeChannel?.(channel);
+      };
     },
   };
 }

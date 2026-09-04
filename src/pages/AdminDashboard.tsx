@@ -39,6 +39,7 @@ import { toDateTimeLocalValue } from '../domain/internalEconomyInteraction.ts';
 import { canCreateExecutiveContent, canManageExcuses, canManageMemberPoints, canManageOversight, canManageTasks } from '../domain/phaseThreeEconomy.ts';
 import {
   loadAdminDashboardMetrics,
+  subscribeToDashboardAnalyticsUpdates,
   type DashboardAnalyticsMetrics,
 } from '../services/dashboardAnalyticsService.ts';
 import {
@@ -118,33 +119,51 @@ export default function AdminDashboard() {
     if (!currentUser || !isLeadershipRole(currentUser.role)) return;
 
     let cancelled = false;
-    setAnalyticsLoading(true);
-    setAnalyticsError(null);
 
-    loadAdminDashboardMetrics()
-      .then((result) => {
-        if (cancelled) return;
-        if (result.ok) {
-          setAnalytics(result.data);
-          setAnalyticsError(null);
-        } else {
-          setAnalytics(null);
-          setAnalyticsError('تعذر تحميل الإحصائيات الحية حالياً');
-        }
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setAnalytics(null);
-        setAnalyticsError('تعذر تحميل الإحصائيات الحية حالياً');
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setAnalyticsLoading(false);
-        }
-      });
+    const fetchMetrics = (isRefresh = false) => {
+      if (cancelled) return;
+      if (!isRefresh) {
+        setAnalyticsLoading(true);
+        setAnalyticsError(null);
+      }
+
+      loadAdminDashboardMetrics()
+        .then((result) => {
+          if (cancelled) return;
+          if (result.ok) {
+            setAnalytics(result.data);
+            setAnalyticsError(null);
+          } else {
+            if (!isRefresh) {
+              setAnalytics(null);
+              setAnalyticsError('تعذر تحميل الإحصائيات الحية حالياً');
+            }
+          }
+        })
+        .catch(() => {
+          if (cancelled) return;
+          if (!isRefresh) {
+            setAnalytics(null);
+            setAnalyticsError('تعذر تحميل الإحصائيات الحية حالياً');
+          }
+        })
+        .finally(() => {
+          if (!cancelled && !isRefresh) {
+            setAnalyticsLoading(false);
+          }
+        });
+    };
+
+    fetchMetrics(false);
+
+    const unsubscribe = subscribeToDashboardAnalyticsUpdates(() => {
+      if (cancelled) return;
+      fetchMetrics(true);
+    });
 
     return () => {
       cancelled = true;
+      unsubscribe();
     };
   }, [currentUser, authInitializing, identityRefreshing]);
 

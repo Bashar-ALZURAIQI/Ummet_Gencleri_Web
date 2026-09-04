@@ -16,6 +16,27 @@ export type ServiceResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: ServiceError };
 
+export interface RealtimeSubscriptionFilter {
+  event: string;
+  schema: string;
+  table: string;
+  filter?: string;
+}
+
+export interface StudentSuggestionRealtimeChannel {
+  on(
+    type: 'postgres_changes',
+    filter: RealtimeSubscriptionFilter,
+    callback: (payload: unknown) => void,
+  ): StudentSuggestionRealtimeChannel;
+  subscribe(callback?: (status: string, error?: unknown) => void): StudentSuggestionRealtimeChannel;
+}
+
+export interface StudentSuggestionRealtimeClient {
+  channel(topic: string): StudentSuggestionRealtimeChannel;
+  removeChannel(channel: StudentSuggestionRealtimeChannel): Promise<unknown> | unknown;
+}
+
 export interface StudentSuggestionClient {
   rpc(
     name: 'list_visible_student_suggestions',
@@ -182,7 +203,9 @@ export interface RespondToSuggestionParams {
   newStatus: SuggestionStatus;
 }
 
-export function createStudentSuggestionGateway(client: StudentSuggestionClient) {
+export function createStudentSuggestionGateway(
+  client: StudentSuggestionClient & Partial<StudentSuggestionRealtimeClient>,
+) {
   return {
     async listSuggestions(): Promise<ServiceResult<Suggestion[]>> {
       try {
@@ -242,6 +265,44 @@ export function createStudentSuggestionGateway(client: StudentSuggestionClient) 
       } catch (err) {
         return { ok: false, error: parseRpcError(err) };
       }
+    },
+
+    subscribeToUpdates(
+      onUpdate: () => void,
+      options: { debounceMs?: number } = {},
+    ): () => void {
+      if (typeof client.channel !== 'function' || typeof client.removeChannel !== 'function') {
+        return () => {};
+      }
+
+      const debounceMs = options.debounceMs ?? 300;
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      let disposed = false;
+
+      const trigger = () => {
+        if (disposed) return;
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(() => {
+          if (disposed) return;
+          onUpdate();
+        }, debounceMs);
+      };
+
+      const channel = client
+        .channel('student-suggestions-authoritative')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'student_suggestions' }, trigger)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'suggestion_responses' }, trigger);
+
+      channel.subscribe();
+
+      return () => {
+        disposed = true;
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        void client.removeChannel?.(channel);
+      };
     },
   };
 }

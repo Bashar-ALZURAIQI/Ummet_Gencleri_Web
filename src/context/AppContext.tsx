@@ -103,6 +103,7 @@ import {
   loadVisibleStudentSuggestions as loadVisibleStudentSuggestionsService,
   submitStudentSuggestion as submitStudentSuggestionService,
   respondToStudentSuggestion as respondToStudentSuggestionService,
+  subscribeToStudentSuggestionUpdates,
 } from '../services/studentSuggestionService';
 import {
   createEditedApprovalNote,
@@ -1405,6 +1406,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
       void supabase.removeChannel(repliesChannel);
     };
   }, [currentUser?.userId]);
+
+  // Realtime subscription for cross-session student suggestions & responses
+  useEffect(() => {
+    let active = true;
+    if (!currentUser?.userId) {
+      return () => { active = false; };
+    }
+
+    const unsubscribe = subscribeToStudentSuggestionUpdates(() => {
+      if (!active) return;
+      const owner = captureConfirmedAuthOwner();
+      if (!owner || owner.userId !== currentUser.userId) return;
+
+      void loadVisibleStudentSuggestionsService().then((res) => {
+        if (!active) return;
+        const stillCurrent = captureConfirmedAuthOwner();
+        if (stillCurrent && stillCurrent.epoch === owner.epoch && stillCurrent.userId === owner.userId && res.ok) {
+          setSuggestions(res.data);
+        }
+      });
+    });
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [currentUser?.userId, captureConfirmedAuthOwner]);
 
   // Supabase RLS is the only application authority. On identity change, clear
   // the prior view immediately and publish only the rows confirmed for the new
