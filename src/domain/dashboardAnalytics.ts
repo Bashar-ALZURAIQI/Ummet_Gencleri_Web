@@ -3,6 +3,10 @@ import {
   type EventCategory,
   type UEvent,
 } from '../data/mockData.ts';
+import type {
+  DashboardAnalyticsMetrics,
+  MonthlyCountPoint,
+} from './dashboardAnalyticsGateway.ts';
 
 export const EVENT_CATEGORY_HEX_COLORS: Record<EventCategory, string> = {
   workshop: '#1e3454',
@@ -227,13 +231,21 @@ export function calculateCategoryDistribution(
     }));
 }
 
+export interface ParticipationByCategoryOptions {
+  includeZero?: boolean;
+}
+
 /**
  * Calculates event participation by category by summing active registrations
  * mapped to currently published event categories.
+ * By default filters out categories with 0 participation.
+ * If options.includeZero is true, retains all categories with value: 0 to preserve
+ * standard multi-column chart layouts (e.g. BarChart).
  */
 export function calculateParticipationByCategory(
   events: Pick<UEvent, 'id' | 'category'>[],
   activeRegistrationsByEventId: Record<string, number>,
+  options: ParticipationByCategoryOptions = {},
 ): CategoryDataPoint[] {
   const sums: Record<EventCategory, number> = {
     workshop: 0,
@@ -254,12 +266,76 @@ export function calculateParticipationByCategory(
   }
 
   const categories = Object.keys(categoryLabels) as EventCategory[];
-  return categories
-    .filter((c) => sums[c] > 0)
-    .map((c) => ({
-      category: c,
-      label: categoryLabels[c],
-      value: sums[c],
-      color: EVENT_CATEGORY_HEX_COLORS[c],
-    }));
+  const selectedCategories = options.includeZero
+    ? categories
+    : categories.filter((c) => sums[c] > 0);
+
+  return selectedCategories.map((c) => ({
+    category: c,
+    label: categoryLabels[c],
+    value: sums[c],
+    color: EVENT_CATEGORY_HEX_COLORS[c],
+  }));
+}
+
+/**
+ * Adapts authoritative DashboardAnalyticsMetrics from the RPC gateway to published CMS events.
+ * Safely extracts eventParticipationById without reading deceptive local registered counters.
+ */
+export function deriveParticipationByCategory(
+  events: Pick<UEvent, 'id' | 'category'>[],
+  metrics?: Pick<DashboardAnalyticsMetrics, 'eventParticipationById'> | null,
+  options: ParticipationByCategoryOptions = { includeZero: true },
+): CategoryDataPoint[] {
+  const map = metrics?.eventParticipationById ?? {};
+  return calculateParticipationByCategory(events, map, options);
+}
+
+/**
+ * Aligns raw RPC monthly aggregate points ({ year, month, count }) to 6 sequential calendar buckets.
+ * Missing months report 0 without data fabrication.
+ */
+export function alignMonthlyCountPointsToBuckets(
+  points: MonthlyCountPoint[] | undefined | null,
+  buckets: MonthBucket[],
+): SeriesPoint[] {
+  const countsByKey = new Map<string, number>();
+  for (const bucket of buckets) {
+    countsByKey.set(bucket.key, 0);
+  }
+
+  if (Array.isArray(points)) {
+    for (const pt of points) {
+      if (!pt) continue;
+      const key = `${pt.year}-${String(pt.month).padStart(2, '0')}`;
+      if (countsByKey.has(key)) {
+        countsByKey.set(key, (countsByKey.get(key) ?? 0) + (pt.count || 0));
+      }
+    }
+  }
+
+  return buckets.map((bucket) => ({
+    label: bucket.label,
+    value: countsByKey.get(bucket.key) ?? 0,
+  }));
+}
+
+/**
+ * Derives the 6-month authoritative member growth series from metrics for chart consumption.
+ */
+export function deriveAuthoritativeMemberGrowthSeries(
+  metrics: Pick<DashboardAnalyticsMetrics, 'sixMonthMemberGrowth'> | undefined | null,
+  buckets: MonthBucket[],
+): SeriesPoint[] {
+  return alignMonthlyCountPointsToBuckets(metrics?.sixMonthMemberGrowth, buckets);
+}
+
+/**
+ * Derives the 6-month authoritative event participation series from metrics for chart consumption.
+ */
+export function deriveAuthoritativeEventParticipationSeries(
+  metrics: Pick<DashboardAnalyticsMetrics, 'sixMonthEventParticipations'> | undefined | null,
+  buckets: MonthBucket[],
+): SeriesPoint[] {
+  return alignMonthlyCountPointsToBuckets(metrics?.sixMonthEventParticipations, buckets);
 }

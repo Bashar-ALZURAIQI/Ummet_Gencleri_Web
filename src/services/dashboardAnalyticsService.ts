@@ -13,3 +13,17 @@ export type { DashboardAnalyticsMetrics, MonthlyCountPoint } from '../domain/das
 export function loadAdminDashboardMetrics(): Promise<ServiceResult<DashboardAnalyticsMetrics>> {
   return gateway.loadMetrics();
 }
+
+export {
+  deriveParticipationByCategory,
+  calculateParticipationByCategory,
+  calculateCategoryDistribution,
+  alignMonthlyCountPointsToBuckets,
+  deriveAuthoritativeMemberGrowthSeries,
+  deriveAuthoritativeEventParticipationSeries,
+  generateSixMonthBuckets,
+  type ParticipationByCategoryOptions,
+  type CategoryDataPoint,
+  type SeriesPoint,
+  type MonthBucket,
+} from '../domain/dashboardAnalytics.ts';

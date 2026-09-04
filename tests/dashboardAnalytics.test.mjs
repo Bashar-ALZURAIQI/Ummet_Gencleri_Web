@@ -9,6 +9,10 @@ import {
   calculateActiveMembersCount,
   calculateCategoryDistribution,
   calculateParticipationByCategory,
+  deriveParticipationByCategory,
+  alignMonthlyCountPointsToBuckets,
+  deriveAuthoritativeMemberGrowthSeries,
+  deriveAuthoritativeEventParticipationSeries,
 } from '../src/domain/dashboardAnalytics.ts';
 
 test('generateSixMonthBuckets creates 6 sequential calendar buckets across year boundaries', () => {
@@ -204,4 +208,188 @@ test('calculateParticipationByCategory sums active event registrations by curren
     { category: 'workshop', label: 'ورشة عمل', value: 20, color: '#1e3454' },
     { category: 'lecture', label: 'محاضرة', value: 40, color: '#d49a24' },
   ]);
+});
+
+test('Task 5: two events in same category sum correctly', () => {
+  const events = [
+    { id: 'E1', category: 'workshop' },
+    { id: 'E2', category: 'workshop' },
+  ];
+  const map = { E1: 4, E2: 3 };
+  const res = calculateParticipationByCategory(events, map);
+  assert.equal(res.length, 1);
+  assert.equal(res[0].category, 'workshop');
+  assert.equal(res[0].value, 7);
+});
+
+test('Task 5: multiple categories remain separate', () => {
+  const events = [
+    { id: 'E1', category: 'workshop' },
+    { id: 'E2', category: 'workshop' },
+    { id: 'E3', category: 'lecture' },
+  ];
+  const map = { E1: 4, E2: 3, E3: 5 };
+  const res = calculateParticipationByCategory(events, map);
+  const byCat = Object.fromEntries(res.map((r) => [r.category, r.value]));
+  assert.equal(byCat.workshop, 7);
+  assert.equal(byCat.lecture, 5);
+  assert.equal(res.length, 2);
+});
+
+test('Task 5: event with zero registrations contributes zero', () => {
+  const events = [
+    { id: 'E1', category: 'workshop' },
+    { id: 'E2', category: 'workshop' },
+  ];
+  const map = { E1: 4, E2: 0 };
+  const res = calculateParticipationByCategory(events, map);
+  assert.equal(res.length, 1);
+  assert.equal(res[0].value, 4);
+});
+
+test('Task 5: missing event ID in eventParticipationById behaves as zero', () => {
+  const events = [
+    { id: 'E1', category: 'workshop' },
+    { id: 'E2', category: 'workshop' }, // not in map
+  ];
+  const map = { E1: 4 };
+  const res = calculateParticipationByCategory(events, map);
+  assert.equal(res.length, 1);
+  assert.equal(res[0].value, 4);
+});
+
+test('Task 5: unknown/deleted registration event IDs are ignored and do not leak into categories', () => {
+  const events = [
+    { id: 'E1', category: 'workshop' },
+  ];
+  const map = {
+    E1: 4,
+    deleted_event_123: 9,
+    unknown_event_456: 99,
+  };
+  const res = calculateParticipationByCategory(events, map);
+  assert.equal(res.length, 1);
+  assert.equal(res[0].category, 'workshop');
+  assert.equal(res[0].value, 4);
+});
+
+test('Task 5: no use of UEvent.registered as authoritative input', () => {
+  const events = [
+    { id: 'E1', category: 'workshop', registered: 999 }, // deceptive local registered count
+  ];
+  const map = { E1: 4 };
+  const res = calculateParticipationByCategory(events, map);
+  assert.equal(res[0].value, 4);
+  assert.notEqual(res[0].value, 999);
+});
+
+test('Task 5: event distribution remains event-count based and is not accidentally replaced by registration counts', () => {
+  const events = [
+    { id: 'E1', category: 'workshop', registered: 100 },
+    { id: 'E2', category: 'workshop', registered: 200 },
+  ];
+  const dist = calculateCategoryDistribution(events);
+  assert.equal(dist.length, 1);
+  assert.equal(dist[0].label, 'ورشة عمل');
+  assert.equal(dist[0].value, 2); // 2 events, NOT 300
+});
+
+test('Task 5: participation calculation does not mutate input data', () => {
+  const events = Object.freeze([
+    Object.freeze({ id: 'E1', category: 'workshop' }),
+    Object.freeze({ id: 'E2', category: 'lecture' }),
+  ]);
+  const map = Object.freeze({ E1: 4, E2: 5 });
+  const res = calculateParticipationByCategory(events, map);
+  assert.equal(res.length, 2);
+});
+
+test('Task 5: empty events produces safe empty/zero result', () => {
+  const events = [];
+  const map = { E1: 4 };
+  const res = calculateParticipationByCategory(events, map);
+  assert.deepEqual(res, []);
+
+  const resWithZero = calculateParticipationByCategory(events, map, { includeZero: true });
+  assert.equal(resWithZero.length, 7);
+  assert.ok(resWithZero.every((r) => r.value === 0));
+});
+
+test('Task 5: empty participation map produces safe result', () => {
+  const events = [
+    { id: 'E1', category: 'workshop' },
+    { id: 'E2', category: 'lecture' },
+  ];
+  const res = calculateParticipationByCategory(events, {});
+  assert.deepEqual(res, []);
+
+  const resWithZero = calculateParticipationByCategory(events, {}, { includeZero: true });
+  assert.equal(resWithZero.length, 7);
+  assert.ok(resWithZero.every((r) => r.value === 0));
+});
+
+test('Task 5: zero participation preserves existing category structure when includeZero is requested', () => {
+  const events = [
+    { id: 'E1', category: 'workshop' },
+  ];
+  const map = { E1: 10 };
+  const res = calculateParticipationByCategory(events, map, { includeZero: true });
+  assert.equal(res.length, 7);
+  const byCat = Object.fromEntries(res.map((r) => [r.category, r.value]));
+  assert.equal(byCat.workshop, 10);
+  assert.equal(byCat.lecture, 0);
+  assert.equal(byCat.volunteer, 0);
+  assert.equal(byCat.training, 0);
+  assert.equal(byCat.trip, 0);
+  assert.equal(byCat.entertainment, 0);
+  assert.equal(byCat.visit, 0);
+});
+
+test('Task 5: deriveParticipationByCategory adapts metrics gateway payload with safe fallback for null/undefined', () => {
+  const events = [
+    { id: 'E1', category: 'workshop' },
+    { id: 'E2', category: 'lecture' },
+  ];
+  const metrics = {
+    totalMembersCount: 100,
+    activeMembersCount: 90,
+    pendingApplicationsCount: 5,
+    sixMonthMemberGrowth: [],
+    sixMonthEventParticipations: [],
+    eventParticipationById: { E1: 12, E2: 8 },
+  };
+
+  const res = deriveParticipationByCategory(events, metrics, { includeZero: false });
+  assert.deepEqual(res.map((r) => ({ cat: r.category, val: r.value })), [
+    { cat: 'workshop', val: 12 },
+    { cat: 'lecture', val: 8 },
+  ]);
+
+  // Safe fallback when metrics is null or undefined
+  const nullRes = deriveParticipationByCategory(events, null, { includeZero: false });
+  assert.deepEqual(nullRes, []);
+});
+
+test('Task 5: alignMonthlyCountPointsToBuckets aligns RPC monthly points to six month buckets', () => {
+  const buckets = generateSixMonthBuckets(new Date(2026, 2, 15)); // Oct 2025 .. Mar 2026
+  const points = [
+    { year: 2025, month: 12, count: 5 },
+    { year: 2026, month: 1, count: 12 },
+  ];
+
+  const series = alignMonthlyCountPointsToBuckets(points, buckets);
+  assert.deepEqual(series, [
+    { label: 'أكت', value: 0 },
+    { label: 'نوف', value: 0 },
+    { label: 'ديس', value: 5 },
+    { label: 'ينا', value: 12 },
+    { label: 'فبر', value: 0 },
+    { label: 'مار', value: 0 },
+  ]);
+
+  const memberGrowth = deriveAuthoritativeMemberGrowthSeries({ sixMonthMemberGrowth: points }, buckets);
+  assert.deepEqual(memberGrowth, series);
+
+  const eventParticipation = deriveAuthoritativeEventParticipationSeries({ sixMonthEventParticipations: points }, buckets);
+  assert.deepEqual(eventParticipation, series);
 });
