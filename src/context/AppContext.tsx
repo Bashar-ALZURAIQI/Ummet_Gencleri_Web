@@ -87,8 +87,18 @@ import type {
   ApplicationEmailNotification,
 } from '../domain/applicationEmailNotification';
 import { deliverApplicationEmailAfterCommit } from '../domain/applicationEmailWorkflow';
-import { canUseMemberFeatures, resolveStudentAccess, type StudentAccessState } from '../domain/studentAccess';
+import { resolveStudentAccess, type StudentAccessState } from '../domain/studentAccess';
 import { executeMemberRemoval } from '../domain/memberRemoval';
+import {
+  registerForEventParticipation,
+  unregisterFromEventParticipation,
+  listMyRegisteredEventIds,
+} from '../services/eventRegistrationService';
+import {
+  registerForEventWithAuthority,
+  unregisterFromEventWithAuthority,
+  hydrateStudentRegisteredEvents,
+} from '../domain/eventRegistrationCoordinator';
 import {
   createEditedApprovalNote,
   createSiteEditEnvelope,
@@ -583,8 +593,8 @@ interface AppContextValue {
   requestPasswordReset: (email: string) => Promise<PasswordRecoveryResult>;
   updateRecoveredPassword: (password: string) => Promise<PasswordRecoveryResult>;
   finishPasswordRecovery: () => Promise<void>;
-  registerForEvent: (eventId: string) => void;
-  unregisterFromEvent: (eventId: string) => void;
+  registerForEvent: (eventId: string) => Promise<{ ok: boolean; error?: string }>;
+  unregisterFromEvent: (eventId: string) => Promise<{ ok: boolean; error?: string }>;
   contactMessages: ContactMessage[];
   contactMessagesLoading: boolean;
   contactMessagesError: string | null;
@@ -1715,6 +1725,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     setCurrentUser(confirmedUser);
     setCurrentStudent(confirmedUser.role === 'STUDENT' ? confirmedStudent : null);
+    if (confirmedUser.role === 'STUDENT') {
+      const targetOwnership = {
+        epoch: capturedEpoch,
+        userId: confirmedUser.userId,
+        role: confirmedUser.role,
+      };
+      void hydrateStudentRegisteredEvents({
+        target: targetOwnership,
+        isOwnershipCurrent: (target) => {
+          const current = captureConfirmedAuthOwner();
+          return Boolean(
+            current
+            && current.epoch === target.epoch
+            && current.userId === target.userId
+            && current.role === target.role
+          );
+        },
+        listRegisteredEventIds: listMyRegisteredEventIds,
+        applyHydratedRegisteredEvents: (userId, eventIds) => {
+          setCurrentStudent((prev) => {
+            if (!prev || (prev.userId ?? prev.id) !== userId) return prev;
+            return {
+              ...prev,
+              registeredEvents: eventIds,
+            };
+          });
+        },
+        onHydrationFailed: (error) => {
+          console.warn('Failed to hydrate authoritative registered events for student:', error);
+        },
+      });
+    }
     synchronizeConfirmedProfileDisplay({
       currentUser: confirmedUser,
       student: confirmedStudent,
@@ -1735,7 +1777,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } as View));
     }
     return { ok: true };
-  }, [authEpoch, confirmedAuthOwner, synchronizeConfirmedProfileDisplay]);
+  }, [authEpoch, captureConfirmedAuthOwner, confirmedAuthOwner, synchronizeConfirmedProfileDisplay]);
 
   // Restore the Supabase session and keep it synchronized. The listener stays
   // synchronous; identity loading is deferred to avoid supabase-js callback locks.
@@ -2751,44 +2793,74 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return result;
   };
 
-  const registerForEvent = (eventId: string) => {
-    if (!currentStudent || !canUseMemberFeatures(studentAccess)) return;
-    setCurrentStudent((prev) =>
-      prev
-        ? {
-            ...prev,
-            registeredEvents: prev.registeredEvents.includes(eventId)
-              ? prev.registeredEvents
-              : [...prev.registeredEvents, eventId],
+  const registerForEvent: AppContextValue['registerForEvent'] = async (eventId: string) => {
+    const owner = captureConfirmedAuthOwner();
+    return registerForEventWithAuthority(eventId, {
+      currentStudent,
+      studentAccess,
+      isConfirmedOwner: () => {
+        const current = captureConfirmedAuthOwner();
+        return Boolean(
+          owner
+          && current
+          && current.epoch === owner.epoch
+          && current.userId === owner.userId
+          && current.role === 'STUDENT'
+        );
+      },
+      registerParticipation: registerForEventParticipation,
+      applyRegistrationUpdate: (targetEventId, isRegistered, registeredCount) => {
+        setCurrentStudent((prev) => {
+          if (!prev) return prev;
+          const already = prev.registeredEvents.includes(targetEventId);
+          if (isRegistered && !already) {
+            return { ...prev, registeredEvents: [...prev.registeredEvents, targetEventId] };
           }
-        : prev
-    );
-    setEvents((prev) =>
-      prev.map((e) =>
-        e.id === eventId
-          ? { ...e, registered: Math.min(e.registered + 1, e.capacity) }
-          : e
-      )
-    );
+          if (!isRegistered && already) {
+            return { ...prev, registeredEvents: prev.registeredEvents.filter((id) => id !== targetEventId) };
+          }
+          return prev;
+        });
+        setEvents((prev) =>
+          prev.map((e) => (e.id === targetEventId ? { ...e, registered: registeredCount } : e))
+        );
+      },
+    });
   };
 
-  const unregisterFromEvent = (eventId: string) => {
-    if (!currentStudent || !canUseMemberFeatures(studentAccess)) return;
-    setCurrentStudent((prev) =>
-      prev
-        ? {
-            ...prev,
-            registeredEvents: prev.registeredEvents.filter((id) => id !== eventId),
+  const unregisterFromEvent: AppContextValue['unregisterFromEvent'] = async (eventId: string) => {
+    const owner = captureConfirmedAuthOwner();
+    return unregisterFromEventWithAuthority(eventId, {
+      currentStudent,
+      studentAccess,
+      isConfirmedOwner: () => {
+        const current = captureConfirmedAuthOwner();
+        return Boolean(
+          owner
+          && current
+          && current.epoch === owner.epoch
+          && current.userId === owner.userId
+          && current.role === 'STUDENT'
+        );
+      },
+      unregisterParticipation: unregisterFromEventParticipation,
+      applyRegistrationUpdate: (targetEventId, isRegistered, registeredCount) => {
+        setCurrentStudent((prev) => {
+          if (!prev) return prev;
+          const already = prev.registeredEvents.includes(targetEventId);
+          if (isRegistered && !already) {
+            return { ...prev, registeredEvents: [...prev.registeredEvents, targetEventId] };
           }
-        : prev
-    );
-    setEvents((prev) =>
-      prev.map((e) =>
-        e.id === eventId
-          ? { ...e, registered: Math.max(e.registered - 1, 0) }
-          : e
-      )
-    );
+          if (!isRegistered && already) {
+            return { ...prev, registeredEvents: prev.registeredEvents.filter((id) => id !== targetEventId) };
+          }
+          return prev;
+        });
+        setEvents((prev) =>
+          prev.map((e) => (e.id === targetEventId ? { ...e, registered: registeredCount } : e))
+        );
+      },
+    });
   };
 
   const refreshVisibleContactMessages = async () => {
