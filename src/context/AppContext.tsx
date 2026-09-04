@@ -100,6 +100,11 @@ import {
   hydrateStudentRegisteredEvents,
 } from '../domain/eventRegistrationCoordinator';
 import {
+  loadVisibleStudentSuggestions as loadVisibleStudentSuggestionsService,
+  submitStudentSuggestion as submitStudentSuggestionService,
+  respondToStudentSuggestion as respondToStudentSuggestionService,
+} from '../services/studentSuggestionService';
+import {
   createEditedApprovalNote,
   createSiteEditEnvelope,
   parseEditRequestEnvelope,
@@ -176,7 +181,6 @@ import {
   mockEvents,
   mockNews,
   mockStudents,
-  mockSuggestions,
   mockPlans,
   mockReports,
   mockCommittees,
@@ -186,12 +190,10 @@ import {
   type Suggestion,
   type SuggestionStatus,
   type SuggestionTargetRole,
-  type SuggestionResponse,
   type AdminPlan,
   type AdminReport,
   type CommitteeId,
   type UserRole,
-  ROLE_LABEL,
   COMMITTEE_ROLE,
   isLeadershipRole,
   type BoardMember,
@@ -222,7 +224,6 @@ import {
   DEFAULT_CONTACT_MAP,
 } from '../data/mockData';
 import {
-  emailKey,
   safeStr,
   safeArray,
   asRecord,
@@ -642,7 +643,13 @@ interface AppContextValue {
   registerWithApplication: (name: string, email: string, password: string, university: string, major: string, year: string, phone: string, motivation: string) => Promise<{ ok: boolean; error?: string; requiresEmailConfirmation?: boolean; emailWarning?: string }>;
   scheduleInterview: (applicationId: string, interview: InterviewInfo) => Promise<{ ok: boolean; error?: string; emailWarning?: string }>;
   decideApplication: (applicationId: string, status: 'accepted' | 'rejected', rejectionReason?: string) => Promise<{ ok: boolean; error?: string; emailWarning?: string }>;
-  respondToSuggestion: (id: string, reply: string, status: SuggestionStatus) => boolean;
+  submitSuggestion: (params: {
+    targetRole: SuggestionTargetRole;
+    category: string;
+    title: string;
+    content: string;
+  }) => Promise<{ ok: boolean; error?: string }>;
+  respondToSuggestion: (id: string, reply: string, status: SuggestionStatus) => Promise<{ ok: boolean; error?: string }>;
   getVisibleSuggestions: () => Suggestion[];
   canRespondToSuggestion: (suggestion: Suggestion) => boolean;
   pendingProfileEdits: PendingProfileEdit[];
@@ -716,7 +723,6 @@ export type ContactMessage = ContactMessageRecord;
 // and every load reads here FIRST before falling back to defaults.
 const LS_MEMBERS_KEY = 'app_members';
 const LS_EXECUTIVE_KEY = 'app_executive';
-const LS_SUGGESTIONS_KEY = 'app_suggestions';
 const LS_SITE_CONTENT_KEY = 'app_site_content';
 const LS_EDITS_HISTORY_KEY = 'app_edits_history';
 const LS_LEGACY_HISTORY_CACHE_KEY = 'app_edits_history_legacy_v1';
@@ -804,29 +810,6 @@ const loadLegacyHistoryOnce = (): EditsHistoryEntry[] => {
   return legacy;
 };
 
-const todayStr = () => new Date().toISOString().slice(0, 10);
-
-/** Migrates legacy suggestion objects (body/adminReply) into the new targeted model. */
-const normalizeSuggestion = (s: Partial<Suggestion> & { body?: string; adminReply?: string; repliedAt?: string }): Suggestion => ({
-  id: s.id ?? 'sg' + Date.now(),
-  studentId: s.studentId ?? '',
-  studentName: s.studentName ?? 'طالب',
-  studentEmail: s.studentEmail,
-  studentUniversity: s.studentUniversity,
-  studentMajor: s.studentMajor,
-  targetRole: (s.targetRole as SuggestionTargetRole | undefined) ?? 'PRESIDENT',
-  category: s.category ?? 'اقتراح',
-  title: s.title ?? '',
-  content: s.content ?? s.body ?? '',
-  status: (s.status as SuggestionStatus | undefined) ?? 'new',
-  createdAt: s.createdAt ?? todayStr(),
-  responses: Array.isArray(s.responses)
-    ? s.responses
-    : s.adminReply
-      ? [{ id: 'r0', by: 'الإدارة', byRole: 'الإدارة', text: s.adminReply, at: s.repliedAt ?? s.createdAt ?? todayStr() }]
-      : [],
-});
-
 const AppContext = createContext<AppContextValue | null>(null);
 
 const browserAuthTimerScheduler = {
@@ -855,13 +838,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ? stored.map(normalizeStudent)
       : mockStudents;
   });
-  const [suggestions, setSuggestions] = useState<Suggestion[]>(() => {
-    const stored = safeParse<Suggestion[]>(LS_SUGGESTIONS_KEY);
-    if (stored && Array.isArray(stored) && stored.length > 0) {
-      return stored.map(normalizeSuggestion);
-    }
-    return mockSuggestions.map(normalizeSuggestion);
-  });
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [editRequestRows, setEditRequestRows] = useState<EditRequest[]>([]);
   const [legacyEditsHistory] = useState<EditsHistoryEntry[]>(loadLegacyHistoryOnce);
   const [editRequestsLoading, setEditRequestsLoading] = useState(false);
@@ -1146,11 +1123,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     safeWrite(LS_MEMBERS_KEY, stripPrivateLoginEmailsForCache(members));
   }, [members]);
-
-  // Suggestions persistence — single source under `app_suggestions`.
-  useEffect(() => {
-    safeWrite(LS_SUGGESTIONS_KEY, suggestions);
-  }, [suggestions]);
 
   // Persist plans + reports to localStorage
   useEffect(() => {
@@ -1483,6 +1455,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     localStorage.removeItem('app_session');
     localStorage.removeItem('app_auth_version');
+    localStorage.removeItem('app_suggestions');
   }, []);
 
   const clearAuthError = useCallback(() => setAuthError(null), []);
@@ -1757,6 +1730,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
         },
       });
     }
+    const suggestionTargetOwnership = {
+      epoch: capturedEpoch,
+      userId: confirmedUser.userId,
+      role: confirmedUser.role,
+    };
+    void loadVisibleStudentSuggestionsService().then((res) => {
+      const current = captureConfirmedAuthOwner();
+      if (
+        current
+        && current.epoch === suggestionTargetOwnership.epoch
+        && current.userId === suggestionTargetOwnership.userId
+        && current.role === suggestionTargetOwnership.role
+      ) {
+        if (res.ok) {
+          setSuggestions(res.data);
+        } else {
+          console.warn('Failed to load authoritative student suggestions:', res.error);
+        }
+      }
+    });
     synchronizeConfirmedProfileDisplay({
       currentUser: confirmedUser,
       student: confirmedStudent,
@@ -2370,6 +2363,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     latestAuthEventRef.current = null;
     setCurrentStudent(null);
     setCurrentUser(null);
+    setSuggestions([]);
     setAuthError(null);
     setAuthInitializing(false);
     setPasswordRecoveryGate('IDLE');
@@ -2401,11 +2395,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (isLeadershipRole(currentUser.role)) {
       return suggestions.filter((s) => s.targetRole === currentUser.role);
     }
-    const ownId = currentStudent?.id;
-    const ownEmail = emailKey(currentUser.email);
-    return suggestions.filter(
-      (s) => (ownId && s.studentId === ownId) || (s.studentEmail && emailKey(s.studentEmail) === ownEmail)
-    );
+    const ownId = currentStudent?.userId ?? currentStudent?.id;
+    return suggestions.filter((s) => ownId && s.studentId === ownId);
   };
 
   // Reply rights: the targeted official OR the president (as direct supervisor).
@@ -2415,22 +2406,59 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return suggestion.targetRole === currentUser.role;
   };
 
-  // Respond to a suggestion + update its status. Returns false when the caller has
-  // no permission (targeted to another committee) so the UI can stay read-only.
-  const respondToSuggestion: AppContextValue['respondToSuggestion'] = (id, reply, status) => {
+  const respondToSuggestion: AppContextValue['respondToSuggestion'] = async (id, reply, status) => {
+    const owner = captureConfirmedAuthOwner();
+    if (!owner || (owner.role !== 'PRESIDENT' && !isLeadershipRole(owner.role))) {
+      return { ok: false, error: 'غير مصرح لك بالرد على الاقتراحات.' };
+    }
     const target = suggestions.find((s) => s.id === id);
-    if (!target || !canRespondToSuggestion(target)) return false;
-    const response: SuggestionResponse = {
-      id: 'r' + Date.now() + Math.random().toString(36).slice(2, 6),
-      by: currentUser?.name ?? 'الإدارة',
-      byRole: currentUser ? ROLE_LABEL[currentUser.role] : 'الإدارة',
-      text: reply,
-      at: todayStr(),
-    };
-    setSuggestions((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, status, responses: [...s.responses, response] } : s))
-    );
-    return true;
+    if (!target || !canRespondToSuggestion(target)) {
+      return { ok: false, error: 'غير مصرح لك بالرد على هذا الاقتراح الموجه للجنة أخرى.' };
+    }
+    const result = await respondToStudentSuggestionService({
+      suggestionId: id,
+      responseText: reply,
+      newStatus: status,
+    });
+    if (!result.ok) {
+      return { ok: false, error: result.error.message };
+    }
+    // Refresh authoritative suggestions
+    const current = captureConfirmedAuthOwner();
+    if (current && current.epoch === owner.epoch && current.userId === owner.userId) {
+      const listRes = await loadVisibleStudentSuggestionsService();
+      const stillCurrent = captureConfirmedAuthOwner();
+      if (stillCurrent && stillCurrent.epoch === owner.epoch && stillCurrent.userId === owner.userId && listRes.ok) {
+        setSuggestions(listRes.data);
+      }
+    }
+    return { ok: true };
+  };
+
+  const submitSuggestion: AppContextValue['submitSuggestion'] = async (params) => {
+    const owner = captureConfirmedAuthOwner();
+    if (!owner || owner.role !== 'STUDENT') {
+      return { ok: false, error: 'يجب تسجيل الدخول كطالب مصرح له لإرسال اقتراح.' };
+    }
+    const result = await submitStudentSuggestionService({
+      targetRole: params.targetRole,
+      category: params.category,
+      title: params.title,
+      content: params.content,
+    });
+    if (!result.ok) {
+      return { ok: false, error: result.error.message };
+    }
+    // Refresh authoritative suggestions
+    const current = captureConfirmedAuthOwner();
+    if (current && current.epoch === owner.epoch && current.userId === owner.userId) {
+      const listRes = await loadVisibleStudentSuggestionsService();
+      const stillCurrent = captureConfirmedAuthOwner();
+      if (stillCurrent && stillCurrent.epoch === owner.epoch && stillCurrent.userId === owner.userId && listRes.ok) {
+        setSuggestions(listRes.data);
+      }
+    }
+    return { ok: true };
   };
 
   const upsertEditRequestRow = (request: EditRequest) => {
@@ -3577,6 +3605,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       registerWithApplication,
       scheduleInterview,
       decideApplication,
+      submitSuggestion,
       respondToSuggestion,
       getVisibleSuggestions,
       canRespondToSuggestion,

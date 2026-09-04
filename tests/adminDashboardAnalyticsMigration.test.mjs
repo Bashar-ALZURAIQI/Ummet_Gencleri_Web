@@ -43,9 +43,41 @@ test('admin dashboard analytics migration defines secure executive-only aggregat
   assert.match(sql, /EXTRACT\(MONTH FROM a\.decided_at\)/i);
   assert.match(sql, /EXTRACT\(YEAR FROM a\.decided_at\)/i);
 
-  // Six-month event registrations: active status
-  assert.match(sql, /er\.status = 'active'/i);
+  // A. Historical event participations series: groups by registered_at WITHOUT status = 'active' filter
   assert.match(sql, /EXTRACT\(MONTH FROM er\.registered_at\)/i);
+  assert.match(sql, /EXTRACT\(YEAR FROM er\.registered_at\)/i);
+  const regCountsCteMatch = sql.match(/reg_counts\s+AS\s+\([\s\S]*?FROM\s+public\.event_registrations\s+AS\s+er[\s\S]*?\)/i);
+  assert.ok(regCountsCteMatch, 'reg_counts CTE must exist');
+  assert.doesNotMatch(
+    regCountsCteMatch[0],
+    /status\s*=\s*'active'/i,
+    'Historical series CTE must not filter out cancelled registration cycles',
+  );
+
+  // B. Current active event participation by id map: DOES filter status = 'active'
+  assert.match(sql, /event_participation_by_id\s+jsonb/i);
+  const activePartCteMatch = sql.match(/active_part\s+AS\s+\([\s\S]*?FROM\s+public\.event_registrations[\s\S]*?\)/i);
+  assert.ok(activePartCteMatch, 'active_part CTE must exist');
+  assert.match(
+    activePartCteMatch[0],
+    /status\s*=\s*'active'/i,
+    'event_participation_by_id must filter status = active',
+  );
+  assert.match(sql, /jsonb_object_agg/i);
+
+  // C. Exact RPC return names match dashboardAnalyticsGateway.ts
+  assert.match(sql, /total_members_count\s+integer/i);
+  assert.match(sql, /active_members_count\s+integer/i);
+  assert.match(sql, /pending_applications_count\s+integer/i);
+  assert.match(sql, /six_month_member_growth\s+jsonb/i);
+  assert.match(sql, /six_month_event_participations\s+jsonb/i);
+  assert.match(sql, /event_participation_by_id\s+jsonb/i);
+
+  // D. Obsolete competing field names are removed from the return contract
+  assert.doesNotMatch(sql, /member_growth_series/i);
+  assert.doesNotMatch(sql, /event_registrations_series/i);
+  assert.doesNotMatch(sql, /category_distribution/i);
+  assert.doesNotMatch(sql, /participation_by_category/i);
 
   // Permissions: revoke from public/anon and grant to authenticated
   assert.match(sql, /REVOKE ALL ON FUNCTION public\.get_admin_dashboard_metrics\(\) FROM PUBLIC, anon, authenticated, service_role/i);

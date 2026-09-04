@@ -29,7 +29,7 @@ export default function StudentDashboard() {
     currentStudent,
     currentUser,
     suggestions,
-    setSuggestions,
+    submitSuggestion: submitSuggestionToContext,
     logout,
     setView,
     myApplication,
@@ -50,6 +50,8 @@ export default function StudentDashboard() {
   const [sent, setSent] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [joiningActivityCount, setJoiningActivityCount] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   if (!currentStudent) {
     return (
@@ -116,35 +118,36 @@ export default function StudentDashboard() {
     );
   }
 
-  const mySuggestions = suggestions.filter((s) => s.studentId === currentStudent.id);
+  const mySuggestions = suggestions.filter(
+    (s) => s.studentId === currentStudent.id || (currentStudent.userId && s.studentId === currentStudent.userId)
+  );
   const isAccepted = studentAccess === 'accepted';
   const studentTabs = studentPortalTabs(!!myApplication).map((item) => ({
     ...item,
     icon: STUDENT_TAB_ICONS[item.id],
   }));
 
-  const submitSuggestion = (e: React.FormEvent) => {
+
+  const submitSuggestion = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     if (!validateRequired(form, ['title', 'targetRole', 'category', 'body'], setInvalid)) return;
-    const ns: Suggestion = {
-      id: 'sg' + Date.now() + Math.random().toString(36).slice(2, 6),
-      studentId: currentStudent.id,
-      studentName: currentStudent.name,
-      studentEmail: currentStudent.email,
-      studentUniversity: currentStudent.university,
-      studentMajor: currentStudent.major,
+    setSubmitting(true);
+    setSubmitError(null);
+    const result = await submitSuggestionToContext({
       targetRole: form.targetRole as SuggestionTargetRole,
       category: form.category,
       title: form.title.trim(),
       content: form.body.trim(),
-      createdAt: new Date().toISOString().slice(0, 10),
-      status: 'new',
-      responses: [],
-    };
-    setSuggestions((prev) => [ns, ...prev]);
-    setForm({ title: '', body: '', category: '', targetRole: '' });
-    setSent(true);
-    setTimeout(() => setSent(false), 4000);
+    });
+    setSubmitting(false);
+    if (result.ok) {
+      setForm({ title: '', body: '', category: '', targetRole: '' });
+      setSent(true);
+      setTimeout(() => setSent(false), 4000);
+    } else {
+      setSubmitError(result.error || 'تعذر إرسال الاقتراح. يرجى المحاولة مرة أخرى.');
+    }
   };
 
   return (
@@ -350,9 +353,14 @@ export default function StudentDashboard() {
                     placeholder="اشرح فكرتك بالتفصيل..."
                   />
                 </div>
-                <button type="submit" className="btn-primary w-full">
+                {submitError && (
+                  <div className="rounded-lg bg-red-50 p-3 text-xs font-bold text-red-600">
+                    {submitError}
+                  </div>
+                )}
+                <button type="submit" disabled={submitting} className="btn-primary w-full disabled:opacity-50">
                   <Send className="h-4 w-4" />
-                  إرسال
+                  {submitting ? 'جاري الإرسال...' : 'إرسال'}
                 </button>
               </form>
             </div>
