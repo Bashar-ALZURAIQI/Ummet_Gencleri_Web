@@ -9,6 +9,7 @@ const ar = {
     delete: 'حذف',
     confirm: 'تأكيد',
     loading: 'جارٍ التحميل...',
+    language: 'اللغة',
   },
   navigation: {
     home: 'الرئيسية',

@@ -9,6 +9,7 @@ import { committeeMeta, committeeOrder, type CommitteeId } from '../data/mockDat
 import { EditableCard } from './InlineEditOverlay';
 import UserAvatar from './UserAvatar';
 import BrandMark from './BrandMark';
+import LanguageSwitcher from './LanguageSwitcher';
 import { canExposeAdminUi } from '../domain/liveIdentityRouting';
 
 const committeeIcons: Record<CommitteeId, typeof Crown> = {
@@ -205,6 +206,7 @@ export default function Navbar() {
 
         {/* Right actions */}
         <div className="flex items-center gap-2">
+          <LanguageSwitcher variant="desktop" />
           {currentUser ? (
             /* Profile dropdown (logged in) */
             <div className="relative hidden sm:block">
@@ -349,6 +351,9 @@ export default function Navbar() {
                 تسجيل الخروج
               </button>
             )}
+
+            <div className="my-2 h-px bg-gray-100" />
+            <LanguageSwitcher variant="mobile" onSelect={() => setMobileOpen(false)} />
           </div>
         </div>
       )}

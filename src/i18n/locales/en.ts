@@ -7,6 +7,7 @@ const en: TranslationSchema = {
     delete: 'Delete',
     confirm: 'Confirm',
     loading: 'Loading...',
+    language: 'Language',
   },
   navigation: {
     home: 'Home',

@@ -7,6 +7,7 @@ const tr: TranslationSchema = {
     delete: 'Sil',
     confirm: 'Onayla',
     loading: 'Yükleniyor...',
+    language: 'Dil',
   },
   navigation: {
     home: 'Ana Sayfa',

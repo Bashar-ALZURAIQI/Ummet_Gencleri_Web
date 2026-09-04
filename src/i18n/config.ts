@@ -6,6 +6,7 @@ import {
   DEFAULT_LOCALE,
   LOCALE_CONFIG,
   isSupportedLocale,
+  persistLocalePreference,
   readPersistedLocalePreference,
   resolveInitialLocale,
   applyDocumentLocale,
@@ -85,6 +86,64 @@ export function createI18nInstance(options?: CreateI18nOptions): I18nInstance {
  * Shared application-wide i18next instance.
  */
 export const i18n = createI18nInstance();
+
+export interface LanguageOption {
+  locale: Locale;
+  nativeName: string;
+  name: string;
+  isActive: boolean;
+}
+
+/**
+ * Returns supported language options with native labels and active indicator.
+ * Strictly no country flags.
+ */
+export function getLanguageOptions(currentLocale?: string): LanguageOption[] {
+  return SUPPORTED_LOCALES.map((locale) => ({
+    locale,
+    nativeName: LOCALE_CONFIG[locale].nativeName,
+    name: LOCALE_CONFIG[locale].name,
+    isActive: locale === currentLocale,
+  }));
+}
+
+export interface ManualChangeOptions {
+  i18nInstance?: I18nInstance;
+  storage?: Storage;
+  document?: Document | { documentElement?: { lang?: string; dir?: string; setAttribute?: (name: string, value: string) => void } } | null;
+  windowObj?: { location?: { href?: string } };
+}
+
+/**
+ * Executes the manual language change flow:
+ * 1. Validates locale is supported
+ * 2. Persists user preference to storage under 'ummet_locale'
+ * 3. Invokes i18n.changeLanguage(locale)
+ * 4. Applies document lang and dir attributes
+ * 5. Leaves current view and URL intact
+ */
+export async function handleManualLanguageChange(
+  targetLocale: unknown,
+  options?: ManualChangeOptions
+): Promise<{ success: boolean; locale?: Locale }> {
+  if (!isSupportedLocale(targetLocale)) {
+    return { success: false };
+  }
+
+  const instance = options?.i18nInstance ?? i18n;
+  const targetDoc = options?.document;
+
+  // 1. Persist manual choice
+  persistLocalePreference(targetLocale, options?.storage);
+
+  // 2. Change language on i18n instance
+  await instance.changeLanguage(targetLocale);
+
+  // 3. Update document attributes
+  applyDocumentLocale(targetLocale, targetDoc);
+
+  return { success: true, locale: targetLocale };
+}
 
 export default i18n;
 export { SUPPORTED_LOCALES, DEFAULT_LOCALE, LOCALE_CONFIG, type Locale, type TranslationSchema };

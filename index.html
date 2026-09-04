@@ -2,6 +2,42 @@
 <html lang="ar" dir="rtl">
   <head>
     <meta charset="UTF-8" />
+    <script data-locale-bootstrap>
+      (function () {
+        try {
+          var supported = ['ar', 'tr', 'en'];
+          var storageKey = 'ummet_locale';
+          var saved = localStorage.getItem(storageKey);
+          var locale = supported.indexOf(saved) !== -1 ? saved : null;
+
+          if (!locale && typeof navigator !== 'undefined') {
+            var langs = navigator.languages || [navigator.language];
+            if (langs) {
+              for (var i = 0; i < langs.length; i++) {
+                var lang = langs[i];
+                if (typeof lang === 'string') {
+                  var primary = lang.toLowerCase().split(/[-_]/)[0];
+                  if (supported.indexOf(primary) !== -1) {
+                    locale = primary;
+                    break;
+                  }
+                }
+              }
+            }
+          }
+
+          if (!locale) {
+            locale = 'ar';
+          }
+
+          document.documentElement.lang = locale;
+          document.documentElement.dir = locale === 'ar' ? 'rtl' : 'ltr';
+        } catch (e) {
+          document.documentElement.lang = 'ar';
+          document.documentElement.dir = 'rtl';
+        }
+      })();
+    </script>
     <link rel="icon" type="image/svg+xml" href="/icons/union-push-icon.svg" />
     <link rel="apple-touch-icon" href="/icons/union-push-icon.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
