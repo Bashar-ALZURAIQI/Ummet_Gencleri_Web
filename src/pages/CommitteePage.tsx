@@ -414,7 +414,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               onClick={() => { setView({ kind: 'committee', committeeId: prev }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
               className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-navy-700 transition-colors hover:bg-navy-50"
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-4 w-4 rtl:rotate-0 ltr:rotate-180" />
               {committeeMeta[prev].name}
             </button>
           ) : (
@@ -422,7 +422,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               onClick={() => setView({ kind: 'board' })}
               className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-navy-700 transition-colors hover:bg-navy-50"
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-4 w-4 rtl:rotate-0 ltr:rotate-180" />
               الهيئة التنفيذية
             </button>
           )}
@@ -432,7 +432,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-navy-700 transition-colors hover:bg-navy-50"
             >
               {committeeMeta[next].name}
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-4 w-4 rtl:rotate-0 ltr:rotate-180" />
             </button>
           ) : (
             <button
@@ -440,7 +440,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-navy-700 transition-colors hover:bg-navy-50"
             >
               الهيئة التنفيذية
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-4 w-4 rtl:rotate-0 ltr:rotate-180" />
             </button>
           )}
         </div>

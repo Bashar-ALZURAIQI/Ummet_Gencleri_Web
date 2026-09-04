@@ -31,7 +31,7 @@ export default function ExcuseReviewPanel() {
     notify('success', 'تم اعتماد تقييم العذر وحفظ حركة النقاط في السجل.');
   };
 
-  return <section className="card p-6" dir="rtl">
+  return <section className="card p-6">
     <TransientToast message={toast} onClose={() => setToast(null)} />
     <div className="mb-5 flex items-center justify-between gap-3">
       <div><h2 className="text-xl font-extrabold text-navy-900">إدارة الأعذار</h2><p className="text-sm text-gray-500">أعذار الأنشطة الإلزامية التي تنتظر القرار.</p></div>

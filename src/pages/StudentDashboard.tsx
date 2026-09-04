@@ -64,7 +64,7 @@ export default function StudentDashboard() {
 
   if (studentAccess === 'loading') {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-gray-50 px-6 pt-20 text-center" dir="rtl">
+      <main className="flex min-h-screen items-center justify-center bg-gray-50 px-6 pt-20 text-center">
         <Clock className="h-9 w-9 animate-pulse text-navy-500" aria-label="جارٍ التحقق من حالة العضوية" />
       </main>
     );
@@ -72,7 +72,7 @@ export default function StudentDashboard() {
 
   if (studentAccess === 'removed') {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-rose-700 px-6 pt-20 text-center" dir="rtl">
+      <main className="flex min-h-screen items-center justify-center bg-rose-700 px-6 pt-20 text-center">
         <h1 className="max-w-2xl text-2xl font-extrabold text-white sm:text-4xl">مع الأسف، أنت لم تعد عضواً في الاتحاد</h1>
       </main>
     );
@@ -80,7 +80,7 @@ export default function StudentDashboard() {
 
   if (studentAccess === 'pending') {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-gray-50 px-6 pt-20 text-center" dir="rtl">
+      <main className="flex min-h-screen items-center justify-center bg-gray-50 px-6 pt-20 text-center">
         <h1 className="text-2xl font-extrabold text-navy-900 sm:text-3xl">أهلاً بك، طلبك تحت المعاينة</h1>
       </main>
     );
@@ -90,7 +90,7 @@ export default function StudentDashboard() {
     const interview = myApplication?.interview;
     const interviewDate = interview?.date ? new Date(interview.date) : null;
     return (
-      <main className="flex min-h-screen items-center justify-center bg-sky-50 px-6 pt-20" dir="rtl">
+      <main className="flex min-h-screen items-center justify-center bg-sky-50 px-6 pt-20">
         <section className="w-full max-w-xl rounded-3xl border border-sky-200 bg-white p-8 text-center shadow-lg">
           <Video className="mx-auto h-12 w-12 text-sky-600" />
           <h1 className="mt-4 text-2xl font-extrabold text-navy-900">تم قبولك في المقابلة</h1>
@@ -110,7 +110,7 @@ export default function StudentDashboard() {
 
   if (studentAccess === 'rejected') {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-rose-50 px-6 pt-20 text-center" dir="rtl">
+      <main className="flex min-h-screen items-center justify-center bg-rose-50 px-6 pt-20 text-center">
         <h1 className="max-w-2xl text-2xl font-extrabold text-rose-800">{myApplication?.rejectionReason || 'نعتذر عن عدم قبول طلبك في هذه الدورة.'}</h1>
       </main>
     );

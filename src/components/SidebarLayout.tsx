@@ -1,5 +1,6 @@
 import { Menu, X, type LucideIcon } from 'lucide-react';
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   closeSidebar,
   shouldCloseSidebarForKey,
@@ -37,9 +38,11 @@ export function SidebarLayout<TId extends string>({
   activeId,
   onSelect,
   title = 'الأقسام',
-  direction = 'rtl',
+  direction: customDirection,
   children,
 }: SidebarLayoutProps<TId>) {
+  const { i18n } = useTranslation();
+  const direction: 'rtl' | 'ltr' = customDirection ?? (i18n.dir() as 'rtl' | 'ltr');
   const [drawer, setDrawer] = useState<SidebarDrawerState>(CLOSED_DRAWER);
   const drawerId = useId();
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -115,7 +118,7 @@ export function SidebarLayout<TId extends string>({
             type="button"
             aria-current={active ? 'page' : undefined}
             onClick={() => (mobile ? handleSelect(item) : onSelect(item.id))}
-            className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-right text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${
+            className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-start text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${
               active
                 ? 'bg-emerald-600 text-white shadow-sm'
                 : 'text-navy-800 hover:bg-emerald-50 hover:text-emerald-800'

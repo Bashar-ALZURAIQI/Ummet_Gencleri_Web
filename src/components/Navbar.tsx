@@ -115,7 +115,7 @@ export default function Navbar() {
             }}
             currentValues={{ 'brand.name': siteContent.brand.name, 'brand.nameTr': siteContent.brand.nameTr }}
           >
-            <div className="text-right">
+            <div className="text-start">
               <div className="text-base font-extrabold leading-tight text-navy-900 lg:text-lg">
                 {siteContent.brand.name}
               </div>
@@ -166,7 +166,7 @@ export default function Navbar() {
               <div className="absolute left-1/2 top-full mt-2 w-64 -translate-x-1/2 animate-scale-in rounded-2xl border border-gray-100 bg-white p-2 shadow-xl">
                 <button
                   onMouseDown={() => go({ kind: 'board' })}
-                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-right text-sm font-bold text-navy-900 transition-colors hover:bg-navy-50"
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-start text-sm font-bold text-navy-900 transition-colors hover:bg-navy-50"
                 >
                   <Network className="h-4 w-4 text-navy-600" />
                   نظرة عامة على الهيئة
@@ -179,7 +179,7 @@ export default function Navbar() {
                     <button
                       key={id}
                       onMouseDown={() => go({ kind: 'committee', committeeId: id })}
-                      className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-right text-sm font-medium text-gray-700 transition-colors hover:bg-navy-50 hover:text-navy-800"
+                      className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-start text-sm font-medium text-gray-700 transition-colors hover:bg-navy-50 hover:text-navy-800"
                     >
                       <Icon className="h-4 w-4 text-navy-500" />
                       {c?.name || committeeMeta[id].name}
@@ -227,7 +227,7 @@ export default function Navbar() {
                 <ChevronDown className={`h-3.5 w-3.5 transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
               </button>
               {profileOpen && (
-                <div className="absolute left-0 top-full mt-2 w-60 animate-scale-in rounded-2xl border border-gray-100 bg-white p-2 shadow-xl">
+                <div className="absolute end-0 top-full mt-2 w-60 animate-scale-in rounded-2xl border border-gray-100 bg-white p-2 shadow-xl">
                   <div className="border-b border-gray-100 px-3 py-2.5">
                     <div className="text-sm font-bold text-navy-900">{currentUser.name}</div>
                     <div className="text-[11px] text-gray-400">{roleLabel(currentUser.role, currentUser.committee)}</div>
@@ -236,7 +236,7 @@ export default function Navbar() {
                     {adminUiAllowed && (
                       <button
                         onMouseDown={() => go({ kind: 'admin' })}
-                        className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-right text-sm font-bold text-navy-900 transition-colors hover:bg-navy-50"
+                        className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-start text-sm font-bold text-navy-900 transition-colors hover:bg-navy-50"
                       >
                         <Shield className="h-4 w-4 text-navy-600" />
                         لوحة الإدارة
@@ -245,7 +245,7 @@ export default function Navbar() {
                     {currentUser.role === 'STUDENT' && (
                       <button
                         onMouseDown={() => go({ kind: 'student-dashboard' })}
-                        className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-right text-sm font-medium text-gray-700 transition-colors hover:bg-navy-50 hover:text-navy-800"
+                        className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-start text-sm font-medium text-gray-700 transition-colors hover:bg-navy-50 hover:text-navy-800"
                       >
                         <LayoutDashboard className="h-4 w-4 text-navy-600" />
                         بوابة الطالب
@@ -253,7 +253,7 @@ export default function Navbar() {
                     )}
                     <button
                       onMouseDown={() => { logout(); setProfileOpen(false); }}
-                      className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-right text-sm font-medium text-rose-600 transition-colors hover:bg-rose-50"
+                      className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-start text-sm font-medium text-rose-600 transition-colors hover:bg-rose-50"
                     >
                       <LogOut className="h-4 w-4" />
                       تسجيل الخروج
@@ -317,7 +317,7 @@ export default function Navbar() {
                 <button
                   key={id}
                   onClick={() => go({ kind: 'committee', committeeId: id })}
-                  className="flex w-full items-center gap-3 rounded-xl pr-10 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
+                  className="flex w-full items-center gap-3 rounded-xl ps-10 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
                 >
                   <Icon className="h-4 w-4 text-navy-500" />
                   {c?.name || committeeMeta[id].name}
