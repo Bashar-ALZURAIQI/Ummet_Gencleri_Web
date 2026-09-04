@@ -9,11 +9,11 @@ export default function BarChart({
 }) {
   const max = useMemo(() => Math.max(...data.map((d) => d.value), 1), [data]);
   return (
-    <div className="flex items-end justify-between gap-2" style={{ height }}>
+    <div className="flex w-full min-w-0 items-end justify-between gap-1 sm:gap-2" style={{ height }}>
       {data.map((d, i) => {
         const pct = (d.value / max) * 100;
         return (
-          <div key={i} className="flex flex-1 flex-col items-center gap-2">
+          <div key={i} className="flex min-w-0 flex-1 flex-col items-center gap-1.5 sm:gap-2">
             <div className="flex w-full flex-1 items-end">
               <div
                 className="group relative w-full rounded-t-lg transition-all duration-700"
@@ -28,7 +28,7 @@ export default function BarChart({
                 </span>
               </div>
             </div>
-            <span className="text-[10px] font-medium text-gray-500">{d.label}</span>
+            <span className="w-full text-center text-[10px] font-medium text-gray-500 truncate" title={d.label}>{d.label}</span>
           </div>
         );
       })}
@@ -49,7 +49,7 @@ export function DonutChart({
   let offset = 0;
 
   return (
-    <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:gap-6">
+    <div className="flex w-full min-w-0 flex-col items-center gap-4 sm:flex-row sm:items-center sm:gap-6">
       <svg width={size} height={size} className="shrink-0">
         <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#f1f5f9" strokeWidth={18} />
         {data.map((d, i) => {
@@ -77,12 +77,14 @@ export function DonutChart({
           {total}
         </text>
       </svg>
-      <div className="space-y-2">
+      <div className="w-full min-w-0 space-y-2">
         {data.map((d, i) => (
-          <div key={i} className="flex items-center gap-2 text-sm">
-            <span className="h-3 w-3 rounded-full" style={{ backgroundColor: d.color }} />
-            <span className="font-medium text-gray-600">{d.label}</span>
-            <span className="font-bold text-navy-900">{d.value}</span>
+          <div key={i} className="flex min-w-0 items-center justify-between gap-2 text-sm">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: d.color }} />
+              <span className="truncate font-medium text-gray-600">{d.label}</span>
+            </div>
+            <span className="shrink-0 font-bold text-navy-900">{d.value}</span>
           </div>
         ))}
       </div>
@@ -156,18 +158,18 @@ export function LineChart({
   }
 
   return (
-    <div className="w-full">
+    <div className="w-full min-w-0 max-w-full">
       {normalizedSeries.length > 1 && (
-        <div className="mb-3 flex items-center justify-end gap-4 text-xs">
+        <div className="mb-3 flex flex-wrap items-center justify-end gap-2 sm:gap-4 text-xs">
           {normalizedSeries.map((s, idx) => (
             <div key={idx} className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
               <span className="font-medium text-gray-600">{s.label}</span>
             </div>
           ))}
         </div>
       )}
-      <div className="w-full" style={{ height }}>
+      <div className="w-full min-w-0" style={{ height }}>
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-full w-full">
           <defs>
             {normalizedSeries.map((s, idx) => (
@@ -196,9 +198,9 @@ export function LineChart({
             </g>
           ))}
         </svg>
-        <div className="mt-2 flex justify-between text-[10px] font-medium text-gray-400">
+        <div className="mt-2 flex justify-between gap-1 text-[10px] font-medium text-gray-400">
           {xLabels.map((lbl, i) => (
-            <span key={i}>{lbl}</span>
+            <span key={i} className="min-w-0 truncate text-center">{lbl}</span>
           ))}
         </div>
       </div>

@@ -542,7 +542,7 @@ function StatsTab({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="w-full min-w-0 max-w-full space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -600,7 +600,7 @@ function StatsTab({
                   onNavigate(nav.targetTab, nav.initialFilter);
                 }
               }}
-              className={`card p-5 ${affordance.cursorClass}`}
+              className={`card min-w-0 p-5 ${affordance.cursorClass}`}
               role={affordance.isClickable ? 'button' : undefined}
               tabIndex={affordance.isClickable ? 0 : undefined}
               onKeyDown={(e) => {
@@ -618,15 +618,15 @@ function StatsTab({
                   <ChevronLeft className="h-5 w-5 text-gray-400" />
                 )}
               </div>
-              <div className="mt-4 text-3xl font-extrabold text-navy-900">{k.value}</div>
-              <div className="text-sm text-gray-500">{k.label}</div>
+              <div className="mt-4 truncate text-3xl font-extrabold text-navy-900">{k.value}</div>
+              <div className="truncate text-sm text-gray-500">{k.label}</div>
             </div>
           );
         })}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="card p-6 lg:col-span-2">
+      <div className="grid w-full min-w-0 gap-6 lg:grid-cols-3">
+        <div className="card min-w-0 p-4 sm:p-6 lg:col-span-2">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="flex items-center gap-2 text-base font-bold text-navy-900">
               <BarChart3 className="h-5 w-5 text-navy-600" /> نمو الأعضاء والتسجيلات (آخر 6 أشهر)
@@ -635,7 +635,7 @@ function StatsTab({
           </div>
           <LineChart series={lineChartSeries} height={220} />
         </div>
-        <div className="card p-6">
+        <div className="card min-w-0 p-4 sm:p-6">
           <h3 className="mb-4 flex items-center gap-2 text-base font-bold text-navy-900">
             <PieChart className="h-5 w-5 text-navy-600" /> توزيع الفعاليات
           </h3>
@@ -647,8 +647,8 @@ function StatsTab({
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="card p-6">
+      <div className="grid w-full min-w-0 gap-6 lg:grid-cols-2">
+        <div className="card min-w-0 p-4 sm:p-6">
           <h3 className="mb-4 flex items-center gap-2 text-base font-bold text-navy-900">
             <BarChart3 className="h-5 w-5 text-navy-600" /> المشاركة حسب نوع الفعالية
           </h3>
@@ -657,7 +657,7 @@ function StatsTab({
             height={200}
           />
         </div>
-        <div className="card p-6">
+        <div className="card min-w-0 p-4 sm:p-6">
           <h3 className="mb-4 flex items-center gap-2 text-base font-bold text-navy-900">
             <Clock className="h-5 w-5 text-navy-600" /> آخر الاقتراحات والرسائل
           </h3>
@@ -697,7 +697,7 @@ function StatsTab({
               visibleContactMessages.slice(0, 2).map((m) => (
                 <div key={m?.id ?? Math.random()} className="flex items-start gap-3 rounded-xl border border-gray-100 p-3">
                   <Mail className="h-4 w-4 shrink-0 text-navy-500 mt-0.5" />
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-bold text-navy-900">{m?.subject ?? 'بدون موضوع'}</div>
                     <div className="truncate text-xs text-gray-500">{m?.senderName ?? ''} - {m?.message ?? ''}</div>
                   </div>
