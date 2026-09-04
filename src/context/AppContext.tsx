@@ -18,6 +18,7 @@ import {
   subscribeToPublicExecutiveDirectory,
   subscribeToOwnProfileAndAssignment,
   transferExecutiveAssignment,
+  revokeExecutiveAssignment as revokeExecutiveAssignmentService,
   removeMemberMembership,
   updateOwnProfile as updateOwnProfileService,
   changeOwnPassword as changeOwnPasswordService,
@@ -157,6 +158,7 @@ import {
   executeExecutiveTransfer,
   type TransferMemberRoleResult,
 } from '../domain/executiveTransfer';
+import { executeExecutiveRevocation } from '../domain/executiveRevocation';
 import { routeAfterConfirmedIdentityRefresh } from '../domain/liveIdentityRouting';
 import {
   createIdentitySubscriptionGeneration,
@@ -661,6 +663,7 @@ interface AppContextValue {
   approveSiteEditWithChanges: (editId: string, revisedDiffs: SiteEditDiff[]) => Promise<{ ok: boolean; error?: string }>;
   updatePresidentProfile: (updates: Partial<Pick<BoardMember, 'name' | 'photo' | 'bio'>>) => void;
   transferMemberRole: (memberId: string, role: UserRole) => Promise<TransferMemberRoleResult>;
+  revokeExecutiveAssignment: (memberId: string) => Promise<{ ok: boolean; error?: string; revokedMember?: { id: string; name: string } }>;
   getRoleHolder: (role: UserRole) => UnifiedMember | undefined;
   updateBoardHead: (committeeId: CommitteeId, data: Partial<Pick<BoardMember, 'name' | 'bio' | 'photo' | 'email' | 'phone' | 'university' | 'major' | 'year'>>) => Promise<OwnProfileOperationResult>;
   removeMember: (memberId: string) => Promise<{ ok: boolean; error?: string }>;
@@ -2586,6 +2589,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return result;
   };
 
+  const revokeExecutiveAssignment: AppContextValue['revokeExecutiveAssignment'] = async (memberId) => {
+    const target = members.find((member) => member.id === memberId);
+    if (!target) {
+      return { ok: false, error: 'لم يعد العضو المحدد موجوداً في الدليل المحدث.' };
+    }
+    return executeExecutiveRevocation({
+      actor: currentUser ? { role: currentUser.role, userId: currentUser.userId } : null,
+      target: { id: target.id, name: target.name, role: target.role },
+      revoke: revokeExecutiveAssignmentService,
+      refreshDirectory: refreshAccountDirectory,
+    });
+  };
+
   const removeMember: AppContextValue['removeMember'] = async (memberId) => {
     const actor = captureConfirmedAuthOwner();
     if (actor?.role === 'PRESIDENT' && !members.some((member) => member.id === memberId)) {
@@ -3528,6 +3544,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       approveSiteEditWithChanges,
       updatePresidentProfile,
       transferMemberRole,
+      revokeExecutiveAssignment,
       getRoleHolder,
       updateBoardHead,
       removeMember,

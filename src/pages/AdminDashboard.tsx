@@ -27,6 +27,7 @@ import SiteBrandingPanel from '../components/SiteBrandingPanel';
 import TransientToast, { type ToastMessage } from '../components/TransientToast';
 import { validateRequired, clearInvalid, isInvalid, fieldId } from '../utils/formValidation';
 import { buildTransferConfirmation, runTransferWithBusyState } from '../domain/executiveTransfer';
+import { buildRevocationConfirmation, getOfficeName, type ExecutiveRole } from '../domain/executiveRevocation';
 import { canAccessContactInbox, canRetryContactEmail } from '../domain/contactMessagingPolicy';
 import { canManageGuideSuggestions } from '../domain/guideSuggestionPolicy';
 import type { ManagedAssetReference } from '../services/managedAssetService';
@@ -60,7 +61,7 @@ export default function AdminDashboard() {
     applicationEmailNotifications, retryApplicationEmailNotification,
     canEditSection, currentUser, respondToSuggestion,
     getVisibleSuggestions, canRespondToSuggestion,
-    committees, setCommittees, transferMemberRole, removeMember,
+    committees, setCommittees, transferMemberRole, revokeExecutiveAssignment, removeMember,
     members, setMembers,
     updateBoardHead,
     getRoleHolder,
@@ -128,7 +129,7 @@ export default function AdminDashboard() {
           {tab === 'events' && currentUser && isLeadershipRole(currentUser.role) && <EventsTab events={events} currentUser={currentUser} />}
           {tab === 'gallery' && currentUser && isLeadershipRole(currentUser.role) && <GalleryTab galleryAlbums={galleryAlbums} setGalleryAlbums={setGalleryAlbums} galleryCategories={galleryCategories} currentUser={currentUser} />}
           {tab === 'news' && canEditSection('news') && <NewsTab news={news} currentUser={currentUser} submitSiteEdit={submitSiteEdit} />}
-          {tab === 'members' && currentUser?.role === 'PRESIDENT' && <MembersTab members={members} currentUser={currentUser} transferMemberRole={transferMemberRole} getRoleHolder={getRoleHolder} removeMember={removeMember} />}
+          {tab === 'members' && currentUser?.role === 'PRESIDENT' && <MembersTab members={members} currentUser={currentUser} transferMemberRole={transferMemberRole} revokeExecutiveAssignment={revokeExecutiveAssignment} getRoleHolder={getRoleHolder} removeMember={removeMember} />}
           {tab === 'applications' && (
             <ApplicationsTab
               applications={applications}
@@ -2209,19 +2210,23 @@ function NewsTab({ news, currentUser, submitSiteEdit }: {
 }
 
 /* ---------------- Members Tab ---------------- */
-function MembersTab({ members, currentUser, transferMemberRole, getRoleHolder, removeMember }: {
+function MembersTab({ members, currentUser, transferMemberRole, revokeExecutiveAssignment, getRoleHolder, removeMember }: {
   members: ReturnType<typeof useApp>['members'];
   currentUser: ReturnType<typeof useApp>['currentUser'];
   transferMemberRole: ReturnType<typeof useApp>['transferMemberRole'];
+  revokeExecutiveAssignment: ReturnType<typeof useApp>['revokeExecutiveAssignment'];
   getRoleHolder: ReturnType<typeof useApp>['getRoleHolder'];
   removeMember: ReturnType<typeof useApp>['removeMember'];
 }) {
   const [search, setSearch] = useState('');
   const [roleModal, setRoleModal] = useState<ReturnType<typeof useApp>['members'][0] | null>(null);
   const [removeCandidate, setRemoveCandidate] = useState<ReturnType<typeof useApp>['members'][0] | null>(null);
-  const [roleForm, setRoleForm] = useState<Exclude<UserRole, 'STUDENT'> | ''>('');
+  const [roleForm, setRoleForm] = useState<UserRole | ''>('');
   const [pendingAssignment, setPendingAssignment] = useState<{
     role: Exclude<UserRole, 'STUDENT'>;
+    message: string;
+  } | null>(null);
+  const [pendingRevocation, setPendingRevocation] = useState<{
     message: string;
   } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -2232,8 +2237,9 @@ function MembersTab({ members, currentUser, transferMemberRole, getRoleHolder, r
 
   const openRoleModal = (member: ReturnType<typeof useApp>['members'][0]) => {
     setRoleModal(member);
-    setRoleForm(member.role === 'STUDENT' ? '' : member.role);
+    setRoleForm(member.role);
     setPendingAssignment(null);
+    setPendingRevocation(null);
     setFeedback(null);
   };
 
@@ -2243,17 +2249,46 @@ function MembersTab({ members, currentUser, transferMemberRole, getRoleHolder, r
     if (holder?.id === roleModal.id) {
       setRoleForm(role);
       setPendingAssignment(null);
+      setPendingRevocation(null);
       setFeedback({ kind: 'warning', text: 'هذا العضو يشغل المنصب المحدد بالفعل.' });
       return;
     }
     setFeedback(null);
     setRoleForm(role);
+    setPendingRevocation(null);
     setPendingAssignment({
       role,
       message: buildTransferConfirmation({
         position: role,
         previousHolder: holder ? { id: holder.id, name: holder.name } : null,
         newHolder: { id: roleModal.id, name: roleModal.name },
+      }),
+    });
+  };
+
+  const selectStudent = () => {
+    if (!roleModal) return;
+    if (roleModal.role === 'PRESIDENT') {
+      setFeedback({
+        kind: 'warning',
+        text: 'لا يمكن إنهاء منصب الرئيس وإعادته إلى طالب مباشرة. يجب نقل الرئاسة إلى عضو آخر أولاً.',
+      });
+      return;
+    }
+    if (roleModal.role === 'STUDENT') {
+      setRoleForm('STUDENT');
+      setPendingAssignment(null);
+      setPendingRevocation(null);
+      setFeedback({ kind: 'warning', text: 'هذا العضو طالب عادي بالفعل.' });
+      return;
+    }
+    setFeedback(null);
+    setRoleForm('STUDENT');
+    setPendingAssignment(null);
+    setPendingRevocation({
+      message: buildRevocationConfirmation({
+        targetName: roleModal.name,
+        position: roleModal.role as ExecutiveRole,
       }),
     });
   };
@@ -2278,6 +2313,29 @@ function MembersTab({ members, currentUser, transferMemberRole, getRoleHolder, r
       setRoleModal(null);
     } catch {
       setFeedback({ kind: 'error', text: 'حدث خطأ غير متوقع أثناء نقل المنصب. تم حجب الصلاحيات مؤقتاً للأمان.' });
+    }
+  };
+
+  const confirmRevocation = async () => {
+    if (!roleModal || !pendingRevocation || busy || currentUser?.role !== 'PRESIDENT') return;
+    setFeedback(null);
+    try {
+      const result = await runTransferWithBusyState(
+        () => revokeExecutiveAssignment(roleModal.id),
+        setBusy,
+      );
+      if (!result.ok) {
+        setFeedback({ kind: 'error', text: result.error ?? 'تعذر إنهاء المنصب.' });
+        return;
+      }
+      setFeedback({
+        kind: result.error ? 'warning' : 'success',
+        text: result.error ?? `تم إنهاء منصب ${getOfficeName(roleModal.role as ExecutiveRole)} لـ ${roleModal.name} بنجاح وإعادته إلى طالب عادي.`,
+      });
+      setPendingRevocation(null);
+      setRoleModal(null);
+    } catch {
+      setFeedback({ kind: 'error', text: 'حدث خطأ غير متوقع أثناء إنهاء المنصب.' });
     }
   };
 
@@ -2379,20 +2437,59 @@ function MembersTab({ members, currentUser, transferMemberRole, getRoleHolder, r
         </div>
       </div>
 
-      <Modal open={!!roleModal} onClose={() => { if (!busy) setRoleModal(null); }} title="نقل منصب تنفيذي" maxWidth="max-w-lg">
+      <Modal open={!!roleModal} onClose={() => { if (!busy) setRoleModal(null); }} title="إدارة منصب العضو" maxWidth="max-w-lg">
         {roleModal && (
           <div className="space-y-4">
             <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
-              <div className="text-xs text-gray-400">الحساب الجديد</div>
+              <div className="text-xs text-gray-400">العضو المحدد</div>
               <div className="text-sm font-bold text-navy-900">{roleModal.name}</div>
               <div className="mt-1 text-xs text-gray-500" dir="ltr">{roleModal.email}</div>
+              <div className="mt-1 text-xs font-semibold text-gold-700">
+                المنصب الحالي: {roleModal.role === 'STUDENT' ? 'طالب عادي' : ROLE_LABEL[roleModal.role]}
+              </div>
             </div>
+            {roleModal.role === 'PRESIDENT' && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800">
+                ملاحظة: لا يمكن إنهاء منصب الرئيس وإعادته إلى طالب مباشرة. لنقل الرئاسة، يرجى اختيار منصب الرئيس لعضو آخر.
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                disabled={busy || roleModal.role === 'STUDENT' || roleModal.role === 'PRESIDENT'}
+                onClick={() => selectStudent()}
+                title={
+                  roleModal.role === 'STUDENT'
+                    ? 'العضو طالب بالفعل'
+                    : roleModal.role === 'PRESIDENT'
+                      ? 'يجب نقل الرئاسة لعضو آخر أولاً'
+                      : 'إنهاء المنصب التنفيذي وإعادة العضو إلى طالب عادي'
+                }
+                className={`col-span-2 rounded-xl border px-3 py-2 text-xs font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
+                  roleForm === 'STUDENT'
+                    ? 'border-emerald-400 bg-emerald-50 text-emerald-800'
+                    : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                طالب عادي
+                {roleModal.role === 'STUDENT' ? ' (الحالي)' : ''}
+              </button>
               {LEADERSHIP_ROLES
                 .filter((role): role is Exclude<UserRole, 'STUDENT'> => role !== 'STUDENT')
                 .map((role) => (
-                <button key={role} type="button" disabled={busy} onClick={() => selectRole(role)} className={`rounded-xl border px-3 py-2 text-xs font-bold transition-all disabled:opacity-50 ${roleForm === role ? 'border-gold-400 bg-gold-50 text-gold-800' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+                <button
+                  key={role}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => selectRole(role)}
+                  className={`rounded-xl border px-3 py-2 text-xs font-bold transition-all disabled:opacity-50 ${
+                    roleForm === role
+                      ? 'border-gold-400 bg-gold-50 text-gold-800'
+                      : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                  }`}
+                >
                   {ROLE_LABEL[role]}
+                  {roleModal.role === role ? ' (الحالي)' : ''}
                 </button>
               ))}
             </div>
@@ -2401,11 +2498,35 @@ function MembersTab({ members, currentUser, transferMemberRole, getRoleHolder, r
                 {pendingAssignment.message}
               </div>
             )}
+            {pendingRevocation && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm font-bold text-amber-800">
+                {pendingRevocation.message}
+              </div>
+            )}
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" disabled={busy} onClick={() => setRoleModal(null)} className="btn-ghost">إلغاء</button>
-              <button type="button" disabled={!pendingAssignment || busy} onClick={() => { void confirmAssignment(); }} className="btn-primary disabled:cursor-not-allowed disabled:opacity-50">
-                {busy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Crown className="h-4 w-4" />}
-                {busy ? 'جارٍ تأكيد النقل...' : 'تأكيد نقل المنصب'}
+              <button
+                type="button"
+                disabled={(!pendingAssignment && !pendingRevocation) || busy}
+                onClick={() => {
+                  if (pendingRevocation) {
+                    void confirmRevocation();
+                  } else if (pendingAssignment) {
+                    void confirmAssignment();
+                  }
+                }}
+                className="btn-primary disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {busy ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : pendingRevocation ? (
+                  <UserX className="h-4 w-4" />
+                ) : (
+                  <Crown className="h-4 w-4" />
+                )}
+                {busy
+                  ? (pendingRevocation ? 'جارٍ إنهاء المنصب...' : 'جارٍ تأكيد النقل...')
+                  : (pendingRevocation ? 'تأكيد إنهاء المنصب' : 'تأكيد نقل المنصب')}
               </button>
             </div>
           </div>

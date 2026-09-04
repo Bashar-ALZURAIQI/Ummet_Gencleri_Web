@@ -24,6 +24,10 @@ import {
   type ExecutiveTransferServiceOutcome,
 } from '../domain/executiveTransferServiceOutcome.ts';
 import {
+  classifyRevocationRpcResult,
+  type ExecutiveRevocationOutcome,
+} from '../domain/executiveRevocation.ts';
+import {
   createPasswordVerificationClient,
   serviceFailure,
   serviceSuccess,
@@ -223,6 +227,25 @@ export async function transferExecutiveAssignment(
     });
     return { data, error };
   });
+}
+
+export async function revokeExecutiveAssignment(
+  targetUserId: string,
+): Promise<ExecutiveRevocationOutcome> {
+  try {
+    const { data, error } = await supabase.rpc('revoke_executive_assignment', {
+      target_user_id: targetUserId,
+    });
+    return classifyRevocationRpcResult({ data, error });
+  } catch {
+    return {
+      kind: 'indeterminate',
+      error: {
+        code: 'ASSIGNMENT_REVOCATION_INDETERMINATE',
+        message: 'The assignment revocation result could not be confirmed safely.',
+      },
+    };
+  }
 }
 
 export async function removeMemberMembership(targetUserId: string): Promise<MemberRemovalResult> {
