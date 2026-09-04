@@ -31,6 +31,7 @@ import { buildTransferConfirmation, runTransferWithBusyState } from '../domain/e
 import { buildRevocationConfirmation, getOfficeName, type ExecutiveRole } from '../domain/executiveRevocation';
 import { canAccessContactInbox, canRetryContactEmail } from '../domain/contactMessagingPolicy';
 import { canManageGuideSuggestions } from '../domain/guideSuggestionPolicy';
+import { getAcademicYearPresentation } from '../domain/academicYearPresentation';
 import type { ManagedAssetReference } from '../services/managedAssetService';
 import type {
   ApplicationEmailEventType,
@@ -915,6 +916,7 @@ function BoardTab({ committees, setCommittees, students, currentUser, updateBoar
   updateBoardHead: ReturnType<typeof useApp>['updateBoardHead'];
   setMembers: React.Dispatch<React.SetStateAction<ReturnType<typeof useApp>['members']>>;
 }) {
+  const { t } = useTranslation();
   const { uploadManagedFile, replaceManagedMemberAvatar, members: accountMembers } = useApp();
   const [memberModal, setMemberModal] = useState(false);
   const [editMember, setEditMember] = useState<{ committeeId: CommitteeId; member: CommitteeMember | null } | null>(null);
@@ -965,7 +967,7 @@ function BoardTab({ committees, setCommittees, students, currentUser, updateBoar
       const targetUserId = resolveTargetUserId();
       if (memberAvatarAsset) {
         if (!targetUserId) {
-          alert('تعذر تحديد حساب العضو المرتبط بهذه الصورة. اختر عضواً مسجلاً في النظام.');
+          alert(t('admin.board.memberModal.cannotIdentifyAccount', 'تعذر تحديد حساب العضو المرتبط بهذه الصورة. اختر عضواً مسجلاً في النظام.'));
           return;
         }
         const currentAvatar = accountMembers.find((item) => item.id === targetUserId)?.photo ?? '';
@@ -992,7 +994,7 @@ function BoardTab({ committees, setCommittees, students, currentUser, updateBoar
         setCommittees((prev) => prev.map((c) => {
           if (c.id !== committeeId) return c;
           const members = Array.isArray(c.members) ? c.members : [];
-          return { ...c, members: [...members, { id: 'cm' + Date.now(), name: student.name, position: memberForm.position || 'عضو', photo }] };
+          return { ...c, members: [...members, { id: 'cm' + Date.now(), name: student.name, position: memberForm.position || t('admin.board.defaultMemberPosition', 'عضو'), photo }] };
         }));
         setMembers((prev) => {
           const list = Array.isArray(prev) ? prev : [];
@@ -1026,7 +1028,7 @@ function BoardTab({ committees, setCommittees, students, currentUser, updateBoar
     setMemberModal(false);
   };
   const removeMember = (committeeId: CommitteeId, memberId: string) => {
-    if (!confirm('هل أنت متأكد من حذف هذا العضو؟')) return;
+    if (!confirm(t('admin.board.confirmDeleteMember', 'هل أنت متأكد من حذف هذا العضو؟'))) return;
     setCommittees((prev) => prev.map((c) => c.id === committeeId ? { ...c, members: (Array.isArray(c.members) ? c.members : []).filter((m) => m.id !== memberId) } : c));
   };
 
@@ -1058,7 +1060,7 @@ function BoardTab({ committees, setCommittees, students, currentUser, updateBoar
       }
       setHeadModal(false);
     } catch {
-      alert('تعذر حفظ الملف الشخصي. حاول مرة أخرى.');
+      alert(t('admin.board.headModal.saveFailed', 'تعذر حفظ الملف الشخصي. حاول مرة أخرى.'));
     }
   };
 
@@ -1088,7 +1090,7 @@ function BoardTab({ committees, setCommittees, students, currentUser, updateBoar
     setRespModal(false);
   };
   const removeResp = (committeeId: CommitteeId, idx: number) => {
-    if (!confirm('حذف هذا البند؟')) return;
+    if (!confirm(t('admin.board.confirmDeleteResp', 'حذف هذا البند؟'))) return;
     setCommittees((prev) => prev.map((c) => c.id === committeeId ? { ...c, responsibilities: (Array.isArray(c.responsibilities) ? c.responsibilities : []).filter((_, i) => i !== idx) } : c));
   };
 
@@ -1100,7 +1102,7 @@ function BoardTab({ committees, setCommittees, students, currentUser, updateBoar
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-extrabold text-white">{c.name}</h3>
               <button onClick={() => openAddMember(c.id)} className="flex items-center gap-1 rounded-lg bg-white/20 px-3 py-1.5 text-sm font-bold text-white backdrop-blur-sm transition-colors hover:bg-white/30">
-                <Plus className="h-4 w-4" /> إضافة عضو
+                <Plus className="h-4 w-4" /> {t('admin.board.addMember', 'إضافة عضو')}
               </button>
             </div>
           </div>
@@ -1108,30 +1110,30 @@ function BoardTab({ committees, setCommittees, students, currentUser, updateBoar
             {/* Head */}
             <div className="mb-4 rounded-xl border border-gray-100 bg-gray-50 p-4">
               <div className="mb-2 flex items-center justify-between">
-                <div className="text-xs font-bold uppercase text-gray-400">رئيس اللجنة / المسؤول</div>
+                <div className="text-xs font-bold uppercase text-gray-400">{t('admin.board.headTitle', 'رئيس اللجنة / المسؤول')}</div>
                 {c.head?.id === currentUser?.userId && (
                   <button onClick={() => openHead(c)} className="flex items-center gap-1 rounded-lg bg-navy-50 px-2.5 py-1.5 text-xs font-bold text-navy-700 transition-colors hover:bg-navy-100">
-                    <Edit3 className="h-3.5 w-3.5" /> تعديل ملفي
+                    <Edit3 className="h-3.5 w-3.5" /> {t('admin.board.editMyProfile', 'تعديل ملفي')}
                   </button>
                 )}
               </div>
               <div className="flex items-center gap-4">
                 <UserAvatar name={c.head?.name} photo={c.head?.photo} avatarPath={c.head?.photo} updatedAt={c.head?.updatedAt} className="h-16 w-16" />
                 <div className="flex-1 space-y-2">
-                  <input type="text" value={c.head?.name ?? ''} readOnly className="input-field bg-gray-100 font-bold text-gray-600" placeholder="الاسم" />
-                  <input type="text" value={c.head?.role ?? ''} readOnly className="input-field bg-gray-100 text-sm text-gray-500" placeholder="المسمى" />
+                  <input type="text" value={c.head?.name ?? ''} readOnly className="input-field bg-gray-100 font-bold text-gray-600" placeholder={t('admin.board.namePlaceholder', 'الاسم')} />
+                  <input type="text" value={c.head?.role ?? ''} readOnly className="input-field bg-gray-100 text-sm text-gray-500" placeholder={t('admin.board.positionPlaceholder', 'المسمى')} />
                 </div>
               </div>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                <input type="email" dir="ltr" value={c.head?.id === currentUser?.userId ? currentUser.contactEmail : ''} readOnly className="input-field bg-gray-100 text-sm text-gray-500" placeholder="بريد التواصل غير معلن" />
-                <input type="text" dir="ltr" value={c.head?.photo ?? ''} readOnly className="input-field bg-gray-100 text-sm text-gray-500" placeholder="تُدار الصورة من إعدادات الملف الشخصي" />
+                <input type="email" dir="ltr" value={c.head?.id === currentUser?.userId ? currentUser.contactEmail : ''} readOnly className="input-field bg-gray-100 text-sm text-gray-500" placeholder={t('admin.board.contactEmailUnpublished', 'بريد التواصل غير معلن')} />
+                <input type="text" dir="ltr" value={c.head?.photo ?? ''} readOnly className="input-field bg-gray-100 text-sm text-gray-500" placeholder={t('admin.board.photoManagedNotice', 'تُدار الصورة من إعدادات الملف الشخصي')} />
               </div>
-              <textarea rows={2} value={c.head?.bio ?? ''} readOnly className="input-field mt-2 resize-none bg-gray-100 text-sm text-gray-600" placeholder="النبذة التعريفية" />
+              <textarea rows={2} value={c.head?.bio ?? ''} readOnly className="input-field mt-2 resize-none bg-gray-100 text-sm text-gray-600" placeholder={t('admin.board.bioPlaceholder', 'النبذة التعريفية')} />
             </div>
 
             {/* Stats */}
             <div className="mb-4 rounded-xl border border-gray-100 p-4">
-              <div className="mb-2 text-xs font-bold uppercase text-gray-400">الإحصائيات والعدادات</div>
+              <div className="mb-2 text-xs font-bold uppercase text-gray-400">{t('admin.board.statsSection', 'الإحصائيات والعدادات')}</div>
               <div className="grid grid-cols-3 gap-2">
                 {(Array.isArray(c.stats) ? c.stats : []).map((s, i) => (
                   <div key={i} className="rounded-lg bg-gray-50 p-2 text-center">
@@ -1145,49 +1147,49 @@ function BoardTab({ committees, setCommittees, students, currentUser, updateBoar
             {/* Responsibilities */}
             <div className="mb-4 rounded-xl border border-gray-100 p-4">
               <div className="mb-2 flex items-center justify-between">
-                <div className="text-xs font-bold uppercase text-gray-400">المهام والمسؤوليات</div>
+                <div className="text-xs font-bold uppercase text-gray-400">{t('admin.board.responsibilitiesSection', 'المهام والمسؤوليات')}</div>
                 <button onClick={() => openAddResp(c.id)} className="flex items-center gap-1 rounded-lg bg-navy-50 px-2.5 py-1.5 text-xs font-bold text-navy-700 transition-colors hover:bg-navy-100">
-                  <Plus className="h-3.5 w-3.5" /> إضافة بند
+                  <Plus className="h-3.5 w-3.5" /> {t('admin.board.addResponsibility', 'إضافة بند')}
                 </button>
               </div>
               <ul className="space-y-2">
                 {(c.responsibilities || []).map((r, i) => (
                   <li key={i} className="group flex items-start gap-2 rounded-lg bg-gray-50 p-2 text-sm text-gray-600">
                     <span className="flex-1">{r}</span>
-                    <button onClick={() => openEditResp(c.id, i)} className="flex h-6 w-6 items-center justify-center rounded-md text-navy-600 opacity-0 transition-opacity hover:bg-navy-100 group-hover:opacity-100" title="تعديل">
+                    <button onClick={() => openEditResp(c.id, i)} className="flex h-6 w-6 items-center justify-center rounded-md text-navy-600 opacity-0 transition-opacity hover:bg-navy-100 group-hover:opacity-100" title={t('admin.board.editTooltip', 'تعديل')}>
                       <Edit3 className="h-3.5 w-3.5" />
                     </button>
-                    <button onClick={() => removeResp(c.id, i)} className="flex h-6 w-6 items-center justify-center rounded-md text-rose-600 opacity-0 transition-opacity hover:bg-rose-100 group-hover:opacity-100" title="حذف">
+                    <button onClick={() => removeResp(c.id, i)} className="flex h-6 w-6 items-center justify-center rounded-md text-rose-600 opacity-0 transition-opacity hover:bg-rose-100 group-hover:opacity-100" title={t('admin.board.deleteTooltip', 'حذف')}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </li>
                 ))}
                 {(!c.responsibilities || c.responsibilities.length === 0) && (
-                  <li className="py-2 text-center text-xs text-gray-400">لا توجد مهام مضافة.</li>
+                  <li className="py-2 text-center text-xs text-gray-400">{t('admin.board.noResponsibilities', 'لا توجد مهام مضافة.')}</li>
                 )}
               </ul>
             </div>
 
             {/* Members */}
             <div className="space-y-2">
-              <div className="text-xs font-bold uppercase text-gray-400">الأعضاء</div>
+              <div className="text-xs font-bold uppercase text-gray-400">{t('admin.board.membersSection', 'الأعضاء')}</div>
               {(c.members || []).map((m) => (
                 <div key={m?.id ?? Math.random()} className="flex items-center gap-3 rounded-xl border border-gray-100 p-3 transition-colors hover:bg-gray-50">
                   <UserAvatar name={m?.name} photo={m?.photo} avatarPath={m?.photo} className="h-10 w-10" />
                   <div className="flex-1">
-                    <div className="text-sm font-bold text-navy-900">{m?.name ?? 'غير محدد'}</div>
-                    <div className="text-xs text-gray-500">{m?.position ?? 'عضو'}</div>
+                    <div className="text-sm font-bold text-navy-900">{m?.name ?? t('admin.board.unspecified', 'غير محدد')}</div>
+                    <div className="text-xs text-gray-500">{m?.position ?? t('admin.board.defaultMemberPosition', 'عضو')}</div>
                   </div>
-                  <button onClick={() => openEditMember(c.id, m)} className="flex h-8 w-8 items-center justify-center rounded-lg text-navy-600 transition-colors hover:bg-navy-50" title="تعديل">
+                  <button onClick={() => openEditMember(c.id, m)} className="flex h-8 w-8 items-center justify-center rounded-lg text-navy-600 transition-colors hover:bg-navy-50" title={t('admin.board.editTooltip', 'تعديل')}>
                     <Edit3 className="h-4 w-4" />
                   </button>
-                  <button onClick={() => removeMember(c.id, m?.id ?? '')} className="flex h-8 w-8 items-center justify-center rounded-lg text-rose-600 transition-colors hover:bg-rose-50" title="حذف">
+                  <button onClick={() => removeMember(c.id, m?.id ?? '')} className="flex h-8 w-8 items-center justify-center rounded-lg text-rose-600 transition-colors hover:bg-rose-50" title={t('admin.board.deleteTooltip', 'حذف')}>
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
               ))}
               {(!c.members || c.members.length === 0) && (
-                <p className="py-4 text-center text-sm text-gray-400">لا يوجد أعضاء في هذه اللجنة.</p>
+                <p className="py-4 text-center text-sm text-gray-400">{t('admin.board.noMembersInCommittee', 'لا يوجد أعضاء في هذه اللجنة.')}</p>
               )}
             </div>
           </div>
@@ -1195,10 +1197,10 @@ function BoardTab({ committees, setCommittees, students, currentUser, updateBoar
       ))}
 
       {/* Member modal */}
-      <Modal open={memberModal} onClose={() => setMemberModal(false)} title={editMember?.member ? 'تعديل عضو' : 'إضافة عضو جديد'} maxWidth="max-w-md">
+      <Modal open={memberModal} onClose={() => setMemberModal(false)} title={editMember?.member ? t('admin.board.memberModal.editTitle', 'تعديل عضو') : t('admin.board.memberModal.addTitle', 'إضافة عضو جديد')} maxWidth="max-w-md">
         <form onSubmit={saveMember} className="space-y-4">
           <div>
-            <label className="label-field">العضو *</label>
+            <label className="label-field">{t('admin.board.memberModal.memberLabel', 'العضو')} *</label>
             {editMember?.member ? (
               <input type="text" value={editMember.member.name} disabled className="input-field bg-gray-50 text-gray-500" />
             ) : (
@@ -1210,7 +1212,7 @@ function BoardTab({ committees, setCommittees, students, currentUser, updateBoar
                   onChange={(e) => { setStudentSearch(e.target.value); setStudentDropdownOpen(true); setMemberForm((prev) => ({ ...prev, studentId: '' })); clearInvalid(setInvalid, 'studentId'); }}
                   onFocus={() => setStudentDropdownOpen(true)}
                   className={`${isInvalid(invalid, 'studentId') ? 'input-field-error' : 'input-field'}`}
-                  placeholder="ابحث عن عضو مسجل..."
+                  placeholder={t('admin.board.memberModal.searchPlaceholder', 'ابحث عن عضو مسجل...')}
                 />
                 {studentDropdownOpen && (
                   <div className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg">
@@ -1230,13 +1232,13 @@ function BoardTab({ committees, setCommittees, students, currentUser, updateBoar
                         >
                           <UserAvatar name={s?.name} photo={s?.photo} avatarPath={s?.photo} className="h-7 w-7" fallbackClassName="bg-navy-100 text-xs text-navy-700" />
                           <div className="min-w-0">
-                            <div className="truncate text-sm font-bold text-navy-900">{s?.name ?? 'غير محدد'}</div>
+                            <div className="truncate text-sm font-bold text-navy-900">{s?.name ?? t('admin.board.unspecified', 'غير محدد')}</div>
                             <div className="truncate text-xs text-gray-400" dir="ltr">{s?.email ?? ''}</div>
                           </div>
                         </button>
                       ))}
                     {(students || []).filter((s) => (s?.name ?? '').includes(studentSearch) || (s?.email ?? '').toLowerCase().includes(studentSearch.toLowerCase())).length === 0 && (
-                      <div className="px-3 py-3 text-center text-xs text-rose-600">هذا العضو غير مسجل في قائمة أعضاء الاتحاد</div>
+                      <div className="px-3 py-3 text-center text-xs text-rose-600">{t('admin.board.memberModal.notFoundError', 'هذا العضو غير مسجل في قائمة أعضاء الاتحاد')}</div>
                     )}
                   </div>
                 )}
@@ -1244,21 +1246,21 @@ function BoardTab({ committees, setCommittees, students, currentUser, updateBoar
             )}
           </div>
           <div>
-            <label className="label-field">المسمى الوظيفي <RequiredMark /></label>
-            <input id={fieldId('position')} type="text" value={memberForm.position} onChange={(e) => { setMemberForm({ ...memberForm, position: e.target.value }); clearInvalid(setInvalid, 'position'); }} className={`${isInvalid(invalid, 'position') ? 'input-field-error' : 'input-field'}`} placeholder="مثال: منسق، مستشار..." />
+            <label className="label-field">{t('admin.board.memberModal.positionLabel', 'المسمى الوظيفي')} <RequiredMark /></label>
+            <input id={fieldId('position')} type="text" value={memberForm.position} onChange={(e) => { setMemberForm({ ...memberForm, position: e.target.value }); clearInvalid(setInvalid, 'position'); }} className={`${isInvalid(invalid, 'position') ? 'input-field-error' : 'input-field'}`} placeholder={t('admin.board.memberModal.positionPlaceholder', 'مثال: منسق، مستشار...')} />
           </div>
           <ManagedFileField
             usage="avatar"
-            label="الصورة الشخصية"
+            label={t('admin.board.memberModal.photoLabel', 'الصورة الشخصية')}
             currentUrl={memberForm.photo}
             required
-            error={isInvalid(invalid, 'photo') ? 'يرجى رفع صورة شخصية قبل الحفظ.' : null}
+            error={isInvalid(invalid, 'photo') ? t('admin.board.memberModal.photoRequiredError', 'يرجى رفع صورة شخصية قبل الحفظ.') : null}
             onUpload={(file, onProgress) => {
               const targetUserId = resolveTargetUserId();
               if (!targetUserId) {
                 return Promise.resolve({
                   ok: false as const,
-                  error: { code: 'MEMBER_ACCOUNT_REQUIRED', message: 'اختر عضواً مسجلاً قبل رفع الصورة.' },
+                  error: { code: 'MEMBER_ACCOUNT_REQUIRED', message: t('admin.board.memberModal.memberAccountRequired', 'اختر عضواً مسجلاً قبل رفع الصورة.') },
                 });
               }
               return uploadManagedFile('avatar', file, onProgress, targetUserId);
@@ -1270,80 +1272,80 @@ function BoardTab({ committees, setCommittees, students, currentUser, updateBoar
             }}
           />
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setMemberModal(false)} className="btn-ghost">إلغاء</button>
+            <button type="button" onClick={() => setMemberModal(false)} className="btn-ghost">{t('admin.board.memberModal.cancel', 'إلغاء')}</button>
             <button type="submit" className="btn-primary">
-              <Save className="h-4 w-4" /> {editMember?.member ? 'حفظ التعديلات' : 'إضافة'}
+              <Save className="h-4 w-4" /> {editMember?.member ? t('admin.board.memberModal.saveChanges', 'حفظ التعديلات') : t('admin.board.memberModal.add', 'إضافة')}
             </button>
           </div>
         </form>
       </Modal>
 
       {/* Head modal */}
-      <Modal open={headModal} onClose={() => setHeadModal(false)} title="تعديل بيانات المسؤول الكاملة" maxWidth="max-w-md">
+      <Modal open={headModal} onClose={() => setHeadModal(false)} title={t('admin.board.headModal.title', 'تعديل بيانات المسؤول الكاملة')} maxWidth="max-w-md">
         <form onSubmit={saveHead} className="space-y-4">
           <div>
-            <label className="label-field">الاسم الكامل <RequiredMark /></label>
+            <label className="label-field">{t('admin.board.headModal.fullName', 'الاسم الكامل')} <RequiredMark /></label>
             <input id={fieldId('name')} className={`${isInvalid(invalid, 'name') ? 'input-field-error' : 'input-field'}`} value={headForm.name} onChange={(e) => { setHeadForm({ ...headForm, name: e.target.value }); clearInvalid(setInvalid, 'name'); }} />
           </div>
           <div>
-            <label className="label-field">المسمى الوظيفي</label>
+            <label className="label-field">{t('admin.board.headModal.positionLabel', 'المسمى الوظيفي')}</label>
             <input id={fieldId('role')} readOnly className="input-field bg-gray-100 text-gray-500" value={headForm.role} />
           </div>
           <div>
-            <label className="label-field">النبذة التعريفية <RequiredMark /></label>
+            <label className="label-field">{t('admin.board.headModal.bioLabel', 'النبذة التعريفية')} <RequiredMark /></label>
             <textarea id={fieldId('bio')} rows={3} className={`${isInvalid(invalid, 'bio') ? 'input-field-error' : 'input-field'} resize-none`} value={headForm.bio} onChange={(e) => { setHeadForm({ ...headForm, bio: e.target.value }); clearInvalid(setInvalid, 'bio'); }} />
           </div>
           <div>
-            <label className="label-field">الصورة الشخصية</label>
-            <input id={fieldId('photo')} type="text" dir="ltr" className="input-field bg-gray-100 text-gray-500" value={headForm.photo} readOnly placeholder="غيّر الصورة من إعدادات الملف الشخصي" />
+            <label className="label-field">{t('admin.board.headModal.photoLabel', 'الصورة الشخصية')}</label>
+            <input id={fieldId('photo')} type="text" dir="ltr" className="input-field bg-gray-100 text-gray-500" value={headForm.photo} readOnly placeholder={t('admin.board.headModal.photoHint', 'غيّر الصورة من إعدادات الملف الشخصي')} />
           </div>
           <div>
-            <label className="label-field">البريد الإلكتروني الرسمي <RequiredMark /></label>
+            <label className="label-field">{t('admin.board.headModal.officialEmail', 'البريد الإلكتروني الرسمي')} <RequiredMark /></label>
             <input id={fieldId('email')} type="email" dir="ltr" className={`${isInvalid(invalid, 'email') ? 'input-field-error' : 'input-field'}`} value={headForm.email} onChange={(e) => { setHeadForm({ ...headForm, email: e.target.value }); clearInvalid(setInvalid, 'email'); }} />
           </div>
           <div>
-            <label className="label-field">رقم التواصل <RequiredMark /></label>
+            <label className="label-field">{t('admin.board.headModal.phoneLabel', 'رقم التواصل')} <RequiredMark /></label>
             <input id={fieldId('phone')} type="tel" dir="ltr" maxLength={11} className={`${isInvalid(invalid, 'phone') ? 'input-field-error' : 'input-field'}`} value={headForm.phone} onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, '').slice(0, 11); setHeadForm({ ...headForm, phone: v }); clearInvalid(setInvalid, 'phone'); }} placeholder="05375922478" />
-            <p className="mt-1.5 text-xs text-gray-400">يرجى كتابة الرقم كاملاً بدءاً بـ 05 (مثال: 05375922478)</p>
+            <p className="mt-1.5 text-xs text-gray-400">{t('admin.board.headModal.phoneHint', 'يرجى كتابة الرقم كاملاً بدءاً بـ 05 (مثال: 05375922478)')}</p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="label-field">الجامعة <RequiredMark /></label>
-              <input id={fieldId('university')} className={`${isInvalid(invalid, 'university') ? 'input-field-error' : 'input-field'}`} value={headForm.university} onChange={(e) => { setHeadForm({ ...headForm, university: e.target.value }); clearInvalid(setInvalid, 'university'); }} placeholder="اسم الجامعة" />
+              <label className="label-field">{t('admin.board.headModal.universityLabel', 'الجامعة')} <RequiredMark /></label>
+              <input id={fieldId('university')} className={`${isInvalid(invalid, 'university') ? 'input-field-error' : 'input-field'}`} value={headForm.university} onChange={(e) => { setHeadForm({ ...headForm, university: e.target.value }); clearInvalid(setInvalid, 'university'); }} placeholder={t('admin.board.headModal.universityPlaceholder', 'اسم الجامعة')} />
             </div>
             <div>
-              <label className="label-field">التخصص <RequiredMark /></label>
-              <input id={fieldId('major')} className={`${isInvalid(invalid, 'major') ? 'input-field-error' : 'input-field'}`} value={headForm.major} onChange={(e) => { setHeadForm({ ...headForm, major: e.target.value }); clearInvalid(setInvalid, 'major'); }} placeholder="التخصص" />
+              <label className="label-field">{t('admin.board.headModal.majorLabel', 'التخصص')} <RequiredMark /></label>
+              <input id={fieldId('major')} className={`${isInvalid(invalid, 'major') ? 'input-field-error' : 'input-field'}`} value={headForm.major} onChange={(e) => { setHeadForm({ ...headForm, major: e.target.value }); clearInvalid(setInvalid, 'major'); }} placeholder={t('admin.board.headModal.majorPlaceholder', 'التخصص')} />
             </div>
           </div>
           <div>
-            <label className="label-field">السنة الدراسية <RequiredMark /></label>
+            <label className="label-field">{t('admin.board.headModal.yearLabel', 'السنة الدراسية')} <RequiredMark /></label>
             <select id={fieldId('year')} className={`${isInvalid(invalid, 'year') ? 'input-field-error' : 'input-field'}`} value={headForm.year} onChange={(e) => { setHeadForm({ ...headForm, year: e.target.value }); clearInvalid(setInvalid, 'year'); }}>
-              <option value="">اختر السنة الدراسية...</option>
-              <option>السنة الأولى</option>
-              <option>السنة الثانية</option>
-              <option>السنة الثالثة</option>
-              <option>السنة الرابعة</option>
-              <option>دراسات عليا</option>
+              <option value="">{t('admin.board.headModal.yearSelectPlaceholder', 'اختر السنة الدراسية...')}</option>
+              <option value="السنة الأولى">{t('admin.board.headModal.years.firstYear', 'السنة الأولى')}</option>
+              <option value="السنة الثانية">{t('admin.board.headModal.years.secondYear', 'السنة الثانية')}</option>
+              <option value="السنة الثالثة">{t('admin.board.headModal.years.thirdYear', 'السنة الثالثة')}</option>
+              <option value="السنة الرابعة">{t('admin.board.headModal.years.fourthYear', 'السنة الرابعة')}</option>
+              <option value="دراسات عليا">{t('admin.board.headModal.years.postgrad', 'دراسات عليا')}</option>
             </select>
           </div>
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setHeadModal(false)} className="btn-ghost">إلغاء</button>
-            <button type="submit" className="btn-primary"><Save className="h-4 w-4" /> حفظ</button>
+            <button type="button" onClick={() => setHeadModal(false)} className="btn-ghost">{t('admin.board.headModal.cancel', 'إلغاء')}</button>
+            <button type="submit" className="btn-primary"><Save className="h-4 w-4" /> {t('admin.board.headModal.save', 'حفظ')}</button>
           </div>
         </form>
       </Modal>
 
       {/* Responsibility modal */}
-      <Modal open={respModal} onClose={() => setRespModal(false)} title={respTarget?.idx && respTarget.idx >= 0 ? 'تعديل البند' : 'إضافة بند جديد'} maxWidth="max-w-md">
+      <Modal open={respModal} onClose={() => setRespModal(false)} title={respTarget?.idx && respTarget.idx >= 0 ? t('admin.board.respModal.editTitle', 'تعديل البند') : t('admin.board.respModal.addTitle', 'إضافة بند جديد')} maxWidth="max-w-md">
         <form onSubmit={saveResp} className="space-y-4">
           <div>
-            <label className="label-field">نص البند <RequiredMark /></label>
-            <textarea id={fieldId('respText')} rows={3} className={`${isInvalid(invalid, 'respText') ? 'input-field-error' : 'input-field'} resize-none`} value={respText} onChange={(e) => { setRespText(e.target.value); clearInvalid(setInvalid, 'respText'); }} placeholder="اكتب المهمة أو المسؤولية" />
+            <label className="label-field">{t('admin.board.respModal.textLabel', 'نص البند')} <RequiredMark /></label>
+            <textarea id={fieldId('respText')} rows={3} className={`${isInvalid(invalid, 'respText') ? 'input-field-error' : 'input-field'} resize-none`} value={respText} onChange={(e) => { setRespText(e.target.value); clearInvalid(setInvalid, 'respText'); }} placeholder={t('admin.board.respModal.placeholder', 'اكتب المهمة أو المسؤولية')} />
           </div>
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setRespModal(false)} className="btn-ghost">إلغاء</button>
-            <button type="submit" className="btn-primary"><Save className="h-4 w-4" /> حفظ</button>
+            <button type="button" onClick={() => setRespModal(false)} className="btn-ghost">{t('admin.board.respModal.cancel', 'إلغاء')}</button>
+            <button type="submit" className="btn-primary"><Save className="h-4 w-4" /> {t('admin.board.respModal.save', 'حفظ')}</button>
           </div>
         </form>
       </Modal>
@@ -2256,6 +2258,7 @@ function MembersTab({ members, currentUser, transferMemberRole, revokeExecutiveA
   getRoleHolder: ReturnType<typeof useApp>['getRoleHolder'];
   removeMember: ReturnType<typeof useApp>['removeMember'];
 }) {
+  const { t } = useTranslation();
   const [search, setSearch] = useState('');
   const [roleModal, setRoleModal] = useState<ReturnType<typeof useApp>['members'][0] | null>(null);
   const [removeCandidate, setRemoveCandidate] = useState<ReturnType<typeof useApp>['members'][0] | null>(null);
@@ -2269,6 +2272,19 @@ function MembersTab({ members, currentUser, transferMemberRole, revokeExecutiveA
   } | null>(null);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ kind: 'success' | 'warning' | 'error'; text: string } | null>(null);
+
+  const getRolePresentation = (role: UserRole) => {
+    switch (role) {
+      case 'PRESIDENT':
+        return t('roles.unionPresident', 'رئيس الاتحاد');
+      case 'VICE_PRESIDENT':
+        return t('roles.vicePresident', 'نائب الرئيس');
+      case 'STUDENT':
+        return t('admin.members.roleModal.regularStudent', 'طالب عادي');
+      default:
+        return ROLE_LABEL[role] ?? role;
+    }
+  };
 
   const filtered = members.filter((member) =>
     member.name.includes(search) || member.email.toLowerCase().includes(search.toLowerCase()));
@@ -2288,7 +2304,7 @@ function MembersTab({ members, currentUser, transferMemberRole, revokeExecutiveA
       setRoleForm(role);
       setPendingAssignment(null);
       setPendingRevocation(null);
-      setFeedback({ kind: 'warning', text: 'هذا العضو يشغل المنصب المحدد بالفعل.' });
+      setFeedback({ kind: 'warning', text: t('admin.members.feedback.alreadyHasRole', 'هذا العضو يشغل المنصب المحدد بالفعل.') });
       return;
     }
     setFeedback(null);
@@ -2309,7 +2325,7 @@ function MembersTab({ members, currentUser, transferMemberRole, revokeExecutiveA
     if (roleModal.role === 'PRESIDENT') {
       setFeedback({
         kind: 'warning',
-        text: 'لا يمكن إنهاء منصب الرئيس وإعادته إلى طالب مباشرة. يجب نقل الرئاسة إلى عضو آخر أولاً.',
+        text: t('admin.members.roleModal.presidentDemotionWarning', 'لا يمكن إنهاء منصب الرئيس وإعادته إلى طالب مباشرة. يجب نقل الرئاسة إلى عضو آخر أولاً.'),
       });
       return;
     }
@@ -2317,7 +2333,7 @@ function MembersTab({ members, currentUser, transferMemberRole, revokeExecutiveA
       setRoleForm('STUDENT');
       setPendingAssignment(null);
       setPendingRevocation(null);
-      setFeedback({ kind: 'warning', text: 'هذا العضو طالب عادي بالفعل.' });
+      setFeedback({ kind: 'warning', text: t('admin.members.feedback.alreadyStudent', 'هذا العضو طالب عادي بالفعل.') });
       return;
     }
     setFeedback(null);
@@ -2340,17 +2356,17 @@ function MembersTab({ members, currentUser, transferMemberRole, revokeExecutiveA
         setBusy,
       );
       if (!result.ok) {
-        setFeedback({ kind: 'error', text: result.error ?? 'تعذر نقل المنصب.' });
+        setFeedback({ kind: 'error', text: result.error ?? t('admin.members.feedback.transferFailed', 'تعذر نقل المنصب.') });
         return;
       }
       setFeedback({
         kind: result.error ? 'warning' : 'success',
-        text: result.error ?? `تم نقل ${ROLE_LABEL[pendingAssignment.role]} إلى ${result.newHolder?.name ?? roleModal.name} بنجاح.`,
+        text: result.error ?? t('admin.members.feedback.transferSuccess', 'تم نقل {{role}} إلى {{name}} بنجاح.', { role: getRolePresentation(pendingAssignment.role), name: result.newHolder?.name ?? roleModal.name }),
       });
       setPendingAssignment(null);
       setRoleModal(null);
     } catch {
-      setFeedback({ kind: 'error', text: 'حدث خطأ غير متوقع أثناء نقل المنصب. تم حجب الصلاحيات مؤقتاً للأمان.' });
+      setFeedback({ kind: 'error', text: t('admin.members.feedback.transferError', 'حدث خطأ غير متوقع أثناء نقل المنصب. تم حجب الصلاحيات مؤقتاً للأمان.') });
     }
   };
 
@@ -2363,17 +2379,17 @@ function MembersTab({ members, currentUser, transferMemberRole, revokeExecutiveA
         setBusy,
       );
       if (!result.ok) {
-        setFeedback({ kind: 'error', text: result.error ?? 'تعذر إنهاء المنصب.' });
+        setFeedback({ kind: 'error', text: result.error ?? t('admin.members.feedback.revokeFailed', 'تعذر إنهاء المنصب.') });
         return;
       }
       setFeedback({
         kind: result.error ? 'warning' : 'success',
-        text: result.error ?? `تم إنهاء منصب ${getOfficeName(roleModal.role as ExecutiveRole)} لـ ${roleModal.name} بنجاح وإعادته إلى طالب عادي.`,
+        text: result.error ?? t('admin.members.feedback.revokeSuccess', 'تم إنهاء منصب {{role}} لـ {{name}} بنجاح وإعادته إلى طالب عادي.', { role: getOfficeName(roleModal.role as ExecutiveRole), name: roleModal.name }),
       });
       setPendingRevocation(null);
       setRoleModal(null);
     } catch {
-      setFeedback({ kind: 'error', text: 'حدث خطأ غير متوقع أثناء إنهاء المنصب.' });
+      setFeedback({ kind: 'error', text: t('admin.members.feedback.revokeError', 'حدث خطأ غير متوقع أثناء إنهاء المنصب.') });
     }
   };
 
@@ -2384,16 +2400,16 @@ function MembersTab({ members, currentUser, transferMemberRole, revokeExecutiveA
     try {
       const result = await removeMember(removeCandidate.id);
       if (!result.ok) {
-        setFeedback({ kind: 'error', text: result.error ?? 'تعذر طرد العضو.' });
+        setFeedback({ kind: 'error', text: result.error ?? t('admin.members.feedback.removeFailed', 'تعذر طرد العضو.') });
         return;
       }
       setFeedback({
         kind: result.error ? 'warning' : 'success',
-        text: result.error ?? `تم طرد ${removeCandidate.name} وسحب صلاحيات العضوية منه.`,
+        text: result.error ?? t('admin.members.feedback.removeSuccess', 'تم طرد {{name}} وسحب صلاحيات العضوية منه.', { name: removeCandidate.name }),
       });
       setRemoveCandidate(null);
     } catch {
-      setFeedback({ kind: 'error', text: 'حدث خطأ غير متوقع أثناء طرد العضو.' });
+      setFeedback({ kind: 'error', text: t('admin.members.feedback.removeError', 'حدث خطأ غير متوقع أثناء طرد العضو.') });
     } finally {
       setBusy(false);
     }
@@ -2415,9 +2431,9 @@ function MembersTab({ members, currentUser, transferMemberRole, revokeExecutiveA
       <div className="mb-4 flex items-center justify-between gap-4">
         <div className="relative max-w-sm flex-1">
           <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-          <input type="text" value={search} onChange={(event) => setSearch(event.target.value)} className="input-field pr-10" placeholder="ابحث بالاسم أو بريد الدخول..." />
+          <input type="text" value={search} onChange={(event) => setSearch(event.target.value)} className="input-field pr-10" placeholder={t('admin.members.searchPlaceholder', 'ابحث بالاسم أو بريد الدخول...')} />
         </div>
-        <span className="text-sm text-gray-500">{members.length} حساب مرتبط</span>
+        <span className="text-sm text-gray-500">{t('admin.members.accountsCount', '{{count}} حساب مرتبط', { count: members.length })}</span>
       </div>
 
       <div className="card overflow-hidden">
@@ -2425,12 +2441,12 @@ function MembersTab({ members, currentUser, transferMemberRole, revokeExecutiveA
           <table className="w-full text-right text-sm">
             <thead className="bg-gray-50 text-xs uppercase text-gray-500">
               <tr>
-                <th className="px-4 py-3 font-bold">العضو</th>
-                <th className="px-4 py-3 font-bold">بريد الدخول (للقراءة)</th>
-                <th className="px-4 py-3 font-bold">المنصب الحالي</th>
-                <th className="px-4 py-3 font-bold">الجامعة</th>
-                <th className="px-4 py-3 font-bold">التخصص</th>
-                <th className="px-4 py-3 font-bold">إجراء</th>
+                <th className="px-4 py-3 font-bold">{t('admin.members.table.member', 'العضو')}</th>
+                <th className="px-4 py-3 font-bold">{t('admin.members.table.email', 'بريد الدخول (للقراءة)')}</th>
+                <th className="px-4 py-3 font-bold">{t('admin.members.table.currentRole', 'المنصب الحالي')}</th>
+                <th className="px-4 py-3 font-bold">{t('admin.members.table.university', 'الجامعة')}</th>
+                <th className="px-4 py-3 font-bold">{t('admin.members.table.major', 'التخصص')}</th>
+                <th className="px-4 py-3 font-bold">{t('admin.members.table.action', 'إجراء')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -2445,14 +2461,14 @@ function MembersTab({ members, currentUser, transferMemberRole, revokeExecutiveA
                   <td className="px-4 py-3 text-gray-500" dir="ltr">{member.email || '—'}</td>
                   <td className="px-4 py-3">
                     {member.role === 'STUDENT'
-                      ? <span className="text-xs text-gray-400">طالب</span>
-                      : <span className="inline-block rounded-full bg-gold-100 px-2.5 py-0.5 text-xs font-bold text-gold-800">{ROLE_LABEL[member.role]}</span>}
+                      ? <span className="text-xs text-gray-400">{t('roles.student', 'طالب')}</span>
+                      : <span className="inline-block rounded-full bg-gold-100 px-2.5 py-0.5 text-xs font-bold text-gold-800">{getRolePresentation(member.role)}</span>}
                   </td>
                   <td className="px-4 py-3 text-gray-600">{member.university || '—'}</td>
                   <td className="px-4 py-3 text-gray-600">{member.major || '—'}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
-                      <button disabled={busy} onClick={() => openRoleModal(member)} className="flex h-8 w-8 items-center justify-center rounded-lg text-gold-600 transition-colors hover:bg-gold-50 disabled:cursor-not-allowed disabled:opacity-50" title="نقل منصب تنفيذي">
+                      <button disabled={busy} onClick={() => openRoleModal(member)} className="flex h-8 w-8 items-center justify-center rounded-lg text-gold-600 transition-colors hover:bg-gold-50 disabled:cursor-not-allowed disabled:opacity-50" title={t('admin.members.actions.transferRole', 'نقل منصب تنفيذي')}>
                         <Crown className="h-4 w-4" />
                       </button>
                       {currentUser?.role === 'PRESIDENT' && (
@@ -2460,8 +2476,8 @@ function MembersTab({ members, currentUser, transferMemberRole, revokeExecutiveA
                           disabled={busy || member.id === currentUser.userId}
                           onClick={() => { setFeedback(null); setRemoveCandidate(member); }}
                           className="flex h-8 w-8 items-center justify-center rounded-lg text-rose-600 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-30"
-                          title={member.id === currentUser.userId ? 'لا يمكن للرئيس طرد حسابه الحالي' : 'طرد العضو'}
-                          aria-label={`طرد ${member.name}`}
+                          title={member.id === currentUser.userId ? t('admin.members.actions.cannotRemoveSelf', 'لا يمكن للرئيس طرد حسابه الحالي') : t('admin.members.actions.removeMember', 'طرد العضو')}
+                          aria-label={t('admin.members.actions.removeAria', 'طرد {{name}}', { name: member.name })}
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -2475,20 +2491,20 @@ function MembersTab({ members, currentUser, transferMemberRole, revokeExecutiveA
         </div>
       </div>
 
-      <Modal open={!!roleModal} onClose={() => { if (!busy) setRoleModal(null); }} title="إدارة منصب العضو" maxWidth="max-w-lg">
+      <Modal open={!!roleModal} onClose={() => { if (!busy) setRoleModal(null); }} title={t('admin.members.roleModal.title', 'إدارة منصب العضو')} maxWidth="max-w-lg">
         {roleModal && (
           <div className="space-y-4">
             <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
-              <div className="text-xs text-gray-400">العضو المحدد</div>
+              <div className="text-xs text-gray-400">{t('admin.members.roleModal.selectedMember', 'العضو المحدد')}</div>
               <div className="text-sm font-bold text-navy-900">{roleModal.name}</div>
               <div className="mt-1 text-xs text-gray-500" dir="ltr">{roleModal.email}</div>
               <div className="mt-1 text-xs font-semibold text-gold-700">
-                المنصب الحالي: {roleModal.role === 'STUDENT' ? 'طالب عادي' : ROLE_LABEL[roleModal.role]}
+                {t('admin.members.roleModal.currentPosition', 'المنصب الحالي: {{position}}', { position: roleModal.role === 'STUDENT' ? t('admin.members.roleModal.regularStudent', 'طالب عادي') : getRolePresentation(roleModal.role) })}
               </div>
             </div>
             {roleModal.role === 'PRESIDENT' && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800">
-                ملاحظة: لا يمكن إنهاء منصب الرئيس وإعادته إلى طالب مباشرة. لنقل الرئاسة، يرجى اختيار منصب الرئيس لعضو آخر.
+                {t('admin.members.roleModal.presidentDemotionWarning', 'ملاحظة: لا يمكن إنهاء منصب الرئيس وإعادته إلى طالب مباشرة. لنقل الرئاسة، يرجى اختيار منصب الرئيس لعضو آخر.')}
               </div>
             )}
             <div className="grid grid-cols-2 gap-2">
@@ -2498,10 +2514,10 @@ function MembersTab({ members, currentUser, transferMemberRole, revokeExecutiveA
                 onClick={() => selectStudent()}
                 title={
                   roleModal.role === 'STUDENT'
-                    ? 'العضو طالب بالفعل'
+                    ? t('admin.members.roleModal.alreadyStudent', 'العضو طالب بالفعل')
                     : roleModal.role === 'PRESIDENT'
-                      ? 'يجب نقل الرئاسة لعضو آخر أولاً'
-                      : 'إنهاء المنصب التنفيذي وإعادة العضو إلى طالب عادي'
+                      ? t('admin.members.roleModal.mustTransferPresidentFirst', 'يجب نقل الرئاسة لعضو آخر أولاً')
+                      : t('admin.members.roleModal.revokeToStudentTooltip', 'إنهاء المنصب التنفيذي وإعادة العضو إلى طالب عادي')
                 }
                 className={`col-span-2 rounded-xl border px-3 py-2 text-xs font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
                   roleForm === 'STUDENT'
@@ -2509,8 +2525,8 @@ function MembersTab({ members, currentUser, transferMemberRole, revokeExecutiveA
                     : 'border-gray-200 text-gray-600 hover:bg-gray-50'
                 }`}
               >
-                طالب عادي
-                {roleModal.role === 'STUDENT' ? ' (الحالي)' : ''}
+                {t('admin.members.roleModal.regularStudent', 'طالب عادي')}
+                {roleModal.role === 'STUDENT' ? t('admin.members.roleModal.currentBadge', ' (الحالي)') : ''}
               </button>
               {LEADERSHIP_ROLES
                 .filter((role): role is Exclude<UserRole, 'STUDENT'> => role !== 'STUDENT')
@@ -2526,8 +2542,8 @@ function MembersTab({ members, currentUser, transferMemberRole, revokeExecutiveA
                       : 'border-gray-200 text-gray-500 hover:bg-gray-50'
                   }`}
                 >
-                  {ROLE_LABEL[role]}
-                  {roleModal.role === role ? ' (الحالي)' : ''}
+                  {getRolePresentation(role)}
+                  {roleModal.role === role ? t('admin.members.roleModal.currentBadge', ' (الحالي)') : ''}
                 </button>
               ))}
             </div>
@@ -2542,7 +2558,7 @@ function MembersTab({ members, currentUser, transferMemberRole, revokeExecutiveA
               </div>
             )}
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" disabled={busy} onClick={() => setRoleModal(null)} className="btn-ghost">إلغاء</button>
+              <button type="button" disabled={busy} onClick={() => setRoleModal(null)} className="btn-ghost">{t('admin.members.roleModal.cancel', 'إلغاء')}</button>
               <button
                 type="button"
                 disabled={(!pendingAssignment && !pendingRevocation) || busy}
@@ -2563,25 +2579,25 @@ function MembersTab({ members, currentUser, transferMemberRole, revokeExecutiveA
                   <Crown className="h-4 w-4" />
                 )}
                 {busy
-                  ? (pendingRevocation ? 'جارٍ إنهاء المنصب...' : 'جارٍ تأكيد النقل...')
-                  : (pendingRevocation ? 'تأكيد إنهاء المنصب' : 'تأكيد نقل المنصب')}
+                  ? (pendingRevocation ? t('admin.members.roleModal.revoking', 'جارٍ إنهاء المنصب...') : t('admin.members.roleModal.transferring', 'جارٍ تأكيد النقل...'))
+                  : (pendingRevocation ? t('admin.members.roleModal.confirmRevoke', 'تأكيد إنهاء المنصب') : t('admin.members.roleModal.confirmTransfer', 'تأكيد نقل المنصب'))}
               </button>
             </div>
           </div>
         )}
       </Modal>
 
-      <Modal open={!!removeCandidate} onClose={() => { if (!busy) setRemoveCandidate(null); }} title="تأكيد طرد العضو" maxWidth="max-w-lg">
+      <Modal open={!!removeCandidate} onClose={() => { if (!busy) setRemoveCandidate(null); }} title={t('admin.members.removeModal.title', 'تأكيد طرد العضو')} maxWidth="max-w-lg">
         {removeCandidate && (
           <div className="space-y-5">
             <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm leading-7 text-rose-800">
-              سيتم طرد <strong>{removeCandidate.name}</strong> طرداً ناعماً وسحب عضويته وأي منصب تنفيذي منه. سيبقى حسابه وسجله محفوظين ولن يستطيع استخدام بوابة الأعضاء.
+              {t('admin.members.removeModal.warning', 'سيتم طرد {{name}} طرداً ناعماً وسحب عضويته وأي منصب تنفيذي منه. سيبقى حسابه وسجله محفوظين ولن يستطيع استخدام بوابة الأعضاء.', { name: removeCandidate.name })}
             </div>
             <div className="flex justify-end gap-2">
-              <button type="button" disabled={busy} onClick={() => setRemoveCandidate(null)} className="btn-ghost">إلغاء</button>
+              <button type="button" disabled={busy} onClick={() => setRemoveCandidate(null)} className="btn-ghost">{t('admin.members.removeModal.cancel', 'إلغاء')}</button>
               <button type="button" disabled={busy} onClick={() => { void confirmRemoval(); }} className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50">
                 {busy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                {busy ? 'جارٍ سحب العضوية...' : 'تأكيد الطرد'}
+                {busy ? t('admin.members.removeModal.removing', 'جارٍ سحب العضوية...') : t('admin.members.removeModal.confirmRemove', 'تأكيد الطرد')}
               </button>
             </div>
           </div>
@@ -2605,6 +2621,7 @@ function ApplicationsTab({
   applicationEmailNotifications: ApplicationEmailNotification[];
   retryApplicationEmailNotification: (applicationId: string, eventType: ApplicationEmailEventType) => Promise<{ ok: boolean; error?: string }>;
 }) {
+  const { t } = useTranslation();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [interviewModal, setInterviewModal] = useState<StudentApplication | null>(null);
@@ -2617,6 +2634,24 @@ function ApplicationsTab({
   const [applicationNotice, setApplicationNotice] = useState<{ kind: 'success' | 'warning'; text: string } | null>(null);
   const [invalid, setInvalid] = useState<string[]>([]);
   const [decisionForm, setDecisionForm] = useState({ status: 'accepted' as 'accepted' | 'rejected', reason: '' });
+
+  const getApplicationStatusLabel = (status: StudentApplication['status']) => {
+    switch (status) {
+      case 'pending':
+        return t('admin.applications.filters.pending', 'قيد المراجعة');
+      case 'interview':
+        return t('admin.applications.filters.interview', 'مقابلة مجدولة');
+      case 'accepted':
+        return t('admin.applications.filters.accepted', 'مقبول');
+      case 'rejected':
+        return t('admin.applications.filters.rejected', 'مرفوض');
+      default:
+        return applicationStatusLabels[status] ?? status;
+    }
+  };
+
+  const formatAcademicYear = (rawYear: string | undefined | null) =>
+    getAcademicYearPresentation(rawYear, (k, fb) => (fb ? t(k, fb) : t(k)));
 
   // Minimum selectable interview date: today (local time, YYYY-MM-DD)
   const todayMin = (() => {
@@ -2650,11 +2685,11 @@ function ApplicationsTab({
     if (!validateRequired(interviewForm, ['date', 'time', 'meetingUrl'], setInvalid)) return;
     const date = interviewForm.date;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      setInterviewError('صيغة التاريخ غير صالحة — يجب أن تكون YYYY-MM-DD (مثال: 2026-08-10)');
+      setInterviewError(t('admin.applications.interviewModal.invalidDateFormat', 'صيغة التاريخ غير صالحة — يجب أن تكون YYYY-MM-DD (مثال: 2026-08-10)'));
       return;
     }
     if (date < todayMin) {
-      setInterviewError('لا يمكن اختيار تاريخ في الماضي — يجب أن يكون تاريخ المقابلة اليوم أو في المستقبل');
+      setInterviewError(t('admin.applications.interviewModal.pastDateError', 'لا يمكن اختيار تاريخ في الماضي — يجب أن يكون تاريخ المقابلة اليوم أو في المستقبل'));
       return;
     }
     setApplicationActionBusy(true);
@@ -2665,12 +2700,12 @@ function ApplicationsTab({
     });
     setApplicationActionBusy(false);
     if (!result.ok) {
-      setInterviewError(result.error ?? 'تعذر حفظ موعد المقابلة.');
+      setInterviewError(result.error ?? t('admin.applications.interviewModal.saveFailed', 'تعذر حفظ موعد المقابلة.'));
       return;
     }
     setApplicationNotice(result.emailWarning
       ? { kind: 'warning', text: result.emailWarning }
-      : { kind: 'success', text: 'تم حفظ موعد المقابلة وإرسال البريد للطالب.' });
+      : { kind: 'success', text: t('admin.applications.interviewModal.successNotice', 'تم حفظ موعد المقابلة وإرسال البريد للطالب.') });
     setInterviewModal(null);
     setInterviewError('');
   };
@@ -2693,12 +2728,12 @@ function ApplicationsTab({
     );
     setApplicationActionBusy(false);
     if (!result.ok) {
-      setDecisionError(result.error ?? 'تعذر حفظ القرار.');
+      setDecisionError(result.error ?? t('admin.applications.decisionModal.saveFailed', 'تعذر حفظ القرار.'));
       return;
     }
     setApplicationNotice(result.emailWarning
       ? { kind: 'warning', text: result.emailWarning }
-      : { kind: 'success', text: 'تم حفظ القرار وإرسال البريد للطالب.' });
+      : { kind: 'success', text: t('admin.applications.decisionModal.successNotice', 'تم حفظ القرار وإرسال البريد للطالب.') });
     setDecisionModal(null);
   };
 
@@ -2711,8 +2746,8 @@ function ApplicationsTab({
     const result = await retryApplicationEmailNotification(applicationId, eventType);
     setRetryingNotificationId(null);
     setApplicationNotice(result.ok
-      ? { kind: 'success', text: 'تم إرسال البريد بنجاح.' }
-      : { kind: 'warning', text: result.error ?? 'تعذر إرسال البريد حالياً.' });
+      ? { kind: 'success', text: t('admin.applications.emailStatus.retrySuccess', 'تم إرسال البريد بنجاح.') }
+      : { kind: 'warning', text: result.error ?? t('admin.applications.emailStatus.retryFailed', 'تعذر إرسال البريد حالياً.') });
   };
 
   return (
@@ -2725,11 +2760,11 @@ function ApplicationsTab({
       )}
       <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {([
-          { key: 'all', label: 'الإجمالي', color: 'bg-navy-800' },
-          { key: 'pending', label: 'قيد المراجعة', color: 'bg-gold-500' },
-          { key: 'interview', label: 'مقابلة مجدولة', color: 'bg-sky-500' },
-          { key: 'accepted', label: 'مقبول', color: 'bg-emerald-500' },
-          { key: 'rejected', label: 'مرفوض', color: 'bg-rose-500' },
+          { key: 'all', label: t('admin.applications.filters.all', 'الإجمالي'), color: 'bg-navy-800' },
+          { key: 'pending', label: t('admin.applications.filters.pending', 'قيد المراجعة'), color: 'bg-gold-500' },
+          { key: 'interview', label: t('admin.applications.filters.interview', 'مقابلة مجدولة'), color: 'bg-sky-500' },
+          { key: 'accepted', label: t('admin.applications.filters.accepted', 'مقبول'), color: 'bg-emerald-500' },
+          { key: 'rejected', label: t('admin.applications.filters.rejected', 'مرفوض'), color: 'bg-rose-500' },
         ] as { key: keyof typeof counts; label: string; color: string }[]).map((c) => (
           <button key={c.key} onClick={() => setStatusFilter(c.key)} className={`card flex items-center gap-3 p-4 text-right transition-all hover:shadow-md ${statusFilter === c.key ? 'ring-2 ring-navy-400' : ''}`}>
             <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${c.color} text-white`}><Inbox className="h-5 w-5" /></div>
@@ -2744,9 +2779,9 @@ function ApplicationsTab({
       <div className="mb-4 flex items-center justify-between">
         <div className="relative max-w-xs flex-1">
           <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} className="input-field pr-10" placeholder="ابحث عن متقدم..." />
+          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} className="input-field pr-10" placeholder={t('admin.applications.searchPlaceholder', 'ابحث عن متقدم...')} />
         </div>
-        <span className="text-sm text-gray-500">{filtered.length} طلب</span>
+        <span className="text-sm text-gray-500">{t('admin.applications.count', '{{count}} طلب', { count: filtered.length })}</span>
       </div>
 
       <div className="card overflow-hidden">
@@ -2754,13 +2789,13 @@ function ApplicationsTab({
           <table className="w-full text-right text-sm">
             <thead className="bg-gray-50 text-xs uppercase text-gray-500">
               <tr>
-                <th className="px-4 py-3 font-bold">المتقدم</th>
-                <th className="px-4 py-3 font-bold">الجامعة</th>
-                <th className="px-4 py-3 font-bold">تاريخ التقديم</th>
-                <th className="px-4 py-3 font-bold">الحالة</th>
-                <th className="px-4 py-3 font-bold">المقابلة</th>
-                <th className="px-4 py-3 font-bold">البريد</th>
-                <th className="px-4 py-3 font-bold">إجراءات</th>
+                <th className="px-4 py-3 font-bold">{t('admin.applications.table.applicant', 'المتقدم')}</th>
+                <th className="px-4 py-3 font-bold">{t('admin.applications.table.university', 'الجامعة')}</th>
+                <th className="px-4 py-3 font-bold">{t('admin.applications.table.appliedAt', 'تاريخ التقديم')}</th>
+                <th className="px-4 py-3 font-bold">{t('admin.applications.table.status', 'الحالة')}</th>
+                <th className="px-4 py-3 font-bold">{t('admin.applications.table.interview', 'المقابلة')}</th>
+                <th className="px-4 py-3 font-bold">{t('admin.applications.table.email', 'البريد')}</th>
+                <th className="px-4 py-3 font-bold">{t('admin.applications.table.actions', 'إجراءات')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -2775,9 +2810,9 @@ function ApplicationsTab({
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-gray-600">{a.university}<div className="text-xs text-gray-400">{a.major}</div></td>
+                  <td className="px-4 py-3 text-gray-600">{a.university}<div className="text-xs text-gray-400">{a.major}{a.year ? ` · ${formatAcademicYear(a.year)}` : ''}</div></td>
                   <td className="px-4 py-3 text-gray-600">{a.appliedAt}</td>
-                  <td className="px-4 py-3"><span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${applicationStatusColors[a.status]}`}>{applicationStatusLabels[a.status]}</span></td>
+                  <td className="px-4 py-3"><span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${applicationStatusColors[a.status]}`}>{getApplicationStatusLabel(a.status)}</span></td>
                   <td className="px-4 py-3">
                     {a.interview ? (
                       <div className="text-xs text-gray-600">
@@ -2798,21 +2833,21 @@ function ApplicationsTab({
                     <div className="flex flex-wrap gap-1">
                       {a.status === 'pending' && (
                         <button onClick={() => openInterview(a)} className="flex items-center gap-1 rounded-lg bg-sky-50 px-2.5 py-1.5 text-xs font-semibold text-sky-700 transition-colors hover:bg-sky-100">
-                          <Video className="h-3.5 w-3.5" /> قبول للمقابلة
+                          <Video className="h-3.5 w-3.5" /> {t('admin.applications.actions.acceptForInterview', 'قبول للمقابلة')}
                         </button>
                       )}
                       {a.status === 'interview' && (
                         <>
                           <button onClick={() => openDecision(a, 'accepted')} className="flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100">
-                            <UserCheck className="h-3.5 w-3.5" /> قبول نهائي
+                            <UserCheck className="h-3.5 w-3.5" /> {t('admin.applications.actions.finalAccept', 'قبول نهائي')}
                           </button>
                           <button onClick={() => openDecision(a, 'rejected')} className="flex items-center gap-1 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-100">
-                            <UserX className="h-3.5 w-3.5" /> رفض
+                            <UserX className="h-3.5 w-3.5" /> {t('admin.applications.actions.reject', 'رفض')}
                           </button>
                         </>
                       )}
                       {(a.status === 'accepted' || a.status === 'rejected') && (
-                        <span className="text-xs text-gray-400">تم البت بتاريخ {a.decidedAt}</span>
+                        <span className="text-xs text-gray-400">{t('admin.applications.actions.decidedAt', 'تم البت بتاريخ {{date}}', { date: a.decidedAt })}</span>
                       )}
                     </div>
                   </td>
@@ -2823,12 +2858,12 @@ function ApplicationsTab({
         </div>
       </div>
 
-      <Modal open={!!interviewModal} onClose={() => setInterviewModal(null)} title="جدولة مقابلة شخصية" maxWidth="max-w-lg">
+      <Modal open={!!interviewModal} onClose={() => setInterviewModal(null)} title={t('admin.applications.interviewModal.title', 'جدولة مقابلة شخصية')} maxWidth="max-w-lg">
         {interviewModal && (
           <form onSubmit={submitInterview} className="space-y-4">
             <div className="rounded-xl bg-navy-50 p-3 text-sm">
               <span className="font-bold text-navy-900">{interviewModal.name}</span>
-              <span className="text-gray-500"> - {interviewModal.university}</span>
+              <span className="text-gray-500"> - {interviewModal.university}{interviewModal.year ? ` (${formatAcademicYear(interviewModal.year)})` : ''}</span>
             </div>
             {interviewError && (
               <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -2838,7 +2873,7 @@ function ApplicationsTab({
             )}
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="label-field">تاريخ المقابلة <RequiredMark /></label>
+                <label className="label-field">{t('admin.applications.interviewModal.dateLabel', 'تاريخ المقابلة')} <RequiredMark /></label>
                 <input
                   id={fieldId('date')}
                   type="date"
@@ -2852,38 +2887,38 @@ function ApplicationsTab({
                   }}
                   className={`${isInvalid(invalid, 'date') ? 'input-field-error' : 'input-field'}`}
                 />
-                <p className="mt-1.5 text-xs text-gray-400">الصيغة: YYYY-MM-DD — لا يمكن اختيار تاريخ في الماضي</p>
+                <p className="mt-1.5 text-xs text-gray-400">{t('admin.applications.interviewModal.dateHint', 'الصيغة: YYYY-MM-DD — لا يمكن اختيار تاريخ في الماضي')}</p>
               </div>
               <div>
-                <label className="label-field">الوقت <RequiredMark /></label>
+                <label className="label-field">{t('admin.applications.interviewModal.timeLabel', 'الوقت')} <RequiredMark /></label>
                 <input id={fieldId('time')} type="time" value={interviewForm.time} onChange={(e) => { setInterviewForm({ ...interviewForm, time: e.target.value }); clearInvalid(setInvalid, 'time'); }} className={`${isInvalid(invalid, 'time') ? 'input-field-error' : 'input-field'}`} />
               </div>
             </div>
             <div>
-              <label className="label-field">رابط المقابلة (Zoom / Meet) <RequiredMark /></label>
+              <label className="label-field">{t('admin.applications.interviewModal.urlLabel', 'رابط المقابلة (Zoom / Meet)')} <RequiredMark /></label>
               <div className="relative">
                 <Link2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                <input id={fieldId('meetingUrl')} type="url" value={interviewForm.meetingUrl} onChange={(e) => { setInterviewForm({ ...interviewForm, meetingUrl: e.target.value }); clearInvalid(setInvalid, 'meetingUrl'); }} className={`${isInvalid(invalid, 'meetingUrl') ? 'input-field-error' : 'input-field'} pr-10`} placeholder="https://meet.google.com/..." dir="ltr" />
+                <input id={fieldId('meetingUrl')} type="url" value={interviewForm.meetingUrl} onChange={(e) => { setInterviewForm({ ...interviewForm, meetingUrl: e.target.value }); clearInvalid(setInvalid, 'meetingUrl'); }} className={`${isInvalid(invalid, 'meetingUrl') ? 'input-field-error' : 'input-field'} pr-10`} placeholder={t('admin.applications.interviewModal.urlPlaceholder', 'https://meet.google.com/...')} dir="ltr" />
               </div>
-              <p className="mt-1 text-xs text-gray-400">أدخل رابط الجلسة الافتراضية للمقابلة.</p>
+              <p className="mt-1 text-xs text-gray-400">{t('admin.applications.interviewModal.urlHint', 'أدخل رابط الجلسة الافتراضية للمقابلة.')}</p>
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" disabled={applicationActionBusy} onClick={() => setInterviewModal(null)} className="btn-ghost">إلغاء</button>
+              <button type="button" disabled={applicationActionBusy} onClick={() => setInterviewModal(null)} className="btn-ghost">{t('admin.applications.interviewModal.cancel', 'إلغاء')}</button>
               <button type="submit" disabled={applicationActionBusy} className="btn-primary disabled:cursor-not-allowed disabled:opacity-60">
                 {applicationActionBusy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}
-                {applicationActionBusy ? 'جارٍ الحفظ...' : 'تأكيد وجدولة'}
+                {applicationActionBusy ? t('admin.applications.interviewModal.saving', 'جارٍ الحفظ...') : t('admin.applications.interviewModal.submit', 'تأكيد وجدولة')}
               </button>
             </div>
           </form>
         )}
       </Modal>
 
-      <Modal open={!!decisionModal} onClose={() => setDecisionModal(null)} title={decisionForm.status === 'accepted' ? 'تأكيد القبول النهائي' : 'رفض الطلب'} maxWidth="max-w-md">
+      <Modal open={!!decisionModal} onClose={() => setDecisionModal(null)} title={decisionForm.status === 'accepted' ? t('admin.applications.decisionModal.acceptTitle', 'تأكيد القبول النهائي') : t('admin.applications.decisionModal.rejectTitle', 'رفض الطلب')} maxWidth="max-w-md">
         {decisionModal && (
           <form onSubmit={submitDecision} className="space-y-4">
             <div className={`rounded-xl p-3 text-sm ${decisionForm.status === 'accepted' ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-800'}`}>
               <span className="font-bold">{decisionModal.name}</span>
-              <span> - {decisionModal.email}</span>
+              <span> - {decisionModal.email}{decisionModal.year ? ` (${formatAcademicYear(decisionModal.year)})` : ''}</span>
             </div>
             {decisionError && (
               <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -2892,22 +2927,22 @@ function ApplicationsTab({
               </div>
             )}
             {decisionForm.status === 'accepted' ? (
-              <p className="text-sm text-gray-600">سيتم منح الطالب صلاحيات العضو الكاملة وتفعيل حسابه. سيظهر له تنبيه القبول في لوحة التحكم.</p>
+              <p className="text-sm text-gray-600">{t('admin.applications.decisionModal.acceptBody', 'سيتم منح الطالب صلاحيات العضو الكاملة وتفعيل حسابه. سيظهر له تنبيه القبول في لوحة التحكم.')}</p>
             ) : (
               <div>
-                <p className="mb-3 text-sm text-gray-600">سيتم إرسال رسالة شكر واعتذار للطالب.</p>
-                <label className="label-field">سبب الرفض <RequiredMark /></label>
-                <textarea id={fieldId('reason')} rows={3} value={decisionForm.reason} onChange={(e) => { setDecisionForm({ ...decisionForm, reason: e.target.value }); clearInvalid(setInvalid, 'reason'); }} className={`${isInvalid(invalid, 'reason') ? 'input-field-error' : 'input-field'} resize-none`} placeholder="سبب الرفض..." />
+                <p className="mb-3 text-sm text-gray-600">{t('admin.applications.decisionModal.rejectNotice', 'سيتم إرسال رسالة شكر واعتذار للطالب.')}</p>
+                <label className="label-field">{t('admin.applications.decisionModal.rejectReasonLabel', 'سبب الرفض')} <RequiredMark /></label>
+                <textarea id={fieldId('reason')} rows={3} value={decisionForm.reason} onChange={(e) => { setDecisionForm({ ...decisionForm, reason: e.target.value }); clearInvalid(setInvalid, 'reason'); }} className={`${isInvalid(invalid, 'reason') ? 'input-field-error' : 'input-field'} resize-none`} placeholder={t('admin.applications.decisionModal.rejectReasonPlaceholder', 'سبب الرفض...')} />
               </div>
             )}
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" disabled={applicationActionBusy} onClick={() => setDecisionModal(null)} className="btn-ghost">إلغاء</button>
+              <button type="button" disabled={applicationActionBusy} onClick={() => setDecisionModal(null)} className="btn-ghost">{t('admin.applications.decisionModal.cancel', 'إلغاء')}</button>
               <button type="submit" disabled={applicationActionBusy} className={`${decisionForm.status === 'accepted' ? 'inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-600/20 transition-all hover:bg-emerald-700 active:scale-[0.98]' : 'inline-flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-rose-600/20 transition-all hover:bg-rose-700 active:scale-[0.98]'} disabled:cursor-not-allowed disabled:opacity-60`}>
                 {applicationActionBusy
-                  ? <><RefreshCw className="h-4 w-4 animate-spin" />جارٍ الحفظ...</>
+                  ? <><RefreshCw className="h-4 w-4 animate-spin" />{t('admin.applications.decisionModal.saving', 'جارٍ الحفظ...')}</>
                   : decisionForm.status === 'accepted'
-                    ? <><UserCheck className="h-4 w-4" />تأكيد القبول</>
-                    : <><UserX className="h-4 w-4" />تأكيد الرفض</>}
+                    ? <><UserCheck className="h-4 w-4" />{t('admin.applications.decisionModal.confirmAccept', 'تأكيد القبول')}</>
+                    : <><UserX className="h-4 w-4" />{t('admin.applications.decisionModal.confirmReject', 'تأكيد الرفض')}</>}
               </button>
             </div>
           </form>
@@ -2935,20 +2970,21 @@ function ApplicationEmailStatus({
   retryingNotificationId: string | null;
   onRetry: (notificationId: string, applicationId: string, eventType: ApplicationEmailEventType) => Promise<void>;
 }) {
+  const { t } = useTranslation();
   const eventType = APPLICATION_EVENT_BY_STATUS[application.status];
   const notification = notifications.find((row) => (
     row.applicationId === application.id && row.eventType === eventType
   ));
 
-  if (!notification) return <span className="text-xs text-gray-400">لا يوجد سجل بريد</span>;
+  if (!notification) return <span className="text-xs text-gray-400">{t('admin.applications.emailStatus.noLog', 'لا يوجد سجل بريد')}</span>;
   if (notification.deliveryStatus === 'SENT') {
-    return <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" />تم إرسال البريد</span>;
+    return <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" />{t('admin.applications.emailStatus.sent', 'تم إرسال البريد')}</span>;
   }
   if (notification.deliveryStatus === 'FAILED') {
     const retrying = retryingNotificationId === notification.id;
     return (
       <div className="flex flex-col items-start gap-1.5">
-        <span className="text-xs font-bold text-rose-700">تعذر إرسال البريد</span>
+        <span className="text-xs font-bold text-rose-700">{t('admin.applications.emailStatus.failed', 'تعذر إرسال البريد')}</span>
         <button
           type="button"
           disabled={retrying}
@@ -2956,12 +2992,12 @@ function ApplicationEmailStatus({
           className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2 py-1 text-xs font-bold text-amber-800 hover:bg-amber-100 disabled:opacity-60"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${retrying ? 'animate-spin' : ''}`} />
-          {retrying ? 'جارٍ الإرسال...' : 'إعادة إرسال البريد'}
+          {retrying ? t('admin.applications.emailStatus.retrying', 'جارٍ الإرسال...') : t('admin.applications.emailStatus.retry', 'إعادة إرسال البريد')}
         </button>
       </div>
     );
   }
-  return <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700"><Clock className="h-3.5 w-3.5" />قيد الإرسال</span>;
+  return <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700"><Clock className="h-3.5 w-3.5" />{t('admin.applications.emailStatus.sending', 'قيد الإرسال')}</span>;
 }
 
 /* ---------------- Plans & Reports Tab ---------------- */
