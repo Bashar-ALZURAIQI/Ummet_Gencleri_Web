@@ -5,9 +5,10 @@ import { useApp, type View } from '../context/AppContext';
 import { EditableCard } from './InlineEditOverlay';
 import RequiredMark from './RequiredMark';
 import { fieldId } from '../utils/formValidation';
+import { resolvePublicBrandName } from '../domain/publicBrand';
 
 export default function Footer() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { setView, siteContent, currentUser, canEditSection } = useApp();
   const sc = siteContent;
   const canEdit = !!currentUser && canEditSection('homepage');
@@ -83,8 +84,10 @@ export default function Footer() {
                 currentValues={{ 'brand.name': sc.brand.name, 'brand.nameTr': sc.brand.nameTr }}
               >
                 <div>
-                  <div className="text-lg font-extrabold text-white">{sc.brand.name}</div>
-                  <div className="text-xs text-gray-400">{sc.brand.nameTr}</div>
+                  <div className="text-lg font-extrabold text-white">{resolvePublicBrandName(i18n.language, sc.brand)}</div>
+                  {i18n.language === 'ar' && (
+                    <div className="text-xs text-gray-400">{sc.brand.nameTr}</div>
+                  )}
                 </div>
               </EditableCard>
             </div>

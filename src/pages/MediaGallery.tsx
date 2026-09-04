@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Images, Filter, Play, Calendar, MapPin, Camera, Video, X,
   Plus, Edit3, Trash2, Save, Link as LinkIcon, Image as ImageIcon, Film, ExternalLink,
@@ -20,6 +21,7 @@ export default function MediaGallery() {
     uploadManagedFile,
     savePublishedSiteTarget,
   } = useApp();
+  const { t } = useTranslation();
   const [filter, setFilter] = useState<string>('all');
   const [selectedAlbumId, setSelectedAlbumId] = useState<string | null>(null);
   const [lightboxMedia, setLightboxMedia] = useState<GalleryMedia | null>(null);
@@ -368,11 +370,11 @@ export default function MediaGallery() {
         <div className="container-app relative">
           <div className="flex items-center gap-3 text-gold-400">
             <Images className="h-6 w-6" />
-            <span className="text-sm font-bold tracking-wide">معرض الصور والذاكرة</span>
+            <span className="text-sm font-bold tracking-wide">{t('gallery.badge')}</span>
           </div>
-          <h1 className="mt-3 text-3xl font-extrabold text-white sm:text-4xl">لحظات من تاريخ الاتحاد</h1>
+          <h1 className="mt-3 text-3xl font-extrabold text-white sm:text-4xl">{t('gallery.title')}</h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-gray-300">
-            أرشيف بصري يحفظ ذكريات أنشطتنا وفعالياتنا المختلفة، من المباريات الرياضية إلى الرحلات والمؤتمرات الأكاديمية والأمسيات الاحتفالية.
+            {t('gallery.description')}
           </p>
         </div>
       </div>
@@ -383,7 +385,7 @@ export default function MediaGallery() {
         <div className="mb-8 flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2 text-sm font-bold text-gray-500">
             <Filter className="h-4 w-4" />
-            تصفية:
+            {t('gallery.filter')}
           </div>
           <button
             onClick={() => setFilter('all')}
@@ -394,7 +396,7 @@ export default function MediaGallery() {
             }`}
           >
             <Images className="h-4 w-4" />
-            الكل
+            {t('common.all')}
           </button>
           {galleryCategories.map((cat) => (
             <div key={cat.id} className="group relative">
@@ -414,14 +416,14 @@ export default function MediaGallery() {
                   <button
                     onClick={(e) => { e.stopPropagation(); openEditCategory(cat); }}
                     className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-navy-700 shadow ring-1 ring-gray-200 hover:bg-navy-50"
-                    title="تعديل التصنيف"
+                    title={t('common.edit')}
                   >
                     <Edit3 className="h-3 w-3" />
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); deleteCategory(cat.id); }}
                     className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-rose-600 shadow ring-1 ring-gray-200 hover:bg-rose-50"
-                    title="حذف التصنيف"
+                    title={t('common.delete')}
                   >
                     <Trash2 className="h-3 w-3" />
                   </button>
@@ -434,7 +436,7 @@ export default function MediaGallery() {
               onClick={openAddCategory}
               className="flex items-center gap-1.5 rounded-xl border border-dashed border-navy-300 px-3 py-2 text-xs font-bold text-navy-600 transition-colors hover:bg-navy-50"
             >
-              <Plus className="h-3.5 w-3.5" /> إضافة تصنيف
+              <Plus className="h-3.5 w-3.5" /> {t('gallery.addCategory')}
             </button>
           )}
         </div>
@@ -452,14 +454,14 @@ export default function MediaGallery() {
                   <button
                     onClick={(e) => { e.stopPropagation(); openEditAlbum(album); }}
                     className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-navy-700 shadow backdrop-blur-sm hover:bg-white"
-                    title="تعديل الألبوم"
+                    title={t('common.edit')}
                   >
                     <Edit3 className="h-4 w-4" />
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); deleteAlbum(album.id); }}
                     className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-rose-600 shadow backdrop-blur-sm hover:bg-white"
-                    title="حذف الألبوم"
+                    title={t('common.delete')}
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -475,12 +477,12 @@ export default function MediaGallery() {
                 {album.videoCount > 0 && (
                   <div className="absolute left-3 top-3 flex items-center gap-1 rounded-full bg-black/60 px-2.5 py-1 text-xs font-bold text-white backdrop-blur-sm">
                     <Play className="h-3 w-3" />
-                    {album.videoCount} فيديو
+                    {t('gallery.videoCount', { count: album.videoCount })}
                   </div>
                 )}
                 <div className="absolute bottom-3 right-3 flex items-center gap-1 rounded-full bg-black/60 px-2.5 py-1 text-xs font-bold text-white backdrop-blur-sm">
                   <Camera className="h-3 w-3" />
-                  {album.photoCount} صورة
+                  {t('gallery.photoCount', { count: album.photoCount })}
                 </div>
                 <div className="absolute bottom-0 right-0 left-0 p-4">
                   <h3 className="text-lg font-bold text-white drop-shadow-lg">{album.title}</h3>
@@ -508,12 +510,12 @@ export default function MediaGallery() {
             onClick={openAddAlbum}
             className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-navy-200 px-4 py-4 text-sm font-bold text-navy-600 transition-colors hover:border-navy-300 hover:bg-navy-50"
           >
-            <Plus className="h-5 w-5" /> إضافة ألبوم جديد
+            <Plus className="h-5 w-5" /> {t('gallery.addNewAlbum')}
           </button>
         )}
 
         {filtered.length === 0 && (
-          <div className="py-16 text-center text-sm text-gray-400">لا توجد ألبومات في هذا التصنيف بعد.</div>
+          <div className="py-16 text-center text-sm text-gray-400">{t('gallery.noAlbums')}</div>
         )}
       </div>
 
@@ -555,12 +557,12 @@ export default function MediaGallery() {
               <div className="mt-4 flex flex-wrap gap-3">
                 <div className="flex items-center gap-2 rounded-xl bg-navy-50 px-4 py-2 text-sm font-bold text-navy-700">
                   <Camera className="h-4 w-4" />
-                  {selectedAlbum.photoCount} صورة
+                  {t('gallery.photoCount', { count: selectedAlbum.photoCount })}
                 </div>
                 {selectedAlbum.videoCount > 0 && (
                   <div className="flex items-center gap-2 rounded-xl bg-sky-50 px-4 py-2 text-sm font-bold text-sky-700">
                     <Video className="h-4 w-4" />
-                    {selectedAlbum.videoCount} فيديو
+                    {t('gallery.videoCount', { count: selectedAlbum.videoCount })}
                   </div>
                 )}
                 {isPresidentOrMedia && (
@@ -568,7 +570,7 @@ export default function MediaGallery() {
                     onClick={openAddMedia}
                     className="mr-auto inline-flex items-center gap-1.5 rounded-xl bg-navy-700 px-4 py-2 text-sm font-bold text-white hover:bg-navy-800"
                   >
-                    <Plus className="h-4 w-4" /> إضافة صور/فيديوهات
+                    <Plus className="h-4 w-4" /> {t('gallery.addMedia')}
                   </button>
                 )}
               </div>

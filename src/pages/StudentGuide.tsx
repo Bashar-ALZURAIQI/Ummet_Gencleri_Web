@@ -7,6 +7,7 @@ import {
   Coffee, Pill, BookMarked, Briefcase, Landmark, Mail, MessageCircle,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { useTranslation } from 'react-i18next';
 import Modal from '../components/Modal';
 import SiteEditBanner from '../components/SiteEditBanner';
 import RequiredMark from '../components/RequiredMark';
@@ -36,6 +37,7 @@ const colorOptions = [
 ];
 
 export default function StudentGuide() {
+  const { t } = useTranslation();
   const { currentUser, guideSections, guideQuickInfo, submitSiteEdit, savePublishedSiteTarget } = useApp();
   const [activeSectionId, setActiveSectionId] = useState(guideSections[0]?.id ?? '');
   const [sectionModalOpen, setSectionModalOpen] = useState(false);
@@ -416,11 +418,11 @@ export default function StudentGuide() {
         <div className="container-app relative">
           <div className="flex items-center gap-3 text-gold-400">
             <BookOpen className="h-6 w-6" />
-            <span className="text-sm font-bold tracking-wide">دليل الطالب</span>
+            <span className="text-sm font-bold tracking-wide">{t('guide.badge')}</span>
           </div>
-          <h1 className="mt-3 text-3xl font-extrabold text-white sm:text-4xl">دليلك الشامل للحياة في أرضروم</h1>
+          <h1 className="mt-3 text-3xl font-extrabold text-white sm:text-4xl">{t('guide.title')}</h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-gray-300">
-            كل ما يحتاجه الطالب الجديد في مدينة أرضروم وجامعة أتاتورك، من التسجيل الجامعي إلى السكن والمواصلات والخدمات الأكاديمية.
+            {t('guide.description')}
           </p>
         </div>
       </div>
@@ -478,7 +480,7 @@ export default function StudentGuide() {
                   onClick={openAddSection}
                   className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-navy-300 px-4 py-2.5 text-xs font-bold text-navy-600 transition-colors hover:bg-navy-50"
                 >
-                  <Plus className="h-4 w-4" /> إضافة قسم جديد
+                  <Plus className="h-4 w-4" /> {t('guide.addSection')}
                 </button>
               )}
             </div>
@@ -487,13 +489,13 @@ export default function StudentGuide() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-navy-900">
                   <Info className="h-5 w-5" />
-                  <span className="text-sm font-bold">معلومة سريعة</span>
+                  <span className="text-sm font-bold">{t('guide.quickInfo')}</span>
                 </div>
                 {isPresidentOrMedia && !editingQuickInfo && (
                   <button
                     onClick={() => setEditingQuickInfo(true)}
                     className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/60 text-navy-600 hover:bg-white"
-                    title="تعديل"
+                    title={t('common.edit')}
                   >
                     <Edit3 className="h-3.5 w-3.5" />
                   </button>
@@ -513,13 +515,13 @@ export default function StudentGuide() {
                       onClick={saveQuickInfo}
                       className="inline-flex items-center gap-1 rounded-lg bg-navy-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-navy-800"
                     >
-                      <Save className="h-3 w-3" /> حفظ
+                      <Save className="h-3 w-3" /> {t('common.save')}
                     </button>
                     <button
                       onClick={() => { setEditingQuickInfo(false); setQuickInfo(guideQuickInfo); }}
                       className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50"
                     >
-                      <X className="h-3 w-3" /> إلغاء
+                      <X className="h-3 w-3" /> {t('common.cancel')}
                     </button>
                   </div>
                 </div>
@@ -608,7 +610,7 @@ export default function StudentGuide() {
                 onClick={openAddItem}
                 className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-navy-200 px-4 py-4 text-sm font-bold text-navy-600 transition-colors hover:border-navy-300 hover:bg-navy-50"
               >
-                <Plus className="h-5 w-5" /> إضافة معلومة/دليل جديد
+                <Plus className="h-5 w-5" /> {t('guide.addItem')}
               </button>
             )}
 
@@ -617,14 +619,14 @@ export default function StudentGuide() {
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="flex items-center gap-2 text-base font-bold text-navy-900">
                   <Phone className="h-5 w-5 text-navy-600" />
-                  جهات الاتصال المهمة
+                  {t('guide.importantContacts')}
                 </h3>
                 {isPresidentOrMedia && (
                   <button
                     onClick={openAddContact}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-navy-50 px-3 py-1.5 text-xs font-bold text-navy-700 hover:bg-navy-100"
                   >
-                    <Plus className="h-3.5 w-3.5" /> إضافة جهة اتصال
+                    <Plus className="h-3.5 w-3.5" /> {t('guide.addContact')}
                   </button>
                 )}
               </div>

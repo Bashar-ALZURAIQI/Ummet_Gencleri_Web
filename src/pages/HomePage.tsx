@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useTranslation } from 'react-i18next';
+import { resolvePublicBrandName } from '../domain/publicBrand';
 import StatCounter from '../components/StatCounter';
 import EventCard from '../components/EventCard';
 import Modal from '../components/Modal';
@@ -30,9 +32,11 @@ const committeeIcons: Record<CommitteeId, LucideIcon> = {
 };
 
 export default function HomePage() {
+  const { t, i18n } = useTranslation();
   const { news, events, setView, siteContent, currentUser, canEditSection } = useApp();
   const [activeNews, setActiveNews] = useState<NewsItem | null>(null);
   const sc = siteContent;
+  const brandName = resolvePublicBrandName(i18n.language, sc.brand);
   const HeroBadgeOneIcon = iconMap[sc.hero.badge1.icon ?? 'Award'] || Award;
   const HeroBadgeTwoIcon = iconMap[sc.hero.badge2.icon ?? 'TrendingUp'] || TrendingUp;
   const canEdit = !!currentUser && canEditSection('homepage');
@@ -238,7 +242,7 @@ export default function HomePage() {
               onClick={() => setView({ kind: 'about' })}
               className="mt-6 inline-flex items-center gap-1.5 text-sm font-bold text-navy-700 hover:text-navy-900"
             >
-              اقرأ المزيد عن الاتحاد
+              {t('home.readMoreAbout')}
               <ChevronLeft className="h-4 w-4" />
             </button>
           </div>
@@ -264,14 +268,14 @@ export default function HomePage() {
         <div className="container-app">
           <div className="mb-8 flex items-end justify-between">
             <div>
-              <span className="text-sm font-bold uppercase tracking-wider text-gold-600">الفعاليات</span>
-              <h2 className="mt-2 text-3xl font-extrabold text-navy-900 lg:text-4xl">أحدث البرامج القادمة</h2>
+              <span className="text-sm font-bold uppercase tracking-wider text-gold-600">{t('home.eventsBadge')}</span>
+              <h2 className="mt-2 text-3xl font-extrabold text-navy-900 lg:text-4xl">{t('home.upcomingProgramsTitle')}</h2>
             </div>
             <button
               onClick={() => setView({ kind: 'programs' })}
               className="hidden items-center gap-1.5 text-sm font-bold text-navy-700 hover:text-navy-900 sm:inline-flex"
             >
-              عرض الكل
+              {t('common.viewAll')}
               <ChevronLeft className="h-4 w-4" />
             </button>
           </div>
@@ -286,8 +290,8 @@ export default function HomePage() {
       {/* News */}
       <section className="container-app py-16">
         <div className="mb-8">
-          <span className="text-sm font-bold uppercase tracking-wider text-gold-600">المركز الإخباري</span>
-          <h2 className="mt-2 text-3xl font-extrabold text-navy-900 lg:text-4xl">آخر أخبار الاتحاد</h2>
+          <span className="text-sm font-bold uppercase tracking-wider text-gold-600">{t('home.newsBadge')}</span>
+          <h2 className="mt-2 text-3xl font-extrabold text-navy-900 lg:text-4xl">{t('home.latestNewsTitle')}</h2>
         </div>
         <div className="grid gap-6 md:grid-cols-3">
           {pinnedNews.map((n) => (
@@ -302,7 +306,7 @@ export default function HomePage() {
                 <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-gray-500">{n.excerpt}</p>
                 <div className="mt-4 flex items-center gap-2">
                   <button onClick={() => setActiveNews(n)} className="inline-flex items-center gap-1.5 text-sm font-bold text-navy-700 hover:text-navy-900">
-                    اقرأ المزيد
+                    {t('common.readMore')}
                     <ChevronLeft className="h-4 w-4" />
                   </button>
                   {n.externalUrl && (
@@ -313,7 +317,7 @@ export default function HomePage() {
                       className="mr-auto inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-l from-fuchsia-600 to-pink-500 px-3 py-1.5 text-xs font-bold text-white shadow-md transition-transform hover:scale-105"
                     >
                       <ExternalLink className="h-3.5 w-3.5" />
-                      زيارة الخبر على الانستغرام / المصدر
+                      {t('news.viewSource')}
                     </a>
                   )}
                 </div>
@@ -364,7 +368,7 @@ export default function HomePage() {
               onClick={() => setView({ kind: 'board' })}
               className="inline-flex items-center gap-1.5 text-sm font-bold text-navy-700 hover:text-navy-900"
             >
-              عرض الهيكل التنفيذي بالكامل
+              {t('home.viewFullBoard')}
               <ChevronLeft className="h-4 w-4" />
             </button>
           </div>
@@ -379,17 +383,17 @@ export default function HomePage() {
           <div className="absolute -top-16 -right-16 h-64 w-64 rounded-full bg-gold-500/20 blur-3xl" />
           <div className="absolute -bottom-16 -left-16 h-64 w-64 rounded-full bg-navy-500/30 blur-3xl" />
           <div className="relative">
-            <h2 className="text-3xl font-extrabold text-white lg:text-4xl">انضم إلى عائلة {sc.brand.name}</h2>
+            <h2 className="text-3xl font-extrabold text-white lg:text-4xl">{t('home.joinFamily', { brand: brandName })}</h2>
             <p className="mx-auto mt-4 max-w-2xl text-base text-gray-300">
-              كن جزءًا من مجتمع شبابي فاعل، وشارك في برامج متنوعة تصقل شخصيتك وتوسّع آفاقك. التسجيل مفتوح لجميع طلاب الجامعات.
+              {t('home.joinDescription')}
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
-              <button onClick={() => setView({ kind: 'register' })} className="btn-gold">أنشئ حسابًا الآن</button>
+              <button onClick={() => setView({ kind: 'register' })} className="btn-gold">{t('home.createAccountNow')}</button>
               <button
                 onClick={() => setView({ kind: 'contact' })}
                 className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/5 px-6 py-3 text-sm font-semibold text-white backdrop-blur-sm transition-all hover:bg-white/10"
               >
-                تواصل معنا
+                {t('navigation.contact')}
               </button>
             </div>
           </div>
@@ -420,10 +424,10 @@ export default function HomePage() {
                 className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-l from-fuchsia-600 to-pink-500 px-4 py-2.5 text-sm font-bold text-white shadow-md transition-transform hover:scale-105"
               >
                 <ExternalLink className="h-4 w-4" />
-                زيارة الخبر على الانستغرام / المصدر
+                {t('news.viewSource')}
               </a>
             )}
-            <button onClick={() => setActiveNews(null)} className="btn-ghost">إغلاق</button>
+            <button onClick={() => setActiveNews(null)} className="btn-ghost">{t('common.close')}</button>
           </div>
         )}
       </Modal>

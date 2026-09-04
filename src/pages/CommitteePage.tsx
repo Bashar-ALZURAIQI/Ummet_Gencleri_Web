@@ -5,6 +5,7 @@ import {
   Edit3, Trash2, Plus, Save, ClipboardCheck, Hourglass,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { useTranslation } from 'react-i18next';
 import Modal from '../components/Modal';
 import ProfileEditsPanel from '../components/ProfileEditsPanel';
 import DismissibleToast from '../components/DismissibleToast';
@@ -30,6 +31,7 @@ type StatForm = { label: string; value: string };
 type SubmissionFeedback = { id: number; type: 'success' | 'error'; text: string };
 
 export default function CommitteePage({ committeeId }: { committeeId: CommitteeId }) {
+  const { t } = useTranslation();
   const { committees, currentUser, setView, pendingProfileEdits, submitProfileEdit, updateBoardHead, uploadManagedFile, savePublishedSiteTarget } = useApp();
 
   // Modals
@@ -234,7 +236,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
             <div>
               <div className="flex items-center gap-2">
                 <span className="rounded-full bg-white/15 px-3 py-0.5 text-xs font-bold text-white backdrop-blur-sm">
-                  {committeeId === 'presidency' || committeeId === 'vice-presidency' ? 'مكتب تنفيذي' : 'لجنة'}
+                  {committeeId === 'presidency' || committeeId === 'vice-presidency' ? t('committee.executiveOffice') : t('committee.committeeTag')}
                 </span>
               </div>
               <h1 className="mt-2 text-3xl font-extrabold text-white lg:text-4xl">{committee.name}</h1>
@@ -318,17 +320,17 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               <div className="card p-6">
                 <h3 className="flex items-center gap-2 text-lg font-bold text-navy-900">
                   <Target className="h-5 w-5 text-navy-600" />
-                  رؤية وأهداف اللجنة
+                  {t('committee.visionAndGoals')}
                 </h3>
                 {committee.vision && (
                   <div className="mt-4">
-                    <div className="mb-1.5 text-xs font-bold text-navy-500">رؤية اللجنة</div>
+                    <div className="mb-1.5 text-xs font-bold text-navy-500">{t('committee.vision')}</div>
                     <p className="whitespace-pre-line rounded-xl bg-gray-50 p-4 text-sm leading-relaxed text-gray-600">{committee.vision}</p>
                   </div>
                 )}
                 {committee.goals && committee.goals.trim().length > 0 && (
                   <div className="mt-4">
-                    <div className="mb-1.5 text-xs font-bold text-navy-500">أهداف اللجنة</div>
+                    <div className="mb-1.5 text-xs font-bold text-navy-500">{t('committee.goals')}</div>
                     <p className="whitespace-pre-line rounded-xl bg-gray-50 p-4 text-sm leading-relaxed text-gray-600">{committee.goals}</p>
                   </div>
                 )}
@@ -339,11 +341,11 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               <div className="flex items-center justify-between">
                 <h3 className="flex items-center gap-2 text-lg font-bold text-navy-900">
                   <Briefcase className="h-5 w-5 text-navy-600" />
-                  المهام والمسؤوليات
+                  {t('committee.responsibilities')}
                 </h3>
                 {canEditContent && (
                   <button onClick={openAddResp} className="flex items-center gap-1 rounded-lg bg-navy-50 px-2.5 py-1.5 text-xs font-bold text-navy-700 transition-colors hover:bg-navy-100">
-                    <Plus className="h-3.5 w-3.5" /> إضافة بند
+                    <Plus className="h-3.5 w-3.5" /> {t('committee.addItem')}
                   </button>
                 )}
               </div>
@@ -354,10 +356,10 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
                     <span className="flex-1">{r ?? ''}</span>
                     {canEditContent && (
                       <div className="flex gap-1 opacity-0 transition-opacity group-hover/item:opacity-100">
-                        <button onClick={() => openEditResp(i)} className="flex h-6 w-6 items-center justify-center rounded-md text-navy-600 hover:bg-navy-50" title="تعديل">
+                        <button onClick={() => openEditResp(i)} className="flex h-6 w-6 items-center justify-center rounded-md text-navy-600 hover:bg-navy-50" title={t('common.edit')}>
                           <Edit3 className="h-3.5 w-3.5" />
                         </button>
-                        <button onClick={() => deleteResp(i)} className="flex h-6 w-6 items-center justify-center rounded-md text-rose-600 hover:bg-rose-50" title="حذف">
+                        <button onClick={() => deleteResp(i)} className="flex h-6 w-6 items-center justify-center rounded-md text-rose-600 hover:bg-rose-50" title={t('common.delete')}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
@@ -371,11 +373,11 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               <div className="flex items-center justify-between">
                 <h3 className="flex items-center gap-2 text-lg font-bold text-navy-900">
                   <Users className="h-5 w-5 text-navy-600" />
-                  أعضاء {committee.shortName}
+                  {t('committee.membersTitle', { committee: committee.shortName })}
                 </h3>
                 {canEditContent && (
                   <button onClick={openAddMember} className="flex items-center gap-1 rounded-lg bg-navy-50 px-2.5 py-1.5 text-xs font-bold text-navy-700 transition-colors hover:bg-navy-100">
-                    <Plus className="h-3.5 w-3.5" /> إضافة عضو
+                    <Plus className="h-3.5 w-3.5" /> {t('committee.addMember')}
                   </button>
                 )}
               </div>
@@ -389,10 +391,10 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
                     </div>
                     {canEditContent && (
                       <div className="absolute left-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover/memitem:opacity-100">
-                        <button onClick={() => openEditMember(m)} className="flex h-6 w-6 items-center justify-center rounded-md bg-white text-navy-600 shadow-sm ring-1 ring-gray-200 hover:bg-navy-50" title="تعديل">
+                        <button onClick={() => openEditMember(m)} className="flex h-6 w-6 items-center justify-center rounded-md bg-white text-navy-600 shadow-sm ring-1 ring-gray-200 hover:bg-navy-50" title={t('common.edit')}>
                           <Edit3 className="h-3 w-3" />
                         </button>
-                        <button onClick={() => m.id && deleteMember(m.id)} className="flex h-6 w-6 items-center justify-center rounded-md bg-white text-rose-600 shadow-sm ring-1 ring-gray-200 hover:bg-rose-50" title="حذف">
+                        <button onClick={() => m.id && deleteMember(m.id)} className="flex h-6 w-6 items-center justify-center rounded-md bg-white text-rose-600 shadow-sm ring-1 ring-gray-200 hover:bg-rose-50" title={t('common.delete')}>
                           <Trash2 className="h-3 w-3" />
                         </button>
                       </div>
@@ -400,7 +402,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
                   </div>
                 ))}
                 {(committee.members ?? []).length === 0 && (
-                  <p className="py-4 text-center text-sm text-gray-400">لا يوجد أعضاء مضافون.</p>
+                  <p className="py-4 text-center text-sm text-gray-400">{t('committee.noMembers')}</p>
                 )}
               </div>
             </div>
@@ -423,7 +425,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-navy-700 transition-colors hover:bg-navy-50"
             >
               <ChevronRight className="h-4 w-4 rtl:rotate-0 ltr:rotate-180" />
-              الهيئة التنفيذية
+              {t('navigation.executiveBoard')}
             </button>
           )}
           {next ? (
@@ -439,7 +441,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               onClick={() => setView({ kind: 'board' })}
               className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-navy-700 transition-colors hover:bg-navy-50"
             >
-              الهيئة التنفيذية
+              {t('navigation.executiveBoard')}
               <ChevronLeft className="h-4 w-4 rtl:rotate-0 ltr:rotate-180" />
             </button>
           )}

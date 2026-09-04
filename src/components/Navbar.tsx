@@ -12,6 +12,8 @@ import UserAvatar from './UserAvatar';
 import BrandMark from './BrandMark';
 import LanguageSwitcher from './LanguageSwitcher';
 import { canExposeAdminUi } from '../domain/liveIdentityRouting';
+import { resolvePublicBrandName } from '../domain/publicBrand';
+import { splitNavLabel } from '../domain/navLabel';
 
 const committeeIcons: Record<CommitteeId, typeof Crown> = {
   presidency: Crown,
@@ -23,9 +25,24 @@ const committeeIcons: Record<CommitteeId, typeof Crown> = {
   finance: Wallet,
 };
 
+export function NavLabel({ label }: { label: string }) {
+  const lines = splitNavLabel(label);
+  if (lines.length <= 1) {
+    return <span className="whitespace-nowrap">{lines[0] || label}</span>;
+  }
+  return (
+    <span className="flex flex-col items-center justify-center text-center leading-tight">
+      {lines.map((line, idx) => (
+        <span key={idx} className="whitespace-nowrap">
+          {line}
+        </span>
+      ))}
+    </span>
+  );
+}
 
 export default function Navbar() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const {
     view,
     setView,
@@ -98,11 +115,11 @@ export default function Navbar() {
           : 'bg-white/80 backdrop-blur-sm'
       }`}
     >
-      <nav className="container-app flex h-16 items-center justify-between lg:h-20">
+      <nav className="container-app flex h-16 items-center justify-between lg:h-20 2xl:max-w-[90rem]">
         {/* Logo */}
         <button
           onClick={() => go({ kind: 'home' })}
-          className="flex items-center gap-3 transition-transform hover:scale-[1.02]"
+          className="flex shrink-0 items-center gap-2.5 transition-transform hover:scale-[1.02] sm:gap-3"
         >
           <BrandMark
             logoUrl={siteContent.brand.logoUrl}
@@ -120,19 +137,21 @@ export default function Navbar() {
             }}
             currentValues={{ 'brand.name': siteContent.brand.name, 'brand.nameTr': siteContent.brand.nameTr }}
           >
-            <div className="text-start">
-              <div className="text-base font-extrabold leading-tight text-navy-900 lg:text-lg">
-                {siteContent.brand.name}
+            <div className="text-start whitespace-nowrap">
+              <div className="text-sm font-extrabold leading-tight text-navy-900 sm:text-base lg:text-lg">
+                {resolvePublicBrandName(i18n.language, siteContent.brand)}
               </div>
-              <div className="text-[10px] font-medium text-gray-500 lg:text-xs">
-                {siteContent.brand.nameTr}
-              </div>
+              {i18n.language === 'ar' && (
+                <div className="text-[10px] font-medium text-gray-500 lg:text-xs">
+                  {siteContent.brand.nameTr}
+                </div>
+              )}
             </div>
           </EditableCard>
         </button>
 
         {/* Desktop nav */}
-        <div className="hidden items-center gap-1 lg:flex">
+        <div className="hidden items-center gap-1 xl:flex">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.view);
@@ -140,14 +159,14 @@ export default function Navbar() {
               <button
                 key={item.label}
                 onClick={() => go(item.view)}
-                className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
+                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold transition-all xl:px-3 xl:text-sm ${
                   active
                     ? 'bg-navy-50 text-navy-800'
                     : 'text-gray-600 hover:bg-gray-50 hover:text-navy-700'
                 }`}
               >
-                <Icon className="h-4 w-4" />
-                {item.label}
+                <Icon className="h-4 w-4 shrink-0" />
+                <NavLabel label={item.label} />
               </button>
             );
           })}
@@ -157,15 +176,15 @@ export default function Navbar() {
             <button
               onClick={() => setBoardOpen((o) => !o)}
               onBlur={() => setTimeout(() => setBoardOpen(false), 150)}
-              className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
+              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold transition-all xl:px-3 xl:text-sm ${
                 isBoardActive
                   ? 'bg-navy-50 text-navy-800'
                   : 'text-gray-600 hover:bg-gray-50 hover:text-navy-700'
               }`}
             >
-              <Network className="h-4 w-4" />
-              {t('navigation.executiveBoard')}
-              <ChevronDown className={`h-4 w-4 transition-transform ${boardOpen ? 'rotate-180' : ''}`} />
+              <Network className="h-4 w-4 shrink-0" />
+              <NavLabel label={t('navigation.executiveBoard')} />
+              <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${boardOpen ? 'rotate-180' : ''}`} />
             </button>
             {boardOpen && (
               <div className="absolute left-1/2 top-full mt-2 w-64 -translate-x-1/2 animate-scale-in rounded-2xl border border-gray-100 bg-white p-2 shadow-xl">
@@ -173,7 +192,7 @@ export default function Navbar() {
                   onMouseDown={() => go({ kind: 'board' })}
                   className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-start text-sm font-bold text-navy-900 transition-colors hover:bg-navy-50"
                 >
-                  <Network className="h-4 w-4 text-navy-600" />
+                  <Network className="h-4 w-4 text-navy-600 shrink-0" />
                   {t('navigation.executiveBoardOverview')}
                 </button>
                 <div className="my-1 h-px bg-gray-100" />
@@ -186,7 +205,7 @@ export default function Navbar() {
                       onMouseDown={() => go({ kind: 'committee', committeeId: id })}
                       className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-start text-sm font-medium text-gray-700 transition-colors hover:bg-navy-50 hover:text-navy-800"
                     >
-                      <Icon className="h-4 w-4 text-navy-500" />
+                      <Icon className="h-4 w-4 text-navy-500 shrink-0" />
                       {c?.name || committeeMeta[id].name}
                     </button>
                   );
@@ -198,19 +217,19 @@ export default function Navbar() {
           {/* Student portal direct button */}
           <button
             onClick={goStudentPortal}
-            className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
+            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-[13px] font-semibold transition-all xl:px-3 xl:text-sm ${
               ['student-dashboard', 'login', 'register', 'forgot-password', 'update-password'].includes(view.kind)
                 ? 'bg-navy-50 text-navy-800'
                 : 'text-gray-600 hover:bg-gray-50 hover:text-navy-700'
             }`}
           >
-            <LayoutDashboard className="h-4 w-4" />
-            {t('dashboard.studentPortal')}
+            <LayoutDashboard className="h-4 w-4 shrink-0" />
+            <NavLabel label={t('dashboard.studentPortal')} />
           </button>
         </div>
 
         {/* Right actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <LanguageSwitcher variant="desktop" />
           {currentUser ? (
             /* Profile dropdown (logged in) */
@@ -270,9 +289,9 @@ export default function Navbar() {
           ) : (
             <button
               onClick={() => go({ kind: 'login' })}
-              className="hidden items-center gap-1.5 rounded-xl bg-navy-800 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-navy-900/20 transition-all hover:bg-navy-700 sm:flex"
+              className="hidden items-center gap-1.5 rounded-xl bg-navy-800 px-4 py-2 text-sm font-semibold whitespace-nowrap text-white shadow-md shadow-navy-900/20 transition-all hover:bg-navy-700 sm:flex"
             >
-              <LogIn className="h-4 w-4" />
+              <LogIn className="h-4 w-4 shrink-0" />
               {t('auth.login')}
             </button>
           )}
@@ -280,7 +299,7 @@ export default function Navbar() {
           {/* Mobile toggle */}
           <button
             onClick={() => setMobileOpen((o) => !o)}
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 text-navy-800 lg:hidden"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 text-navy-800 xl:hidden"
           >
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
@@ -289,7 +308,7 @@ export default function Navbar() {
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className="animate-fade-in-fast max-h-[80vh] overflow-y-auto border-t border-gray-100 bg-white lg:hidden">
+        <div className="animate-fade-in-fast max-h-[80vh] overflow-y-auto border-t border-gray-100 bg-white xl:hidden">
           <div className="container-app space-y-1 py-4">
             {navItems.map((item) => {
               const Icon = item.icon;

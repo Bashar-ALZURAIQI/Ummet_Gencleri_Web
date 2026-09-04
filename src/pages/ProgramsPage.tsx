@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   CalendarDays, CheckCircle2, History, Sparkles, Plus, Edit3, Trash2, Save,
   CheckCircle2 as Check, X,
@@ -32,6 +33,7 @@ export default function ProgramsPage() {
     savePublishedSiteTarget,
     createPublishedEvent,
   } = useApp();
+  const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>('upcoming');
   const [cat, setCat] = useState<EventCategory | 'all'>('all');
   const [editingHeader, setEditingHeader] = useState(false);
@@ -367,7 +369,7 @@ export default function ProgramsPage() {
               }`}
             >
               <Sparkles className="h-4 w-4" />
-              البرامج القادمة
+              {t('programs.upcomingTab')}
               <span className={`rounded-full px-2 py-0.5 text-xs ${tab === 'upcoming' ? 'bg-white/20' : 'bg-gray-100'}`}>{upcomingCount}</span>
             </button>
             <button
@@ -377,14 +379,14 @@ export default function ProgramsPage() {
               }`}
             >
               <History className="h-4 w-4" />
-              البرامج السابقة
+              {t('programs.pastTab')}
               <span className={`rounded-full px-2 py-0.5 text-xs ${tab === 'past' ? 'bg-white/20' : 'bg-gray-100'}`}>{pastCount}</span>
             </button>
           </div>
 
           {canAddEvent && (
             <button onClick={openAdd} className="btn-primary">
-              <Plus className="h-4 w-4" /> إضافة فعالية جديدة
+              <Plus className="h-4 w-4" /> {t('programs.addNewEvent')}
             </button>
           )}
         </div>
@@ -397,7 +399,7 @@ export default function ProgramsPage() {
               cat === 'all' ? 'bg-navy-800 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
             }`}
           >
-            الكل
+            {t('common.all')}
           </button>
           {(Object.keys(categoryLabels) as EventCategory[]).map((c) => (
             <button
@@ -415,7 +417,7 @@ export default function ProgramsPage() {
         {filtered.length === 0 ? (
           <div className="card flex flex-col items-center justify-center py-20 text-center">
             <CalendarDays className="h-12 w-12 text-gray-300" />
-            <p className="mt-4 text-gray-500">لا توجد فعاليات في هذا التصنيف حاليًا.</p>
+            <p className="mt-4 text-gray-500">{t('programs.noEvents')}</p>
           </div>
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -434,14 +436,14 @@ export default function ProgramsPage() {
                     <button
                       onClick={() => openEdit(e)}
                       className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/90 text-navy-700 shadow-md backdrop-blur-sm transition-colors hover:bg-white"
-                      title="تعديل"
+                      title={t('common.edit')}
                     >
                       <Edit3 className="h-4 w-4" />
                     </button>
                     <button
                       onClick={() => removeEvent(e.id)}
                       className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/90 text-rose-600 shadow-md backdrop-blur-sm transition-colors hover:bg-white"
-                      title="حذف"
+                      title={t('common.delete')}
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -460,11 +462,9 @@ export default function ProgramsPage() {
                 <CheckCircle2 className="h-6 w-6" />
               </div>
               <div>
-                <h3 className="text-xl font-bold text-navy-900">إنجازات نفخر بها</h3>
+                <h3 className="text-xl font-bold text-navy-900">{t('programs.achievementsTitle')}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-gray-600">
-                  نظّمنا حتى الآن أكثر من 86 فعالية شملت ورش عمل ومحاضرات وبرامج
-                  تدريبية وحملات تطوعية، استفاد منها أكثر من 1200 طالب من 24 جامعة
-                  مختلفة. ونواصل العمل على توسيع أثرنا عامًا بعد عام.
+                  {t('programs.achievementsText')}
                 </p>
               </div>
             </div>

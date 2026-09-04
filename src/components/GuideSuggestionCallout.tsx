@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import { CheckCircle2, Lightbulb, Send } from 'lucide-react';
 import Modal from './Modal';
 import RequiredMark from './RequiredMark';
@@ -12,6 +13,7 @@ import { submitGuideSuggestion } from '../services/guideSuggestionService.ts';
 const EMPTY_FORM: GuideSuggestionInput = { studentName: '', subject: '', description: '' };
 
 export default function GuideSuggestionCallout() {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<GuideSuggestionInput>(EMPTY_FORM);
   const [errors, setErrors] = useState<Partial<Record<GuideSuggestionField, string>>>({});
@@ -51,7 +53,7 @@ export default function GuideSuggestionCallout() {
 
     if (!result.ok) {
       console.error('Guide suggestion submission failed:', result.error);
-      setServerError(result.error.message || 'تعذر إرسال الاقتراح. يرجى المحاولة مرة أخرى.');
+      setServerError(result.error.message || t('errors.generic'));
       return;
     }
 
@@ -69,8 +71,8 @@ export default function GuideSuggestionCallout() {
             <Lightbulb className="h-5 w-5" />
           </div>
           <div>
-            <h2 className="font-extrabold text-navy-900">ساعدنا في تطوير دليل الطالب</h2>
-            <p className="mt-1 text-sm leading-relaxed text-gray-600">إذا وجدت معلومة تحتاج إلى تحديث أو لديك إضافة مفيدة، أرسلها مباشرة إلى الإدارة الأكاديمية.</p>
+            <h2 className="font-extrabold text-navy-900">{t('guide.suggestion.title', 'ساعدنا في تطوير دليل الطالب')}</h2>
+            <p className="mt-1 text-sm leading-relaxed text-gray-600">{t('guide.suggestion.subtitle', 'هل لديك إضافة أو تصحيح؟ اقترح تعديلاً')}</p>
           </div>
         </div>
         <button
@@ -79,21 +81,21 @@ export default function GuideSuggestionCallout() {
           className="btn-primary mt-4 w-full justify-center sm:mt-0 sm:w-auto sm:shrink-0"
         >
           <Lightbulb className="h-4 w-4" />
-          هل لديك إضافة أو تصحيح؟ اقترح تعديلاً
+          {t('guide.suggestion.button', 'تقديم اقتراح')}
         </button>
       </section>
 
       {sent && (
         <div role="status" className="mb-8 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">
           <CheckCircle2 className="h-5 w-5" />
-          شكراً لك، تم إرسال اقتراحك بنجاح وسيتم مراجعته من الإدارة.
+          {t('guide.suggestion.success', 'شكراً لك، تم إرسال اقتراحك بنجاح. سيتم مراجعته قريباً.')}
         </div>
       )}
 
-      <Modal open={open} onClose={close} title="تقديم اقتراح لدليل الطالب" maxWidth="max-w-lg">
+      <Modal open={open} onClose={close} title={t('guide.suggestion.modalTitle', 'اقتراح تعديل على دليل الطالب')} maxWidth="max-w-lg">
         <form onSubmit={submit} className="space-y-4" noValidate>
           <div>
-            <label htmlFor="guide-suggestion-studentName" className="label-field">اسم الطالب <RequiredMark /></label>
+            <label htmlFor="guide-suggestion-studentName" className="label-field">{t('guide.suggestion.studentName', 'اسم الطالب')} <RequiredMark /></label>
             <input
               id="guide-suggestion-studentName"
               required
@@ -108,7 +110,7 @@ export default function GuideSuggestionCallout() {
           </div>
 
           <div>
-            <label htmlFor="guide-suggestion-subject" className="label-field">موضوع الاقتراح <RequiredMark /></label>
+            <label htmlFor="guide-suggestion-subject" className="label-field">{t('guide.suggestion.subject', 'موضوع الاقتراح')} <RequiredMark /></label>
             <input
               id="guide-suggestion-subject"
               required
@@ -123,7 +125,7 @@ export default function GuideSuggestionCallout() {
           </div>
 
           <div>
-            <label htmlFor="guide-suggestion-description" className="label-field">الشرح أو التفاصيل <RequiredMark /></label>
+            <label htmlFor="guide-suggestion-description" className="label-field">{t('guide.suggestion.description', 'الشرح أو التفاصيل')} <RequiredMark /></label>
             <textarea
               id="guide-suggestion-description"
               required
@@ -148,10 +150,10 @@ export default function GuideSuggestionCallout() {
           )}
 
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={close} disabled={submitting} className="btn-ghost disabled:cursor-not-allowed disabled:opacity-50">إلغاء</button>
+            <button type="button" onClick={close} disabled={submitting} className="btn-ghost disabled:cursor-not-allowed disabled:opacity-50">{t('common.cancel')}</button>
             <button type="submit" disabled={submitting} className="btn-primary min-w-32 justify-center disabled:cursor-wait disabled:opacity-70">
               <Send className="h-4 w-4" />
-              {submitting ? 'جاري الإرسال...' : 'إرسال الاقتراح'}
+              {submitting ? t('common.sending', 'جاري الإرسال...') : t('guide.suggestion.submit', 'إرسال الاقتراح')}
             </button>
           </div>
         </form>

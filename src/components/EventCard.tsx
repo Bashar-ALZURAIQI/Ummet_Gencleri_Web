@@ -1,4 +1,5 @@
 import { CalendarDays, MapPin, Users, Clock, CheckCircle2, ExternalLink } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useApp } from '../context/AppContext';
 import { categoryLabels, categoryColors, type UEvent } from '../data/mockData';
 import type { StudentActivityBoardItem } from '../domain/internalEconomyTypes.ts';
@@ -14,6 +15,7 @@ export default function EventCard({ event, activity, activityLoading = false, ac
   onDecline?: (activity: StudentActivityBoardItem) => void;
 }) {
   const { currentUser, setView, studentAccess } = useApp();
+  const { t } = useTranslation();
   const registered = activity?.joiningCount ?? event.registered;
   const capacity = activity?.maxCapacity ?? event.capacity;
   const isFull = capacity !== null && registered >= capacity;
@@ -45,7 +47,7 @@ export default function EventCard({ event, activity, activityLoading = false, ac
         </span>
         {event.status === 'past' && (
           <span className="absolute top-3 left-3 rounded-full bg-navy-900/80 px-3 py-1 text-xs font-bold text-white backdrop-blur-sm">
-            منتهية
+            {t('programs.pastBadge')}
           </span>
         )}
       </div>
@@ -97,7 +99,7 @@ export default function EventCard({ event, activity, activityLoading = false, ac
             className="mb-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-fuchsia-200 bg-fuchsia-50 px-4 py-2.5 text-sm font-semibold text-fuchsia-700 transition-colors hover:bg-fuchsia-100"
           >
             <ExternalLink className="h-4 w-4" />
-            زيارة الفعالية / الانستغرام
+            {t('programs.visitEvent')}
           </a>
         )}
 
@@ -115,7 +117,7 @@ export default function EventCard({ event, activity, activityLoading = false, ac
         ) : (
           <span className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gray-50 px-4 py-2.5 text-sm font-semibold text-gray-500">
             <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-            فعالية منتهية
+            {t('programs.endedEvent')}
           </span>
         )}
       </div>

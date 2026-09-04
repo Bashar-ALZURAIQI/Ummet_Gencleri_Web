@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Newspaper, CalendarDays, ChevronLeft, ExternalLink } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import Modal from '../components/Modal';
@@ -6,6 +7,7 @@ import type { NewsItem } from '../data/mockData';
 
 export default function NewsPage() {
   const { news } = useApp();
+  const { t } = useTranslation();
   const [active, setActive] = useState<NewsItem | null>(null);
 
   const sorted = [...news].sort((a, b) => (a.date < b.date ? 1 : -1));
@@ -18,18 +20,18 @@ export default function NewsPage() {
         <div className="container-app relative">
           <div className="flex items-center gap-3 text-gold-400">
             <Newspaper className="h-6 w-6" />
-            <span className="text-sm font-bold tracking-wide">المركز الإخباري</span>
+            <span className="text-sm font-bold tracking-wide">{t('news.badge')}</span>
           </div>
-          <h1 className="mt-3 text-3xl font-extrabold text-white sm:text-4xl">آخر أخبار الاتحاد</h1>
+          <h1 className="mt-3 text-3xl font-extrabold text-white sm:text-4xl">{t('news.title')}</h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-gray-300">
-            تابع أحدث أخبار الاتحاد وفعالياته وإنجازاته، وتعرّف على كل جديد من إعلانات وشراكات وبرامج.
+            {t('news.description')}
           </p>
         </div>
       </div>
 
       <div className="container-app py-10">
         {sorted.length === 0 ? (
-          <div className="py-16 text-center text-sm text-gray-400">لا توجد أخبار بعد.</div>
+          <div className="py-16 text-center text-sm text-gray-400">{t('news.noNews')}</div>
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {sorted.map((n) => (
@@ -51,7 +53,7 @@ export default function NewsPage() {
                   <div className="mt-4 flex-1" />
                   <div className="mt-4 flex items-center gap-2">
                     <button onClick={() => setActive(n)} className="inline-flex items-center gap-1.5 text-sm font-bold text-navy-700 hover:text-navy-900">
-                      اقرأ المزيد
+                      {t('common.readMore')}
                       <ChevronLeft className="h-4 w-4" />
                     </button>
                     {n.externalUrl && (
@@ -62,7 +64,7 @@ export default function NewsPage() {
                         className="mr-auto inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-l from-fuchsia-600 to-pink-500 px-3 py-1.5 text-xs font-bold text-white shadow-md transition-transform hover:scale-105"
                       >
                         <ExternalLink className="h-3.5 w-3.5" />
-                        زيارة الخبر على الانستغرام / المصدر
+                        {t('news.viewSource')}
                       </a>
                     )}
                   </div>
@@ -100,10 +102,10 @@ export default function NewsPage() {
                 className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-l from-fuchsia-600 to-pink-500 px-4 py-2.5 text-sm font-bold text-white shadow-md transition-transform hover:scale-105"
               >
                 <ExternalLink className="h-4 w-4" />
-                زيارة الخبر على الانستغرام / المصدر
+                {t('news.viewSource')}
               </a>
             )}
-            <button onClick={() => setActive(null)} className="btn-ghost">إغلاق</button>
+            <button onClick={() => setActive(null)} className="btn-ghost">{t('common.close')}</button>
           </div>
         )}
       </Modal>
