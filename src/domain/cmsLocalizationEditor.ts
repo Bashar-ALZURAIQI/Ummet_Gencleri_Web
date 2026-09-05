@@ -162,18 +162,18 @@ export function recordManualPath(
 export function updateNestedPayload(
   existingPayload: unknown,
   path: string,
-  newValue: string,
+  newValue: unknown,
 ): JsonValue {
   const cleanPath = path.replace(/\[(\d+)\]/g, '.$1.');
   const segments = cleanPath.split('.').map((s) => s.trim()).filter(Boolean);
 
   if (segments.length === 0) {
-    return newValue;
+    return newValue as JsonValue;
   }
 
   // If existing payload is a direct string and path is a simple non-nested key
   if (typeof existingPayload === 'string' && segments.length === 1) {
-    return newValue;
+    return newValue as JsonValue;
   }
 
   // Clone or initialize base object

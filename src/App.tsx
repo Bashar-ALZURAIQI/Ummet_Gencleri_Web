@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AppProvider, useApp } from './context/AppContext';
+import { CmsLocalizationProvider } from './context/CmsLocalizationContext';
 import Navbar from './components/Navbar';
 import DynamicFavicon from './components/DynamicFavicon';
 import Footer from './components/Footer';
@@ -138,8 +139,10 @@ function Router() {
 export default function App() {
   return (
     <AppProvider>
-      <DynamicFavicon />
-      <Router />
+      <CmsLocalizationProvider>
+        <DynamicFavicon />
+        <Router />
+      </CmsLocalizationProvider>
     </AppProvider>
   );
 }

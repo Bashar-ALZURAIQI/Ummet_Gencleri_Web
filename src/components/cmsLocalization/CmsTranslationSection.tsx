@@ -154,13 +154,24 @@ export function CmsTranslationSection({
     updater((prev) => ({ ...prev, saving: true, saveError: null }));
 
     try {
+      const [latestDraft, latestPublished] = await Promise.all([
+        repository.getDraft(target, locale),
+        repository.getPublished(target, locale),
+      ]);
+
       const basePayload = resolveDraftBasePayload(
-        currentState.draftRecord,
-        currentState.publishedRecord,
+        latestDraft,
+        latestPublished,
         canonicalPayload,
       );
       const updatedPayload = updateNestedPayload(basePayload, path, currentState.value);
-      const updatedManualPaths = recordManualPath(currentState.manualPaths, path);
+
+      const latestActive = latestDraft ?? latestPublished ?? currentState.record;
+      const mergedManualPaths = [
+        ...(latestActive?.manualPaths ?? []),
+        ...currentState.manualPaths,
+      ];
+      const updatedManualPaths = recordManualPath(mergedManualPaths, path);
 
       const recordToSave: CmsLocalizationRecord = {
         target,
@@ -168,9 +179,9 @@ export function CmsTranslationSection({
         payload: updatedPayload,
         status: 'draft',
         manualPaths: updatedManualPaths,
-        stalePaths: currentState.record?.stalePaths ?? [],
+        stalePaths: latestActive?.stalePaths ?? currentState.record?.stalePaths ?? [],
         sourceHash: computeSourceHash(canonicalPayload),
-        sourceVersion: currentState.record?.sourceVersion,
+        sourceVersion: latestActive?.sourceVersion ?? currentState.record?.sourceVersion,
         updatedAt: new Date().toISOString(),
       };
 

@@ -4,6 +4,10 @@ import { useTranslation } from 'react-i18next';
 import Modal from './Modal';
 import ManagedFileField from './ManagedFileField';
 import { useApp } from '../context/AppContext';
+import { isCmsPathTranslatable, type CmsFieldKind } from '../domain/cmsTranslatableFields.ts';
+import { updateNestedPayload } from '../domain/cmsLocalizationEditor.ts';
+import type { JsonValue } from '../domain/cmsLocalization.ts';
+import { CmsTranslationSection } from './cmsLocalization/CmsTranslationSection.tsx';
 
 export interface InlineEditConfig {
   path: string;
@@ -82,7 +86,17 @@ export function EditableField({
   };
 
   const { updateSiteField, updateAboutField } = useInlineEditContext();
-  const { uploadManagedFile } = useApp();
+  const { uploadManagedFile, siteContent, aboutContent } = useApp();
+
+  const isTranslatable =
+    config.type !== 'image' &&
+    config.type !== 'number' &&
+    config.type !== 'icon' &&
+    isCmsPathTranslatable(config.target, config.path);
+
+  const fieldKind: CmsFieldKind = config.type === 'textarea' ? 'description' : 'text';
+  const baseTargetPayload = config.target === 'site' ? siteContent : aboutContent;
+  const canonicalPayload = updateNestedPayload(baseTargetPayload, config.path, draft);
 
   const save = async () => {
     const val = config.type === 'number' ? Number(draft) || 0 : draft;
@@ -125,9 +139,17 @@ export function EditableField({
       </span>
       <Modal open={open} onClose={() => { if (!saving) setOpen(false); }} title={editTitle} maxWidth="max-w-md">
         <div className="space-y-4">
+          {isTranslatable && (
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-xs font-semibold text-gray-500">
+                {t('cmsLocalization.canonicalSource')}
+              </span>
+            </div>
+          )}
           {config.type === 'textarea' ? (
             <textarea
               rows={5}
+              dir="rtl"
               className="input-field resize-none"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
@@ -146,10 +168,22 @@ export function EditableField({
           ) : (
             <input
               type={config.type === 'number' ? 'number' : 'text'}
+              dir={config.type === 'number' ? undefined : 'rtl'}
               className="input-field"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               autoFocus
+            />
+          )}
+          {isTranslatable && (
+            <CmsTranslationSection
+              target={config.target}
+              path={config.path}
+              label={config.label}
+              kind={fieldKind}
+              canonicalValue={draft}
+              canonicalPayload={canonicalPayload}
+              canEdit={canEdit}
             />
           )}
           {saveError && (
@@ -206,7 +240,14 @@ export function EditableCard({
   };
 
   const { updateSiteFields, updateAboutFields } = useInlineEditContext();
-  const { uploadManagedFile } = useApp();
+  const { uploadManagedFile, siteContent, aboutContent } = useApp();
+
+  const baseTargetPayload = config.target === 'site' ? siteContent : aboutContent;
+  let cardCanonicalPayload: JsonValue = baseTargetPayload as unknown as JsonValue;
+  for (const f of config.fields) {
+    const currentFieldVal = f.type === 'number' ? Number(draft[f.path]) || 0 : draft[f.path] ?? '';
+    cardCanonicalPayload = updateNestedPayload(cardCanonicalPayload, f.path, currentFieldVal);
+  }
 
   const save = async () => {
     setSaving(true);
@@ -256,38 +297,67 @@ export function EditableCard({
       </div>
       <Modal open={open} onClose={() => { if (!saving) setOpen(false); }} title={editCardTitle} maxWidth="max-w-lg">
         <div className="space-y-4">
-          {config.fields.map((field) => (
-            <div key={field.path}>
-              <label className="label-field">{field.label}</label>
-              {field.type === 'textarea' ? (
-                <textarea
-                  rows={3}
-                  className="input-field resize-none"
-                  value={draft[field.path] ?? ''}
-                  onChange={(e) => setDraft({ ...draft, [field.path]: e.target.value })}
-                />
-              ) : field.type === 'image' ? (
-                <ManagedFileField
-                  usage="site-image"
-                  label={field.label}
-                  currentUrl={draft[field.path] ?? ''}
-                  required
-                  disabled={saving}
-                  onUpload={(file, onProgress) => uploadManagedFile('site-image', file, onProgress)}
-                  onUploaded={(asset) => setDraft((current) => ({ ...current, [field.path]: asset.publicUrl }))}
-                />
-              ) : field.type === 'icon' ? (
-                <IconSelector value={draft[field.path] ?? 'Users'} onChange={(v) => setDraft({ ...draft, [field.path]: v })} />
-              ) : (
-                <input
-                  type={field.type === 'number' ? 'number' : 'text'}
-                  className="input-field"
-                  value={draft[field.path] ?? ''}
-                  onChange={(e) => setDraft({ ...draft, [field.path]: e.target.value })}
-                />
-              )}
-            </div>
-          ))}
+          {config.fields.map((field) => {
+            const isFieldTranslatable =
+              field.type !== 'image' &&
+              field.type !== 'number' &&
+              field.type !== 'icon' &&
+              isCmsPathTranslatable(config.target, field.path);
+            const fieldKind: CmsFieldKind = field.type === 'textarea' ? 'description' : 'text';
+
+            return (
+              <div key={field.path} className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="label-field">{field.label}</label>
+                  {isFieldTranslatable && (
+                    <span className="text-xs font-semibold text-gray-500">
+                      {t('cmsLocalization.canonicalSource')}
+                    </span>
+                  )}
+                </div>
+                {field.type === 'textarea' ? (
+                  <textarea
+                    rows={3}
+                    dir="rtl"
+                    className="input-field resize-none"
+                    value={draft[field.path] ?? ''}
+                    onChange={(e) => setDraft({ ...draft, [field.path]: e.target.value })}
+                  />
+                ) : field.type === 'image' ? (
+                  <ManagedFileField
+                    usage="site-image"
+                    label={field.label}
+                    currentUrl={draft[field.path] ?? ''}
+                    required
+                    disabled={saving}
+                    onUpload={(file, onProgress) => uploadManagedFile('site-image', file, onProgress)}
+                    onUploaded={(asset) => setDraft((current) => ({ ...current, [field.path]: asset.publicUrl }))}
+                  />
+                ) : field.type === 'icon' ? (
+                  <IconSelector value={draft[field.path] ?? 'Users'} onChange={(v) => setDraft({ ...draft, [field.path]: v })} />
+                ) : (
+                  <input
+                    type={field.type === 'number' ? 'number' : 'text'}
+                    dir={field.type === 'number' ? undefined : 'rtl'}
+                    className="input-field"
+                    value={draft[field.path] ?? ''}
+                    onChange={(e) => setDraft({ ...draft, [field.path]: e.target.value })}
+                  />
+                )}
+                {isFieldTranslatable && (
+                  <CmsTranslationSection
+                    target={config.target}
+                    path={field.path}
+                    label={field.label}
+                    kind={fieldKind}
+                    canonicalValue={draft[field.path] ?? ''}
+                    canonicalPayload={cardCanonicalPayload}
+                    canEdit={canEdit}
+                  />
+                )}
+              </div>
+            );
+          })}
           {saveError && (
             <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
               {saveError}

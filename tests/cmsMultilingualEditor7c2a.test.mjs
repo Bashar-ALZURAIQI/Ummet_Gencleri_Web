@@ -754,3 +754,307 @@ test('56. resolveDraftBasePayload handles primitive and empty payloads gracefull
   assert.deepEqual(resolveDraftBasePayload(null, null, null), {});
   assert.deepEqual(resolveDraftBasePayload(undefined, undefined, undefined), {});
 });
+
+// ---------------------------------------------------------------------------
+// 11. Task 4: Inline Same-Place Multilingual Editing Integration Tests
+// ---------------------------------------------------------------------------
+
+import { isCmsPathTranslatable } from '../src/domain/cmsTranslatableFields.ts';
+
+const readAppSource = () =>
+  readFile(new URL('../src/App.tsx', import.meta.url), 'utf8');
+
+const readInlineEditSource = () =>
+  readFile(new URL('../src/components/InlineEditOverlay.tsx', import.meta.url), 'utf8');
+
+test('57. App.tsx imports CmsLocalizationProvider', async () => {
+  const source = await readAppSource();
+  assert.match(source, /import\s*\{[^}]*CmsLocalizationProvider[^}]*\}\s*from\s*['"]\.\/context\/CmsLocalizationContext/);
+});
+
+test('58. App tree wraps Router/components in CmsLocalizationProvider at a valid level', async () => {
+  const source = await readAppSource();
+  assert.match(source, /<CmsLocalizationProvider>/);
+  assert.match(source, /<\/CmsLocalizationProvider>/);
+});
+
+test('59. Existing InlineEditProvider remains present in App.tsx', async () => {
+  const source = await readAppSource();
+  assert.match(source, /<InlineEditProvider/);
+  assert.match(source, /updateSiteField/);
+  assert.match(source, /updateAboutField/);
+});
+
+test('60. InlineEditOverlay imports and uses isCmsPathTranslatable and CmsTranslationSection', async () => {
+  const source = await readInlineEditSource();
+  assert.match(source, /isCmsPathTranslatable/);
+  assert.match(source, /CmsTranslationSection/);
+});
+
+test('61. Allowlisted site and about paths are verified translatable via domain schema', () => {
+  assert.equal(isCmsPathTranslatable('site', 'hero.title'), true);
+  assert.equal(isCmsPathTranslatable('site', 'hero.description'), true);
+  assert.equal(isCmsPathTranslatable('about', 'header.title'), true);
+  assert.equal(isCmsPathTranslatable('about', 'header.description'), true);
+  assert.equal(isCmsPathTranslatable('site', 'stats.members.label'), true);
+});
+
+test('62. Unknown and non-allowlisted paths return false for translation eligibility', () => {
+  assert.equal(isCmsPathTranslatable('site', 'unknown.field'), false);
+  assert.equal(isCmsPathTranslatable('about', 'random.path'), false);
+  assert.equal(isCmsPathTranslatable('site', 'hero.invalidKey'), false);
+});
+
+test('63. Technical image, number, and icon fields are excluded from translation section', async () => {
+  const source = await readInlineEditSource();
+  // Checks that image/number/icon types do not render CmsTranslationSection
+  assert.match(source, /type\s*!==\s*['"]image['"]/);
+  assert.match(source, /type\s*!==\s*['"]icon['"]/);
+  assert.match(source, /type\s*!==\s*['"]number['"]/);
+});
+
+test('64. Canonical Arabic textual fields in EditableField and EditableCard use dir="rtl"', async () => {
+  const source = await readInlineEditSource();
+  // textarea and input for textual content specify dir="rtl"
+  assert.match(source, /<textarea[^>]*dir=["']rtl["']/);
+  assert.match(source, /<input[^>]*dir=\{/);
+});
+
+test('65. Canonical source UI references cmsLocalization.canonicalSource', async () => {
+  const source = await readInlineEditSource();
+  assert.match(source, /cmsLocalization\.canonicalSource/);
+});
+
+test('66. CmsTranslationSection in EditableField receives canonicalValue and FULL canonicalPayload', async () => {
+  const source = await readInlineEditSource();
+  assert.match(source, /<CmsTranslationSection/);
+  assert.match(source, /canonicalValue=\{/);
+  assert.match(source, /canonicalPayload=\{/);
+});
+
+test('67. Critical regression: canonicalPayload is NOT currentValue-only or draft-only', async () => {
+  const source = await readInlineEditSource();
+  // Must NOT pass canonicalPayload={draft} or canonicalPayload={currentValue}
+  assert.doesNotMatch(source, /canonicalPayload=\{draft\}/);
+  assert.doesNotMatch(source, /canonicalPayload=\{currentValue\}/);
+  assert.doesNotMatch(source, /canonicalPayload=\{\s*\{\s*\[config\.path\]/);
+});
+
+test('68. EditableField builds canonicalPayload immutably from full target + current draft', async () => {
+  const source = await readInlineEditSource();
+  assert.match(source, /siteContent/);
+  assert.match(source, /aboutContent/);
+  assert.match(source, /updateNestedPayload/);
+});
+
+test('69. EditableCard builds consistent full canonicalPayload reflecting all current modal drafts', () => {
+  const sitePayload = {
+    hero: { title: 'AR Title', description: 'AR Desc' },
+    stats: { members: { count: 100, label: 'AR Label' } },
+  };
+  const cardFields = [
+    { path: 'stats.members.count', label: 'Count', type: 'number' },
+    { path: 'stats.members.label', label: 'Label', type: 'text' },
+  ];
+  const draftValues = {
+    'stats.members.count': '250',
+    'stats.members.label': 'Updated AR Label',
+  };
+
+  let cardCanonical = sitePayload;
+  for (const field of cardFields) {
+    cardCanonical = updateNestedPayload(cardCanonical, field.path, draftValues[field.path] ?? '');
+  }
+
+  // Sibling hero fields are preserved, updated card fields are applied
+  assert.deepEqual(cardCanonical, {
+    hero: { title: 'AR Title', description: 'AR Desc' },
+    stats: { members: { count: '250', label: 'Updated AR Label' } },
+  });
+  // Original is not mutated
+  assert.equal(sitePayload.stats.members.label, 'AR Label');
+});
+
+test('70. Existing canonical save flows in InlineEditOverlay remain intact', async () => {
+  const source = await readInlineEditSource();
+  assert.match(source, /updateSiteField\s*\(/);
+  assert.match(source, /updateAboutField\s*\(/);
+  assert.match(source, /updateSiteFields\s*\(/);
+  assert.match(source, /updateAboutFields\s*\(/);
+});
+
+test('71. Existing ManagedFileField, IconSelector, and pencil button interactions remain intact', async () => {
+  const source = await readInlineEditSource();
+  assert.match(source, /<ManagedFileField/);
+  assert.match(source, /<IconSelector/);
+  assert.match(source, /<Pencil/);
+});
+
+test('72. Translation section receives canEdit prop passed down correctly', async () => {
+  const source = await readInlineEditSource();
+  assert.match(source, /canEdit=\{canEdit\}/);
+});
+
+test('73. No automatic translation, fake publish, or Supabase imports in App.tsx and InlineEditOverlay.tsx', async () => {
+  const [appSource, editSource] = await Promise.all([readAppSource(), readInlineEditSource()]);
+  assert.doesNotMatch(appSource, /@supabase/);
+  assert.doesNotMatch(editSource, /@supabase/);
+  assert.doesNotMatch(editSource, /autoTranslate|translateNow|azureTranslator/i);
+  assert.doesNotMatch(editSource, /savePublished/);
+});
+
+test('74. App routing and auth structure remain unchanged except CmsLocalizationProvider wrapper', async () => {
+  const source = await readAppSource();
+  assert.match(source, /canExposeAdminUi/);
+  assert.match(source, /pushDestinationFromUrl/);
+  assert.match(source, /loadLastAdminTab/);
+  assert.match(source, /<AppProvider>/);
+  assert.match(source, /<Router \/>/);
+});
+
+// ---------------------------------------------------------------------------
+// 12. Pre-Commit Concurrency & Type Safety Tests
+// ---------------------------------------------------------------------------
+
+test('75. CmsTranslationSection re-reads repository.getDraft and getPublished at save time', async () => {
+  const source = await readSectionSource();
+  // handleSaveDraft must fetch latest draft and published records to avoid lost updates
+  assert.match(source, /handleSaveDraft[\s\S]*?repository\.getDraft[\s\S]*?repository\.getPublished/);
+});
+
+test('76. Sibling field translation present in latest repository draft is preserved when saving another field', () => {
+  const canonical = {
+    hero: {
+      title: 'AR title',
+      subtitle: 'AR subtitle',
+    },
+    footer: {
+      copyright: 'AR copyright',
+    },
+  };
+
+  // Simulated latest draft from repository saved by a sibling editor
+  const latestRepositoryDraft = {
+    target: 'site',
+    locale: 'tr',
+    payload: {
+      hero: {
+        title: 'TR title',
+        subtitle: 'AR subtitle',
+      },
+      footer: {
+        copyright: 'AR copyright',
+      },
+    },
+    status: 'draft',
+    manualPaths: ['hero.title'],
+  };
+
+  // Current editor saving hero.subtitle
+  const basePayload = resolveDraftBasePayload(latestRepositoryDraft, null, canonical);
+  const outgoingPayload = updateNestedPayload(basePayload, 'hero.subtitle', 'TR subtitle');
+
+  assert.deepEqual(outgoingPayload, {
+    hero: {
+      title: 'TR title',
+      subtitle: 'TR subtitle',
+    },
+    footer: {
+      copyright: 'AR copyright',
+    },
+  });
+});
+
+test('77. Latest manualPaths from repository draft are merged and preserved on save', () => {
+  const latestActive = {
+    target: 'site',
+    locale: 'tr',
+    manualPaths: ['hero.title'],
+  };
+  const currentComponentManual = ['hero.subtitle'];
+  const mergedManual = [...(latestActive.manualPaths ?? []), ...currentComponentManual];
+  const updatedManualPaths = recordManualPath(mergedManual, 'hero.subtitle');
+
+  assert.deepEqual(updatedManualPaths, ['hero.subtitle', 'hero.title']);
+});
+
+test('78. Latest stalePaths and sourceVersion from active record are preserved on save', async () => {
+  const source = await readSectionSource();
+  // Verifies that stalePaths and sourceVersion preserve latestActive metadata
+  assert.match(source, /latestActive\?\.stalePaths/);
+  assert.match(source, /latestActive\?\.sourceVersion/);
+});
+
+test('79. Current typed text wins for the edited path during save', () => {
+  const latestDraft = {
+    target: 'site',
+    locale: 'tr',
+    payload: {
+      hero: {
+        title: 'Old Title In Repo',
+      },
+    },
+    status: 'draft',
+  };
+  const currentTypedValue = 'Newly Typed Value By User';
+  const base = resolveDraftBasePayload(latestDraft, null, {});
+  const saved = updateNestedPayload(base, 'hero.title', currentTypedValue);
+
+  assert.deepEqual(saved, {
+    hero: {
+      title: 'Newly Typed Value By User',
+    },
+  });
+});
+
+test('80. EditableCard canonical payload converts number fields to numbers before updateNestedPayload', async () => {
+  const source = await readInlineEditSource();
+  assert.match(source, /f\.type\s*===\s*['"]number['"]\s*\?\s*Number\(draft\[f\.path\]\)\s*\|\|\s*0/);
+});
+
+test('81. updateNestedPayload supports numeric values without coercing to string', () => {
+  const sitePayload = {
+    stats: {
+      members: 10,
+    },
+  };
+  const updated = updateNestedPayload(sitePayload, 'stats.members', 25);
+  assert.deepEqual(updated, {
+    stats: {
+      members: 25,
+    },
+  });
+  assert.equal(typeof updated.stats.members, 'number');
+});
+
+test('82. EditableCard payload simulation preserves numbers as number and text as string', () => {
+  const basePayload = {
+    stats: {
+      members: 10,
+      label: 'Old Label',
+    },
+  };
+  const fields = [
+    { path: 'stats.members', type: 'number' },
+    { path: 'stats.label', type: 'text' },
+  ];
+  const draft = {
+    'stats.members': '42',
+    'stats.label': 'New Label',
+  };
+
+  let cardCanonical = basePayload;
+  for (const f of fields) {
+    const val = f.type === 'number' ? Number(draft[f.path]) || 0 : draft[f.path] ?? '';
+    cardCanonical = updateNestedPayload(cardCanonical, f.path, val);
+  }
+
+  assert.deepEqual(cardCanonical, {
+    stats: {
+      members: 42,
+      label: 'New Label',
+    },
+  });
+  assert.strictEqual(cardCanonical.stats.members, 42);
+  assert.strictEqual(cardCanonical.stats.label, 'New Label');
+});
