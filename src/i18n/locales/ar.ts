@@ -1436,6 +1436,25 @@ const ar = {
     nameRequired: 'يرجى إدخال الاسم الكامل.',
     confirmDeleteAvatar: 'هل تريد حذف الصورة الشخصية الحالية؟',
   },
+  cmsLocalization: {
+    status: {
+      fresh: 'طازجة ✓',
+      stale: 'بحاجة لتحديث ⚠',
+      draft: 'مسودة ✎',
+      missing: 'غير مترجمة ✕',
+    },
+    translations: 'الترجمات',
+    canonicalSource: 'العربية — المصدر الأساسي',
+    saveDraft: 'حفظ كمسودة',
+    saving: 'جارٍ الحفظ...',
+    publishChanges: 'نشر التغييرات',
+    needsUpdateNotice: 'تم تعديل النص العربي الأصلي، يرجى مراجعة وتحديث الترجمة.',
+    unsavedChangesWarning: 'لديك تعديلات غير محفوظة في هذا النموذج. هل أنت متأكد من الإغلاق وفقدان التغييرات؟',
+    continueEditing: 'متابعة التعديل',
+    discardChanges: 'إغلاق وتجاهل التعديلات',
+    manualEditBadge: 'تعديل يدوي محفوظ',
+    saveFailed: 'فشل حفظ الترجمة، النص العربي محفوظ بأمان.',
+  },
 };
 
 export type TranslationSchema = DeepStringify<typeof ar>;

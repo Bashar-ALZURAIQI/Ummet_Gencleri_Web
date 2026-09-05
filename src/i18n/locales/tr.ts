@@ -1434,6 +1434,25 @@ const tr: TranslationSchema = {
     nameRequired: 'Lütfen tam adınızı girin.',
     confirmDeleteAvatar: 'Mevcut profil fotoğrafını silmek istiyor musunuz?',
   },
+  cmsLocalization: {
+    status: {
+      fresh: 'Güncel ✓',
+      stale: 'Güncelleme Gerekli ⚠',
+      draft: 'Taslak ✎',
+      missing: 'Çevrilmedi ✕',
+    },
+    translations: 'Çeviriler',
+    canonicalSource: 'Arapça — Ana Kaynak',
+    saveDraft: 'Taslak Olarak Kaydet',
+    saving: 'Kaydediliyor...',
+    publishChanges: 'Değişiklikleri Yayınla',
+    needsUpdateNotice: 'Orijinal Arapça metin değiştirildi, lütfen çeviriyi gözden geçirip güncelleyin.',
+    unsavedChangesWarning: 'Bu formda kaydedilmemiş değişiklikleriniz var. Kapatıp değişiklikleri kaybetmek istediğinizden emin misiniz?',
+    continueEditing: 'Düzenlemeye Devam Et',
+    discardChanges: 'Kapat ve Değişiklikleri Yoksay',
+    manualEditBadge: 'Manuel düzenleme korundu',
+    saveFailed: 'Çeviri kaydedilemedi, Arapça metin güvenle korundu.',
+  },
 };
 
 export default tr;

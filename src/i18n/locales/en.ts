@@ -1434,6 +1434,25 @@ const en: TranslationSchema = {
     nameRequired: 'Please enter your full name.',
     confirmDeleteAvatar: 'Do you want to delete the current profile photo?',
   },
+  cmsLocalization: {
+    status: {
+      fresh: 'Up to date ✓',
+      stale: 'Needs Update ⚠',
+      draft: 'Draft ✎',
+      missing: 'Missing ✕',
+    },
+    translations: 'Translations',
+    canonicalSource: 'Arabic — Canonical Source',
+    saveDraft: 'Save Draft',
+    saving: 'Saving...',
+    publishChanges: 'Publish Changes',
+    needsUpdateNotice: 'Canonical Arabic source was modified, please review and update the translation.',
+    unsavedChangesWarning: 'You have unsaved changes in this form. Are you sure you want to close and discard changes?',
+    continueEditing: 'Continue Editing',
+    discardChanges: 'Close and Discard Changes',
+    manualEditBadge: 'Manual edit preserved',
+    saveFailed: 'Failed to save translation, Arabic text was saved safely.',
+  },
 };
 
 export default en;
