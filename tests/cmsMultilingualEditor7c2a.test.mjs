@@ -262,3 +262,134 @@ test('18. ar, tr, and en locale files have matching cmsLocalization dictionary k
   assert.deepEqual(Object.keys(tr.cmsLocalization).sort(), expectedCmsKeys);
   assert.deepEqual(Object.keys(en.cmsLocalization).sort(), expectedCmsKeys);
 });
+
+// ---------------------------------------------------------------------------
+// 5. Component 1: TranslationStatusBadge Tests
+// ---------------------------------------------------------------------------
+
+import { readFile } from 'node:fs/promises';
+
+const readBadgeSource = () =>
+  readFile(
+    new URL('../src/components/cmsLocalization/TranslationStatusBadge.tsx', import.meta.url),
+    'utf8',
+  );
+
+const readEditorSource = () =>
+  readFile(
+    new URL('../src/components/cmsLocalization/LocalizedFieldEditor.tsx', import.meta.url),
+    'utf8',
+  );
+
+test('19. TranslationStatusBadge component exists and exports TranslationStatusBadge and Props', async () => {
+  const source = await readBadgeSource();
+  assert.match(source, /export\s+interface\s+TranslationStatusBadgeProps/);
+  assert.match(source, /status:\s*LocalizationStatus/);
+  assert.match(source, /size\?:\s*['"]sm['"]\s*\|\s*['"]md['"]/);
+  assert.match(source, /className\?:\s*string/);
+  assert.match(source, /export\s+function\s+TranslationStatusBadge/);
+});
+
+test('20. TranslationStatusBadge uses react-i18next and accesses cmsLocalization.status keys', async () => {
+  const source = await readBadgeSource();
+  assert.match(source, /useTranslation/);
+  assert.match(source, /cmsLocalization\.status/);
+  // Verify it does NOT hardcode raw English text
+  assert.doesNotMatch(source, />\s*Fresh\s*</);
+  assert.doesNotMatch(source, />\s*Stale\s*</);
+  assert.doesNotMatch(source, />\s*Draft\s*</);
+  assert.doesNotMatch(source, />\s*Missing\s*</);
+});
+
+test('21. TranslationStatusBadge applies correct semantic color styling for all 4 statuses', async () => {
+  const source = await readBadgeSource();
+  // fresh -> emerald / green styling
+  assert.match(source, /fresh[\s\S]*?emerald/);
+  // stale -> amber / yellow warning styling
+  assert.match(source, /stale[\s\S]*?amber/);
+  // draft -> sky / blue informational styling
+  assert.match(source, /draft[\s\S]*?sky/);
+  // missing -> gray / slate neutral styling
+  assert.match(source, /missing[\s\S]*?(gray|slate)/);
+});
+
+test('22. TranslationStatusBadge supports sm and md sizes with custom className preservation', async () => {
+  const source = await readBadgeSource();
+  assert.match(source, /size\s*===\s*['"]sm['"]/);
+  assert.match(source, /text-xs/);
+  assert.match(source, /text-sm/);
+  assert.match(source, /\$\{className/);
+});
+
+// ---------------------------------------------------------------------------
+// 6. Component 2: LocalizedFieldEditor Tests
+// ---------------------------------------------------------------------------
+
+test('23. LocalizedFieldEditor component exists and exports LocalizedFieldEditor and Props', async () => {
+  const source = await readEditorSource();
+  assert.match(source, /export\s+interface\s+LocalizedFieldEditorProps/);
+  assert.match(source, /target:\s*CmsTarget\s*\|\s*string/);
+  assert.match(source, /locale:\s*LocalizedCmsLocale\s*\|\s*CanonicalCmsLocale/);
+  assert.match(source, /path:\s*string/);
+  assert.match(source, /label:\s*string/);
+  assert.match(source, /value:\s*string/);
+  assert.match(source, /kind\?:\s*CmsFieldKind/);
+  assert.match(source, /isStale\?:\s*boolean/);
+  assert.match(source, /isManual\?:\s*boolean/);
+  assert.match(source, /disabled\?:\s*boolean/);
+  assert.match(source, /placeholder\?:\s*string/);
+  assert.match(source, /onChange:\s*\(newValue:\s*string\)\s*=>\s*void/);
+  assert.match(source, /export\s+function\s+LocalizedFieldEditor/);
+});
+
+test('24. LocalizedFieldEditor enforces content-level directionality (AR rtl, TR/EN ltr)', async () => {
+  const source = await readEditorSource();
+  assert.match(source, /locale\s*===\s*['"]ar['"]\s*\?\s*['"]rtl['"]\s*:\s*['"]ltr['"]/);
+  assert.match(source, /dir=\{dir\}/);
+});
+
+test('25. LocalizedFieldEditor switches between textarea and text input based on kind', async () => {
+  const source = await readEditorSource();
+  // Description and richText use textarea
+  assert.match(source, /kind\s*===\s*['"]description['"]\s*\|\|\s*kind\s*===\s*['"]richText['"]/);
+  assert.match(source, /<textarea/);
+  assert.match(source, /<input/);
+  assert.match(source, /type=["']text["']/);
+});
+
+test('26. LocalizedFieldEditor is controlled and propagates onChange with string value', async () => {
+  const source = await readEditorSource();
+  assert.match(source, /value=\{value/);
+  assert.match(source, /onChange=\{\(e\)\s*=>\s*onChange\(e\.target\.value\)\}/);
+  assert.match(source, /disabled=\{disabled/);
+  assert.match(source, /placeholder=\{placeholder/);
+});
+
+test('27. LocalizedFieldEditor associates label with input/textarea via deterministic id', async () => {
+  const source = await readEditorSource();
+  assert.match(source, /htmlFor=\{/);
+  assert.match(source, /id=\{/);
+  assert.match(source, /<label/);
+  assert.doesNotMatch(source, /Math\.random/);
+});
+
+test('28. LocalizedFieldEditor renders stale warning border and needs-update notice when isStale is true', async () => {
+  const source = await readEditorSource();
+  assert.match(source, /isStale/);
+  assert.match(source, /amber/);
+  assert.match(source, /cmsLocalization\.needsUpdateNotice/);
+});
+
+test('29. LocalizedFieldEditor renders manual edit indicator badge when isManual is true', async () => {
+  const source = await readEditorSource();
+  assert.match(source, /isManual/);
+  assert.match(source, /cmsLocalization\.manualEditBadge/);
+});
+
+test('30. New components contain zero Supabase imports', async () => {
+  const [badgeSource, editorSource] = await Promise.all([readBadgeSource(), readEditorSource()]);
+  assert.doesNotMatch(badgeSource, /@supabase/);
+  assert.doesNotMatch(badgeSource, /from\s+['"].*supabase.*['"]/);
+  assert.doesNotMatch(editorSource, /@supabase/);
+  assert.doesNotMatch(editorSource, /from\s+['"].*supabase.*['"]/);
+});
