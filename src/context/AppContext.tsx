@@ -163,17 +163,14 @@ import {
   type AdminTab,
   urlToView,
   createHistoryNavigator,
-  validateReturnTo,
+  resolveSessionAuthNavigation,
+  type SessionNavigationIntent,
 } from '../domain/appNavigation';
 import {
   saveLastAdminTab,
   loadLastAdminTab,
   clearLastAdminTab,
 } from '../domain/adminTabMemory';
-import {
-  canExposeAdminUi,
-  routeAfterConfirmedIdentityRefresh,
-} from '../domain/liveIdentityRouting';
 import {
   createIdentitySubscriptionGeneration,
   reduceRealtimeWarning,
@@ -908,6 +905,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const identitySubscriptionGeneration = useRef(createIdentitySubscriptionGeneration()).current;
   const latestAuthEventRef = useRef<{ epoch: number; session: Session | null } | null>(null);
   const passwordRecoveryGateRef = useRef<PasswordRecoveryGate>('IDLE');
+  const explicitLoginIntentEpochRef = useRef<number | null>(null);
 
   const setPasswordRecoveryGate = useCallback((gate: PasswordRecoveryGate) => {
     passwordRecoveryGateRef.current = gate;
@@ -1730,7 +1728,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const applySession = useCallback(async (
     session: Session,
     capturedEpoch: number,
-    navigation: boolean | 'initial' | { previousRole: UserRole } = true,
+    navigation: SessionNavigationIntent | boolean = 'passive',
   ): Promise<{ ok: boolean; error?: string }> => {
     if (!authEpoch.isCurrent(capturedEpoch)) {
       return { ok: false, error: 'تم استبدال محاولة تحميل الجلسة بمحاولة أحدث.' };
@@ -1791,85 +1789,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAuthInitializing(false);
     setIdentityRefreshing(false);
 
-    if (navigation === 'initial') {
-      const currentParsed = typeof window !== 'undefined'
-        ? urlToView(window.location.href)
-        : { view: { kind: 'home' as const } };
+    let effectiveIntent: SessionNavigationIntent = typeof navigation === 'boolean'
+      ? (navigation ? 'explicit-login' : 'passive')
+      : navigation;
 
-      if (currentParsed.view.kind === 'admin') {
-        if (canExposeAdminUi(confirmedUser.role, false, false)) {
-          const currentTab = currentParsed.view.tab;
-          navigate({ kind: 'admin', ...(currentTab ? { tab: currentTab } : {}) }, { replace: true });
-        } else {
-          navigate(confirmedUser.role === 'STUDENT' ? { kind: 'student-dashboard' } : { kind: 'home' }, { replace: true });
-        }
-      } else if (currentParsed.view.kind === 'student-dashboard') {
-        if (confirmedUser.role !== 'STUDENT') {
-          const lastTab = loadLastAdminTab(confirmedUser.userId);
-          navigate(canExposeAdminUi(confirmedUser.role, false, false) ? { kind: 'admin', ...(lastTab ? { tab: lastTab } : {}) } : { kind: 'home' }, { replace: true });
-        }
-      } else if (currentParsed.view.kind === 'login' && currentParsed.returnTo) {
-        const validated = validateReturnTo(currentParsed.returnTo);
-        if (validated) {
-          const target = urlToView(validated);
-          if (target.view.kind === 'admin') {
-            if (canExposeAdminUi(confirmedUser.role, false, false)) {
-              navigate(target.view, { replace: true });
-            } else {
-              navigate(confirmedUser.role === 'STUDENT' ? { kind: 'student-dashboard' } : { kind: 'home' }, { replace: true });
-            }
-          } else {
-            navigate(target.view, { replace: true });
-          }
-        }
-      }
-    } else if (navigation === true) {
-      const currentParsed = typeof window !== 'undefined'
-        ? urlToView(window.location.href)
-        : { view: { kind: 'home' as const } };
+    if (
+      explicitLoginIntentEpochRef.current !== null
+      && explicitLoginIntentEpochRef.current === capturedEpoch
+    ) {
+      effectiveIntent = 'explicit-login';
+      explicitLoginIntentEpochRef.current = null;
+    }
 
-      let returnTo: string | undefined;
-      if (currentParsed.view.kind === 'login' && currentParsed.returnTo) {
-        returnTo = currentParsed.returnTo;
-      }
+    const currentUrl = typeof window !== 'undefined' ? window.location.href : 'https://site.example/';
+    const lastAdminTab = loadLastAdminTab(confirmedUser.userId);
 
-      if (returnTo) {
-        const validated = validateReturnTo(returnTo);
-        if (validated) {
-          const target = urlToView(validated);
-          if (target.view.kind === 'admin') {
-            if (canExposeAdminUi(confirmedUser.role, false, false)) {
-              navigate(target.view, { replace: true });
-            } else {
-              navigate(confirmedUser.role === 'STUDENT' ? { kind: 'student-dashboard' } : { kind: 'home' }, { replace: true });
-            }
-          } else if (target.view.kind === 'student-dashboard') {
-            navigate({ kind: 'student-dashboard' }, { replace: true });
-          } else {
-            navigate(target.view, { replace: true });
-          }
-        } else {
-          const lastTab = loadLastAdminTab(confirmedUser.userId);
-          navigate(confirmedUser.role === 'STUDENT' ? { kind: 'student-dashboard' } : { kind: 'admin', ...(lastTab ? { tab: lastTab } : {}) });
-        }
-      } else {
-        const lastTab = loadLastAdminTab(confirmedUser.userId);
-        navigate(confirmedUser.role === 'STUDENT' ? { kind: 'student-dashboard' } : { kind: 'admin', ...(lastTab ? { tab: lastTab } : {}) });
-      }
-    } else if (typeof navigation === 'object') {
-      setViewState((currentView) => {
-        const nextKind = routeAfterConfirmedIdentityRefresh(
-          navigation.previousRole,
-          confirmedUser.role,
-          currentView.kind,
-        );
-        if (nextKind === currentView.kind) {
-          return currentView;
-        }
-        const nextView = { ...currentView, kind: nextKind } as View;
-        navigate(nextView, { replace: true });
-        return nextView;
-      });
+    const decision = resolveSessionAuthNavigation({
+      currentUrl,
+      confirmedUser,
+      navigationIntent: effectiveIntent,
+      lastAdminTab,
+    });
+
+    if (decision.shouldNavigate && decision.targetView) {
+      navigate(decision.targetView, decision.replace ? { replace: true } : undefined);
     }
     return { ok: true };
   }, [authEpoch, confirmedAuthOwner, navigate, synchronizeConfirmedProfileDisplay]);
@@ -1956,10 +1899,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setAuthInitializing(true);
         setIdentityRefreshing(false);
         authEpoch.schedule(eventEpoch, () => {
+          const isExplicit = explicitLoginIntentEpochRef.current !== null
+            && explicitLoginIntentEpochRef.current === eventEpoch;
+          if (isExplicit) {
+            explicitLoginIntentEpochRef.current = null;
+          }
           void applySession(
             session,
             eventEpoch,
-            event === 'SIGNED_IN' ? true : event === 'INITIAL_SESSION' ? 'initial' : false,
+            isExplicit ? 'explicit-login' : event === 'INITIAL_SESSION' ? 'initial' : 'passive',
           );
         });
       }
@@ -2238,6 +2186,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAuthInitializing(false);
     setIdentityRefreshing(false);
     setPasswordRecoveryGate('IDLE');
+    explicitLoginIntentEpochRef.current = null;
 
     try {
       const { error } = await supabase.auth.signOut();
@@ -2263,6 +2212,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     clearConfirmedAuthOwnership();
     identitySubscriptionGeneration.invalidateAll();
     const loginEpoch = authEpoch.beginOperation();
+    explicitLoginIntentEpochRef.current = loginEpoch;
     latestAuthEventRef.current = null;
     setCurrentStudent(null);
     setCurrentUser(null);
@@ -2274,6 +2224,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         password,
       });
       if (error || !data.session) {
+        explicitLoginIntentEpochRef.current = null;
         if (authEpoch.isCurrent(loginEpoch)) setAuthInitializing(false);
         return { ok: false, error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' };
       }
@@ -2285,11 +2236,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         latestEvent: eventCapture,
       });
       if (sessionEpoch === null) {
+        explicitLoginIntentEpochRef.current = null;
         return { ok: false, error: 'تم استبدال محاولة تسجيل الدخول بمحاولة أحدث.' };
       }
       authEpoch.cancelScheduled(sessionEpoch);
-      return await applySession(data.session, sessionEpoch);
+      return await applySession(data.session, sessionEpoch, 'explicit-login');
     } catch (error) {
+      explicitLoginIntentEpochRef.current = null;
       console.error('Supabase password sign-in failed:', error);
       if (authEpoch.isCurrent(loginEpoch)) setAuthInitializing(false);
       return { ok: false, error: 'تعذر الاتصال بخدمة تسجيل الدخول. يرجى المحاولة لاحقاً.' };
@@ -2315,6 +2268,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     clearConfirmedAuthOwnership();
     identitySubscriptionGeneration.invalidateAll();
     const signupEpoch = authEpoch.beginOperation();
+    explicitLoginIntentEpochRef.current = signupEpoch;
     latestAuthEventRef.current = null;
     setCurrentStudent(null);
     setCurrentUser(null);
@@ -2344,6 +2298,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         latestEvent: eventCapture,
       });
       if (responseEpoch === null) {
+        explicitLoginIntentEpochRef.current = null;
         return { ok: false, error: 'تم استبدال محاولة إنشاء الحساب بمحاولة مصادقة أحدث.' };
       }
 
@@ -2353,11 +2308,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         error,
       });
       if (signupResult.kind === 'failure') {
+        explicitLoginIntentEpochRef.current = null;
         console.error('Supabase signup failed.');
         if (authEpoch.isCurrent(responseEpoch)) setAuthInitializing(false);
         return { ok: false, error: 'تعذر إنشاء الحساب. تحقق من البريد الإلكتروني أو حاول لاحقاً.' };
       }
       if (signupResult.kind === 'existing-or-disguised') {
+        explicitLoginIntentEpochRef.current = null;
         setAuthInitializing(false);
         return {
           ok: false,
@@ -2376,10 +2333,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       if (signupResult.kind === 'signed-in' && data.session) {
         authEpoch.cancelScheduled(responseEpoch);
-        const sessionResult = await applySession(data.session, responseEpoch);
+        const sessionResult = await applySession(data.session, responseEpoch, 'explicit-login');
         return sessionResult.ok ? { ...sessionResult, ...emailDelivery } : sessionResult;
       }
 
+      explicitLoginIntentEpochRef.current = null;
       if (!authEpoch.isCurrent(responseEpoch)) {
         return { ok: false, error: 'تم استبدال محاولة إنشاء الحساب بمحاولة مصادقة أحدث.' };
       }
@@ -2388,6 +2346,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setAuthInitializing(false);
       return { ok: true, requiresEmailConfirmation: true, ...emailDelivery };
     } catch (error) {
+      explicitLoginIntentEpochRef.current = null;
       console.error('Supabase signup request failed:', error);
       if (authEpoch.isCurrent(signupEpoch)) setAuthInitializing(false);
       return { ok: false, error: 'تعذر الاتصال بخدمة إنشاء الحساب. يرجى المحاولة لاحقاً.' };
@@ -2465,6 +2424,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     identitySubscriptionGeneration.invalidateAll();
     const logoutEpoch = authEpoch.suspendEvents();
     latestAuthEventRef.current = null;
+    explicitLoginIntentEpochRef.current = null;
     const currentUserId = currentUser?.userId;
     setCurrentStudent(null);
     setCurrentUser(null);

@@ -1,6 +1,6 @@
 import type { CommitteeId, UserRole } from '../data/mockData.ts';
 import type { PushDestination } from './webPushClient.ts';
-import { canExposeAdminUi } from './liveIdentityRouting.ts';
+import { canExposeAdminUi, routeAfterConfirmedIdentityRefresh } from './liveIdentityRouting.ts';
 import { loadLastAdminTab, type StorageLike } from './adminTabMemory.ts';
 
 // ---------------------------------------------------------------------------
@@ -528,4 +528,221 @@ export function createHistoryNavigator(options: HistoryNavigatorOptions) {
     cleanPushQuery,
     destroy,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Session Auth Navigation Controller
+// ---------------------------------------------------------------------------
+
+export type SessionNavigationIntent =
+  | 'explicit-login'
+  | 'initial'
+  | 'passive'
+  | { previousRole: string };
+
+export interface SessionAuthNavigationInput {
+  currentUrl: string;
+  confirmedUser: { userId: string; role: string } | null;
+  navigationIntent: SessionNavigationIntent | boolean;
+  lastAdminTab?: string | null;
+}
+
+export interface SessionAuthNavigationDecision {
+  shouldNavigate: boolean;
+  targetView?: AppView;
+  replace?: boolean;
+}
+
+/**
+ * Resolves whether an authentication event should trigger navigation.
+ * Core Contract: AUTHENTICATION EVENT != NAVIGATION INTENT.
+ * Passive background auth events (token refresh, tab refocus, replayed SIGNED_IN)
+ * MUST NEVER hijack an authenticated user's current public route.
+ */
+export function resolveSessionAuthNavigation(
+  input: SessionAuthNavigationInput,
+): SessionAuthNavigationDecision {
+  const { currentUrl, confirmedUser, lastAdminTab } = input;
+  const intent = input.navigationIntent === true
+    ? 'explicit-login'
+    : input.navigationIntent === false
+    ? 'passive'
+    : input.navigationIntent;
+
+  const currentParsed = urlToView(currentUrl);
+
+  if (!confirmedUser) {
+    return { shouldNavigate: false };
+  }
+
+  const role = confirmedUser.role as UserRole;
+  const isExecutive = canExposeAdminUi(role, false, false);
+  const isStudent = role === 'STUDENT';
+
+  // 1. Explicit Login Intent:
+  // Fired strictly when a user submits credentials in the login form or completes registration.
+  if (intent === 'explicit-login') {
+    let returnTo: string | undefined;
+    if (currentParsed.view.kind === 'login' && currentParsed.returnTo) {
+      returnTo = currentParsed.returnTo;
+    }
+
+    if (returnTo) {
+      const validated = validateReturnTo(returnTo);
+      if (validated) {
+        const target = urlToView(validated);
+        if (target.view.kind === 'admin') {
+          if (isExecutive) {
+            return {
+              shouldNavigate: true,
+              targetView: target.view,
+              replace: true,
+            };
+          } else {
+            return {
+              shouldNavigate: true,
+              targetView: isStudent ? { kind: 'student-dashboard' } : { kind: 'home' },
+              replace: true,
+            };
+          }
+        } else if (target.view.kind === 'student-dashboard') {
+          if (isStudent) {
+            return {
+              shouldNavigate: true,
+              targetView: { kind: 'student-dashboard' },
+              replace: true,
+            };
+          } else {
+            return {
+              shouldNavigate: true,
+              targetView: isExecutive
+                ? { kind: 'admin', ...(lastAdminTab && isValidAdminTab(lastAdminTab) ? { tab: lastAdminTab as AdminTab } : {}) }
+                : { kind: 'home' },
+              replace: true,
+            };
+          }
+        } else {
+          return {
+            shouldNavigate: true,
+            targetView: target.view,
+            replace: true,
+          };
+        }
+      }
+    }
+
+    // Default post-login routing without returnTo
+    if (isStudent) {
+      return {
+        shouldNavigate: true,
+        targetView: { kind: 'student-dashboard' },
+      };
+    }
+
+    if (isExecutive) {
+      return {
+        shouldNavigate: true,
+        targetView: {
+          kind: 'admin',
+          ...(lastAdminTab && isValidAdminTab(lastAdminTab) ? { tab: lastAdminTab as AdminTab } : {}),
+        },
+      };
+    }
+
+    return {
+      shouldNavigate: true,
+      targetView: { kind: 'home' },
+    };
+  }
+
+  // 2. Initial Session or Passive Background Auth:
+  // Public pages must NEVER be hijacked by passive auth events or initial restore!
+  if (intent === 'initial' || intent === 'passive') {
+    if (currentParsed.view.kind === 'admin') {
+      if (isExecutive) {
+        if (intent === 'initial') {
+          const currentTab = currentParsed.view.tab;
+          return {
+            shouldNavigate: true,
+            targetView: { kind: 'admin', ...(currentTab ? { tab: currentTab } : {}) },
+            replace: true,
+          };
+        }
+        return { shouldNavigate: false };
+      } else {
+        return {
+          shouldNavigate: true,
+          targetView: isStudent ? { kind: 'student-dashboard' } : { kind: 'home' },
+          replace: true,
+        };
+      }
+    }
+
+    if (currentParsed.view.kind === 'student-dashboard') {
+      if (!isStudent) {
+        return {
+          shouldNavigate: true,
+          targetView: isExecutive
+            ? { kind: 'admin', ...(lastAdminTab && isValidAdminTab(lastAdminTab) ? { tab: lastAdminTab as AdminTab } : {}) }
+            : { kind: 'home' },
+          replace: true,
+        };
+      }
+      return { shouldNavigate: false };
+    }
+
+    if (intent === 'initial' && currentParsed.view.kind === 'login' && currentParsed.returnTo) {
+      const validated = validateReturnTo(currentParsed.returnTo);
+      if (validated) {
+        const target = urlToView(validated);
+        if (target.view.kind === 'admin') {
+          if (isExecutive) {
+            return {
+              shouldNavigate: true,
+              targetView: target.view,
+              replace: true,
+            };
+          } else {
+            return {
+              shouldNavigate: true,
+              targetView: isStudent ? { kind: 'student-dashboard' } : { kind: 'home' },
+              replace: true,
+            };
+          }
+        } else {
+          return {
+            shouldNavigate: true,
+            targetView: target.view,
+            replace: true,
+          };
+        }
+      }
+    }
+
+    // Public routes (/news, /about, /programs, /contact, /gallery, /guide, /faq, /board, etc.) remain intact
+    return { shouldNavigate: false };
+  }
+
+  // 3. Role refresh intent ({ previousRole })
+  if (typeof intent === 'object' && 'previousRole' in intent) {
+    const nextKind = routeAfterConfirmedIdentityRefresh(
+      intent.previousRole as UserRole,
+      role,
+      currentParsed.view.kind,
+    );
+    if (nextKind !== currentParsed.view.kind) {
+      const targetView: AppView = nextKind === 'admin'
+        ? { kind: 'admin', ...(lastAdminTab && isValidAdminTab(lastAdminTab) ? { tab: lastAdminTab as AdminTab } : {}) }
+        : nextKind === 'student-dashboard'
+          ? { kind: 'student-dashboard' }
+          : { kind: nextKind as AppView['kind'] };
+      return {
+        shouldNavigate: true,
+        targetView,
+        replace: true,
+      };
+    }
+  }
+
+  return { shouldNavigate: false };
 }
