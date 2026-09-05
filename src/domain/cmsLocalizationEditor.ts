@@ -12,6 +12,7 @@
 import {
   type LocalizationStatus,
   type CmsLocalizationRecord,
+  type JsonValue,
   normalizeLocalizationPaths,
   isLocalizationPathStale,
   isLocalizationPathManual,
@@ -146,4 +147,80 @@ export function recordManualPath(
     base.push(cleanPath);
   }
   return normalizeLocalizationPaths(base);
+}
+
+// ---------------------------------------------------------------------------
+// 4. Safe Payload Updating (Preserves Unrelated Fields)
+// ---------------------------------------------------------------------------
+
+/**
+ * Pure, immutable helper to update a single nested path inside a CMS localization payload.
+ * Preserves all unrelated sibling fields and objects.
+ * If existingPayload is null or undefined, creates intermediate objects to satisfy the path.
+ * If existingPayload is a direct string and path has no dot separators, updates the string directly.
+ */
+export function updateNestedPayload(
+  existingPayload: unknown,
+  path: string,
+  newValue: string,
+): JsonValue {
+  const cleanPath = path.replace(/\[(\d+)\]/g, '.$1.');
+  const segments = cleanPath.split('.').map((s) => s.trim()).filter(Boolean);
+
+  if (segments.length === 0) {
+    return newValue;
+  }
+
+  // If existing payload is a direct string and path is a simple non-nested key
+  if (typeof existingPayload === 'string' && segments.length === 1) {
+    return newValue;
+  }
+
+  // Clone or initialize base object
+  const base: Record<string, unknown> =
+    existingPayload && typeof existingPayload === 'object' && !Array.isArray(existingPayload)
+      ? JSON.parse(JSON.stringify(existingPayload))
+      : {};
+
+  let current: Record<string, unknown> = base;
+  for (let i = 0; i < segments.length - 1; i++) {
+    const seg = segments[i];
+    if (!current[seg] || typeof current[seg] !== 'object' || Array.isArray(current[seg])) {
+      current[seg] = {};
+    }
+    current = current[seg] as Record<string, unknown>;
+  }
+
+  current[segments[segments.length - 1]] = newValue;
+  return base as JsonValue;
+}
+
+// ---------------------------------------------------------------------------
+// 5. Draft Base Payload Precedence Resolution
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolves the base payload for saving a draft localization record according to
+ * approved precedence:
+ *
+ * 1. Existing draft payload (if present)
+ * 2. Existing published payload (if present)
+ * 3. Full canonicalPayload clone (if present)
+ * 4. Empty object fallback ({})
+ *
+ * Always returns a cloned value; never mutates draft, published, or canonical payloads.
+ */
+export function resolveDraftBasePayload(
+  draftRecord: CmsLocalizationRecord | null | undefined,
+  publishedRecord: CmsLocalizationRecord | null | undefined,
+  canonicalPayload: unknown,
+): JsonValue {
+  const candidate = draftRecord?.payload ?? publishedRecord?.payload ?? canonicalPayload;
+  if (candidate && typeof candidate === 'object') {
+    return JSON.parse(JSON.stringify(candidate)) as JsonValue;
+  }
+  if (typeof candidate === 'string' || typeof candidate === 'number' || typeof candidate === 'boolean') {
+    return candidate as JsonValue;
+  }
+  return {};
 }

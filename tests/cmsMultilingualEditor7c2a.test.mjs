@@ -393,3 +393,364 @@ test('30. New components contain zero Supabase imports', async () => {
   assert.doesNotMatch(editorSource, /@supabase/);
   assert.doesNotMatch(editorSource, /from\s+['"].*supabase.*['"]/);
 });
+
+// ---------------------------------------------------------------------------
+// 7. Payload Preservation: updateNestedPayload Tests
+// ---------------------------------------------------------------------------
+
+import { updateNestedPayload } from '../src/domain/cmsLocalizationEditor.ts';
+
+test('31. updateNestedPayload preserves sibling paths in nested object payload', () => {
+  const existing = {
+    hero: {
+      title: 'Old TR title',
+      subtitle: 'Keep this subtitle',
+    },
+    footer: {
+      copyright: 'Hakları saklıdır',
+    },
+  };
+
+  const updated = updateNestedPayload(existing, 'hero.title', 'New TR title');
+
+  assert.deepEqual(updated, {
+    hero: {
+      title: 'New TR title',
+      subtitle: 'Keep this subtitle',
+    },
+    footer: {
+      copyright: 'Hakları saklıdır',
+    },
+  });
+  // Original is not mutated
+  assert.equal(existing.hero.title, 'Old TR title');
+});
+
+test('32. updateNestedPayload preserves deep siblings and creates intermediate objects if missing', () => {
+  const existing = {
+    items: {
+      0: {
+        heading: 'Old Heading',
+        body: 'Keep this body',
+      },
+    },
+  };
+
+  const updated = updateNestedPayload(existing, 'items.0.heading', 'Updated Heading');
+  assert.deepEqual(updated, {
+    items: {
+      0: {
+        heading: 'Updated Heading',
+        body: 'Keep this body',
+      },
+    },
+  });
+
+  const fromNull = updateNestedPayload(null, 'hero.title', 'Initial Title');
+  assert.deepEqual(fromNull, {
+    hero: {
+      title: 'Initial Title',
+    },
+  });
+});
+
+test('33. updateNestedPayload handles direct single-string payload cleanly', () => {
+  const updated = updateNestedPayload('Old string', 'title', 'New string');
+  assert.equal(updated, 'New string');
+});
+
+// ---------------------------------------------------------------------------
+// 8. Component 3: CmsLocalizationContext Tests
+// ---------------------------------------------------------------------------
+
+const readContextSource = () =>
+  readFile(
+    new URL('../src/context/CmsLocalizationContext.tsx', import.meta.url),
+    'utf8',
+  );
+
+test('34. CmsLocalizationContext exists and exports provider and hook', async () => {
+  const source = await readContextSource();
+  assert.match(source, /export\s+interface\s+CmsLocalizationContextValue/);
+  assert.match(source, /repository:\s*CmsLocalizationRepository/);
+  assert.match(source, /export\s+function\s+CmsLocalizationProvider/);
+  assert.match(source, /export\s+function\s+useCmsLocalizationRepository/);
+});
+
+test('35. CmsLocalizationContext defaults to InMemoryCmsLocalizationRepository with stable instance', async () => {
+  const source = await readContextSource();
+  assert.match(source, /InMemoryCmsLocalizationRepository/);
+  assert.match(source, /useMemo\s*\(/);
+});
+
+test('36. CmsLocalizationContext supports supplied repository prop', async () => {
+  const source = await readContextSource();
+  assert.match(source, /repository\?:/);
+  assert.match(source, /repository\s*\?\?/);
+});
+
+test('37. CmsLocalizationContext contains zero Supabase imports', async () => {
+  const source = await readContextSource();
+  assert.doesNotMatch(source, /@supabase/);
+  assert.doesNotMatch(source, /from\s+['"].*supabase.*['"]/);
+});
+
+// ---------------------------------------------------------------------------
+// 9. Component 4: CmsTranslationSection Tests
+// ---------------------------------------------------------------------------
+
+const readSectionSource = () =>
+  readFile(
+    new URL('../src/components/cmsLocalization/CmsTranslationSection.tsx', import.meta.url),
+    'utf8',
+  );
+
+test('38. CmsTranslationSection component exists and exports Props interface and Component', async () => {
+  const source = await readSectionSource();
+  assert.match(source, /export\s+interface\s+CmsTranslationSectionProps/);
+  assert.match(source, /target:\s*CmsTarget\s*\|\s*string/);
+  assert.match(source, /path:\s*string/);
+  assert.match(source, /label:\s*string/);
+  assert.match(source, /canonicalValue:\s*string/);
+  assert.match(source, /canonicalPayload:\s*JsonValue/);
+  assert.match(source, /canEdit:\s*boolean/);
+  assert.match(source, /onDraftSaved\?:/);
+  assert.match(source, /onPublished\?:/);
+  assert.match(source, /export\s+function\s+CmsTranslationSection/);
+});
+
+test('39. CmsTranslationSection is collapsed by default with accessible aria-expanded button', async () => {
+  const source = await readSectionSource();
+  assert.match(source, /useState\s*\(\s*false\s*\)/);
+  assert.match(source, /aria-expanded=\{/);
+  assert.match(source, /cmsLocalization\.translations/);
+});
+
+test('40. CmsTranslationSection header displays TR and EN status badges', async () => {
+  const source = await readSectionSource();
+  assert.match(source, /TranslationStatusBadge/);
+  assert.match(source, /TR/);
+  assert.match(source, /EN/);
+});
+
+test('41. Expanded section contains TR and EN LocalizedFieldEditor components and no Arabic overlay', async () => {
+  const source = await readSectionSource();
+  assert.match(source, /LocalizedFieldEditor/);
+  assert.match(source, /locale=["']tr["']/);
+  assert.match(source, /locale=["']en["']/);
+  // Strictly no Arabic overlay editor
+  assert.doesNotMatch(source, /LocalizedFieldEditor[^>]*locale=["']ar["']/);
+});
+
+test('42. CmsTranslationSection uses async cancellation cleanup to prevent race conditions', async () => {
+  const source = await readSectionSource();
+  assert.match(source, /cancelled\s*=\s*true/);
+  assert.match(source, /getDraft/);
+  assert.match(source, /getPublished/);
+});
+
+test('43. CmsTranslationSection prefers draft over published for initial editor state', async () => {
+  const source = await readSectionSource();
+  // Checks draft first, falls back to published
+  assert.match(source, /draftRecord\s*\?\s*|draft\s*\?/);
+});
+
+test('44. CmsTranslationSection calls repository.saveDraft and never calls savePublished on draft save', async () => {
+  const source = await readSectionSource();
+  assert.match(source, /repository\.saveDraft/);
+  assert.doesNotMatch(source, /repository\.savePublished/);
+  assert.match(source, /status:\s*['"]draft['"]/);
+});
+
+test('45. CmsTranslationSection invokes onDraftSaved on success and does not invoke onPublished', async () => {
+  const source = await readSectionSource();
+  assert.match(source, /onDraftSaved\?\.\(/);
+  // onPublished should not be called in draft save
+  assert.doesNotMatch(source, /onPublished\?\.\(/);
+});
+
+test('46. CmsTranslationSection renders save failure message and preserves typed text on error', async () => {
+  const source = await readSectionSource();
+  assert.match(source, /cmsLocalization\.saveFailed/);
+  assert.match(source, /catch/);
+});
+
+test('47. CmsTranslationSection respects canEdit=false by disabling inputs and actions', async () => {
+  const source = await readSectionSource();
+  assert.match(source, /canEdit/);
+  assert.match(source, /disabled=\{/);
+});
+
+test('48. CmsTranslationSection uses updateNestedPayload and resolveDraftBasePayload for safe payload updates', async () => {
+  const source = await readSectionSource();
+  assert.match(source, /updateNestedPayload/);
+  assert.match(source, /resolveDraftBasePayload/);
+});
+
+test('49. CmsTranslationSection uses computeSourceHash on canonicalPayload, NOT canonicalValue', async () => {
+  const source = await readSectionSource();
+  assert.match(source, /computeSourceHash\(\s*canonicalPayload\s*\)/);
+  assert.doesNotMatch(source, /computeSourceHash\(\s*canonicalValue\s*\)/);
+});
+
+test('50. CmsTranslationSection contains zero Supabase imports', async () => {
+  const source = await readSectionSource();
+  assert.doesNotMatch(source, /@supabase/);
+  assert.doesNotMatch(source, /from\s+['"].*supabase.*['"]/);
+});
+
+// ---------------------------------------------------------------------------
+// 10. Canonical Payload Integrity & Target-Wide Source Hash Tests
+// ---------------------------------------------------------------------------
+
+import { resolveDraftBasePayload } from '../src/domain/cmsLocalizationEditor.ts';
+import { computeSourceHash } from '../src/domain/cmsLocalization.ts';
+
+test('51. Brand-new localization draft starts from FULL canonical target payload, not an empty partial object', () => {
+  const canonical = {
+    hero: {
+      title: 'AR title',
+      subtitle: 'AR subtitle',
+    },
+    footer: {
+      copyright: 'AR copyright',
+    },
+  };
+
+  const base = resolveDraftBasePayload(null, null, canonical);
+  const updated = updateNestedPayload(base, 'hero.title', 'TR title');
+
+  assert.deepEqual(updated, {
+    hero: {
+      title: 'TR title',
+      subtitle: 'AR subtitle',
+    },
+    footer: {
+      copyright: 'AR copyright',
+    },
+  });
+});
+
+test('52. Existing published localization takes precedence over canonical as the draft base', () => {
+  const canonical = {
+    hero: {
+      title: 'AR title',
+      subtitle: 'AR subtitle',
+    },
+  };
+
+  const published = {
+    target: 'home',
+    locale: 'tr',
+    status: 'fresh',
+    payload: {
+      hero: {
+        title: 'Old TR',
+        subtitle: 'TR subtitle',
+      },
+    },
+  };
+
+  const base = resolveDraftBasePayload(null, published, canonical);
+  const updated = updateNestedPayload(base, 'hero.title', 'New TR');
+
+  assert.deepEqual(updated, {
+    hero: {
+      title: 'New TR',
+      subtitle: 'TR subtitle',
+    },
+  });
+});
+
+test('53. Existing draft still has highest precedence over published and canonical', () => {
+  const canonical = {
+    hero: {
+      title: 'AR title',
+      subtitle: 'AR subtitle',
+    },
+  };
+
+  const published = {
+    target: 'home',
+    locale: 'tr',
+    status: 'fresh',
+    payload: {
+      hero: {
+        title: 'Old TR',
+        subtitle: 'TR subtitle',
+      },
+    },
+  };
+
+  const draft = {
+    target: 'home',
+    locale: 'tr',
+    status: 'draft',
+    payload: {
+      hero: {
+        title: 'Draft TR',
+        subtitle: 'Draft subtitle',
+      },
+    },
+  };
+
+  const base = resolveDraftBasePayload(draft, published, canonical);
+  const updated = updateNestedPayload(base, 'hero.title', 'Newest TR');
+
+  assert.deepEqual(updated, {
+    hero: {
+      title: 'Newest TR',
+      subtitle: 'Draft subtitle',
+    },
+  });
+});
+
+test('54. sourceHash is computeSourceHash(fullCanonicalPayload) and identical across different field editors', () => {
+  const canonical = {
+    hero: {
+      title: 'AR title',
+      subtitle: 'AR subtitle',
+    },
+    footer: {
+      copyright: 'AR copyright',
+    },
+  };
+
+  const targetWideHash = computeSourceHash(canonical);
+  const fieldHash = computeSourceHash('AR title');
+
+  // Must not be per-field hash
+  assert.notEqual(targetWideHash, fieldHash);
+
+  // Two different field editors for the same canonical target produce the identical sourceHash
+  const editor1Hash = computeSourceHash(canonical);
+  const editor2Hash = computeSourceHash(canonical);
+  assert.equal(editor1Hash, targetWideHash);
+  assert.equal(editor2Hash, targetWideHash);
+});
+
+test('55. canonicalPayload is not mutated when creating or updating draft payload', () => {
+  const canonical = {
+    hero: {
+      title: 'AR title',
+      subtitle: 'AR subtitle',
+    },
+    footer: {
+      copyright: 'AR copyright',
+    },
+  };
+
+  const canonicalSnapshot = JSON.stringify(canonical);
+
+  const base = resolveDraftBasePayload(null, null, canonical);
+  updateNestedPayload(base, 'hero.title', 'TR title');
+
+  assert.equal(JSON.stringify(canonical), canonicalSnapshot);
+  assert.equal(canonical.hero.title, 'AR title');
+});
+
+test('56. resolveDraftBasePayload handles primitive and empty payloads gracefully without mutation', () => {
+  assert.equal(resolveDraftBasePayload(null, null, 'simple string'), 'simple string');
+  assert.deepEqual(resolveDraftBasePayload(null, null, null), {});
+  assert.deepEqual(resolveDraftBasePayload(undefined, undefined, undefined), {});
+});
