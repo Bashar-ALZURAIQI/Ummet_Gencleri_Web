@@ -731,16 +731,23 @@ export function resolveSessionAuthNavigation(
       currentParsed.view.kind,
     );
     if (nextKind !== currentParsed.view.kind) {
-      const targetView: AppView = nextKind === 'admin'
-        ? { kind: 'admin', ...(lastAdminTab && isValidAdminTab(lastAdminTab) ? { tab: lastAdminTab as AdminTab } : {}) }
-        : nextKind === 'student-dashboard'
-          ? { kind: 'student-dashboard' }
-          : { kind: nextKind as AppView['kind'] };
-      return {
-        shouldNavigate: true,
-        targetView,
-        replace: true,
-      };
+      if (nextKind === 'admin') {
+        return {
+          shouldNavigate: true,
+          targetView: {
+            kind: 'admin',
+            ...(lastAdminTab && isValidAdminTab(lastAdminTab) ? { tab: lastAdminTab as AdminTab } : {}),
+          },
+          replace: true,
+        };
+      }
+      if (nextKind === 'student-dashboard') {
+        return {
+          shouldNavigate: true,
+          targetView: { kind: 'student-dashboard' },
+          replace: true,
+        };
+      }
     }
   }
 
