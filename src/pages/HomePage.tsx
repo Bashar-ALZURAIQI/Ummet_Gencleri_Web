@@ -13,6 +13,7 @@ import EventCard from '../components/EventCard';
 import Modal from '../components/Modal';
 import { EditableField, EditableCard } from '../components/InlineEditOverlay';
 import { committeeMeta, type CommitteeId, type NewsItem } from '../data/mockData';
+import { getExecutiveSectionLabel } from '../domain/executivePresentation';
 import PublicRecognition from '../components/PublicRecognition';
 
 const iconMap: Record<string, LucideIcon> = {
@@ -356,8 +357,8 @@ export default function HomePage() {
                     <Icon className="h-6 w-6" />
                   </div>
                   <div>
-                    <div className="text-sm font-bold text-navy-900">{meta.name}</div>
-                    <div className="text-xs text-gray-400">{meta.shortName}</div>
+                    <div className="text-sm font-bold text-navy-900">{getExecutiveSectionLabel(cid, t)}</div>
+                    <div className="text-xs text-gray-400">{getExecutiveSectionLabel(cid, t, 'short')}</div>
                   </div>
                 </button>
               );
