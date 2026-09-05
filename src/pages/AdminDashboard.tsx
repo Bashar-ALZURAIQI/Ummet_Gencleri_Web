@@ -3307,12 +3307,15 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
               <label className="label-field">{t('admin.plans.planModal.quarterLabel', 'الفترة الزمنية')} <RequiredMark /></label>
               <select id={fieldId('quarter')} value={planForm.quarter} onChange={(e) => { setPlanForm({ ...planForm, quarter: e.target.value }); clearInvalid(setInvalid, 'quarter'); }} className={`${isInvalid(invalid, 'quarter') ? 'input-field-error' : 'input-field'}`}>
                 <option value="">{t('common.selectFromList', 'اختر من القائمة...')}</option>
-                <option>{t('admin.plans.planModal.quarters.q1_2026', 'الربع الأول 2026')}</option>
-                <option>{t('admin.plans.planModal.quarters.q2_2026', 'الربع الثاني 2026')}</option>
-                <option>{t('admin.plans.planModal.quarters.q3_2026', 'الربع الثالث 2026')}</option>
-                <option>{t('admin.plans.planModal.quarters.q4_2026', 'الربع الرابع 2026')}</option>
-                <option>{t('admin.plans.planModal.quarters.year_2026', 'السنة 2026')}</option>
-                <option>{t('admin.plans.planModal.quarters.q1_2027', 'الربع الأول 2027')}</option>
+                {planForm.quarter && !['الربع الأول 2026', 'الربع الثاني 2026', 'الربع الثالث 2026', 'الربع الرابع 2026', 'السنة 2026', 'الربع الأول 2027'].includes(planForm.quarter) && (
+                  <option value={planForm.quarter}>{planForm.quarter}</option>
+                )}
+                <option value="الربع الأول 2026">{t('admin.plans.planModal.quarters.q1_2026', 'الربع الأول 2026')}</option>
+                <option value="الربع الثاني 2026">{t('admin.plans.planModal.quarters.q2_2026', 'الربع الثاني 2026')}</option>
+                <option value="الربع الثالث 2026">{t('admin.plans.planModal.quarters.q3_2026', 'الربع الثالث 2026')}</option>
+                <option value="الربع الرابع 2026">{t('admin.plans.planModal.quarters.q4_2026', 'الربع الرابع 2026')}</option>
+                <option value="السنة 2026">{t('admin.plans.planModal.quarters.year_2026', 'السنة 2026')}</option>
+                <option value="الربع الأول 2027">{t('admin.plans.planModal.quarters.q1_2027', 'الربع الأول 2027')}</option>
               </select>
             </div>
             <div>
@@ -3350,9 +3353,12 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
             <div>
               <label className="label-field">{t('admin.plans.reportModal.typeLabel', 'نوع التقرير')} <RequiredMark /></label>
               <select id={fieldId('type')} value={reportForm.type} onChange={(e) => { setReportForm({ ...reportForm, type: e.target.value }); clearInvalid(setInvalid, 'type'); }} className={`${isInvalid(invalid, 'type') ? 'input-field-error' : 'input-field'}`}>
-                <option>{t('admin.plans.reportModal.reportTypes.annual', 'تقرير سنوي')}</option>
-                <option>{t('admin.plans.reportModal.reportTypes.quarterly', 'تقرير ربع سنوي')}</option>
-                <option>{t('admin.plans.reportModal.reportTypes.committee', 'تقرير لجنة')}</option>
+                {reportForm.type && !['تقرير سنوي', 'تقرير ربع سنوي', 'تقرير لجنة'].includes(reportForm.type) && (
+                  <option value={reportForm.type}>{reportForm.type}</option>
+                )}
+                <option value="تقرير سنوي">{t('admin.plans.reportModal.reportTypes.annual', 'تقرير سنوي')}</option>
+                <option value="تقرير ربع سنوي">{t('admin.plans.reportModal.reportTypes.quarterly', 'تقرير ربع سنوي')}</option>
+                <option value="تقرير لجنة">{t('admin.plans.reportModal.reportTypes.committee', 'تقرير لجنة')}</option>
               </select>
             </div>
             <div>
