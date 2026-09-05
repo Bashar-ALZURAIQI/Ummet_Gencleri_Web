@@ -1935,7 +1935,7 @@ function EventsTab({ events, currentUser }: {
                       <div className="font-bold text-navy-900">{e.title}</div>
                     </div>
                   </td>
-                  <td className="px-4 py-3"><span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${categoryColors[e.category]}`}>{categoryLabels[e.category]}</span></td>
+                  <td className="px-4 py-3"><span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${categoryColors[e.category]}`}>{getEventCategoryLabel(e.category, t)}</span></td>
                   <td className="px-4 py-3 text-gray-600">{new Date(e.date).toLocaleDateString('ar-EG')}</td>
                   <td className="px-4 py-3 text-gray-600">{e.registered}/{e.capacity}</td>
                   <td className="px-4 py-3">
@@ -1975,7 +1975,7 @@ function EventsTab({ events, currentUser }: {
               <label className="label-field">{t('admin.events.modal.categoryLabel', 'التصنيف')} <RequiredMark /></label>
               <select id={fieldId('category')} value={form.category} onChange={(e) => { setForm({ ...form, category: e.target.value as EventCategory }); clearInvalid(setInvalid, 'category'); }} className={`${isInvalid(invalid, 'category') ? 'input-field-error' : 'input-field'}`}>
                 <option value="">{t('admin.events.modal.categorySelectPlaceholder', 'اختر التصنيف...')}</option>
-                {(Object.keys(categoryLabels) as EventCategory[]).map((c) => <option key={c} value={c}>{categoryLabels[c]}</option>)}
+                {(Object.keys(categoryLabels) as EventCategory[]).map((c) => <option key={c} value={c}>{getEventCategoryLabel(c, t)}</option>)}
               </select>
             </div>
             <div>

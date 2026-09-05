@@ -1058,3 +1058,71 @@ test('82. EditableCard payload simulation preserves numbers as number and text a
   assert.strictEqual(cardCanonical.stats.members, 42);
   assert.strictEqual(cardCanonical.stats.label, 'New Label');
 });
+
+// ---------------------------------------------------------------------------
+// 13. Task 5: Event Category Fixed-Presentation Localization Tests
+// ---------------------------------------------------------------------------
+
+import { getEventCategoryLabel, EVENT_CATEGORY_MAP } from '../src/domain/eventCategoryPresentation.ts';
+
+const readAdminDashboardSource = () =>
+  readFile(new URL('../src/pages/AdminDashboard.tsx', import.meta.url), 'utf8');
+
+test('83. Event table badge in AdminDashboard uses getEventCategoryLabel(e.category, t)', async () => {
+  const source = await readAdminDashboardSource();
+  assert.match(source, /getEventCategoryLabel\(\s*e\.category\s*,\s*t\s*\)/);
+});
+
+test('84. Event table badge in AdminDashboard no longer displays raw categoryLabels[e.category]', async () => {
+  const source = await readAdminDashboardSource();
+  assert.doesNotMatch(source, /categoryLabels\[e\.category\]/);
+});
+
+test('85. Event category select in modal uses getEventCategoryLabel(c, t) as visible text', async () => {
+  const source = await readAdminDashboardSource();
+  assert.match(source, /<option\s+key=\{c\}\s+value=\{c\}>\s*\{\s*getEventCategoryLabel\(\s*c\s*,\s*t\s*\)\s*\}\s*<\/option>/);
+});
+
+test('86. Event category select keeps value={c} and no longer uses categoryLabels[c] as visible text', async () => {
+  const source = await readAdminDashboardSource();
+  assert.doesNotMatch(source, /<option[^>]*>\{categoryLabels\[c\]\}<\/option>/);
+});
+
+test('87. EventCategory canonical values remain unchanged and map to localized i18n keys', () => {
+  const canonicalKeys = ['workshop', 'lecture', 'volunteer', 'training', 'trip', 'entertainment', 'visit'];
+  for (const k of canonicalKeys) {
+    assert.ok(EVENT_CATEGORY_MAP[k], `Missing canonical mapping for ${k}`);
+    const labelKey = getEventCategoryLabel(k, (key) => key);
+    assert.equal(labelKey, `events.categories.${k}`);
+  }
+});
+
+test('88. categoryColors still uses canonical category key', async () => {
+  const source = await readAdminDashboardSource();
+  assert.match(source, /categoryColors\[e\.category\]/);
+});
+
+test('89. activityType select retains canonical values MANDATORY, OPTIONAL, PAID and static i18n labels', async () => {
+  const source = await readAdminDashboardSource();
+  assert.match(source, /<option value="MANDATORY">\{t\('admin\.events\.modal\.activityTypes\.mandatory'/);
+  assert.match(source, /<option value="OPTIONAL">\{t\('admin\.events\.modal\.activityTypes\.optional'/);
+  assert.match(source, /<option value="PAID">\{t\('admin\.events\.modal\.activityTypes\.paid'/);
+});
+
+test('90. Event category is not CMS-translatable and receives no CmsTranslationSection', async () => {
+  assert.equal(isCmsPathTranslatable('events', 'category'), false);
+  assert.equal(isCmsPathTranslatable('events', '*.category'), false);
+  const source = await readAdminDashboardSource();
+  // Ensure no CmsTranslationSection is wrapped around the category select
+  assert.doesNotMatch(source, /<CmsTranslationSection[^>]*path=["']category["']/);
+});
+
+test('91. Existing event save form still assigns e.target.value as EventCategory', async () => {
+  const source = await readAdminDashboardSource();
+  assert.match(source, /category:\s*e\.target\.value as EventCategory/);
+});
+
+test('92. Adjacent charts already using getEventCategoryLabel remain intact', async () => {
+  const source = await readAdminDashboardSource();
+  assert.match(source, /label:\s*getEventCategoryLabel\(c,\s*t\)/);
+});
