@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Check, X, Pencil, Inbox, Save, ClipboardCheck, AlertCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useApp } from '../context/AppContext';
 import type { PendingSiteEdit } from '../data/mockData';
 import Modal from './Modal';
@@ -17,6 +18,7 @@ const technicalIdentity = (edit: PendingSiteEdit) => (
 );
 
 export default function SiteEditsPanel() {
+  const { t } = useTranslation();
   const {
     pendingSiteEdits,
     approveSiteEdit,
@@ -68,10 +70,10 @@ export default function SiteEditsPanel() {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 text-lg font-bold text-navy-900">
           <ClipboardCheck className="h-5 w-5 text-navy-600" />
-          مراجعة تعديلات الموقع
+          {t('admin.siteEdits.title', 'مراجعة تعديلات الموقع')}
         </h3>
         <span className="rounded-full bg-gold-100 px-3 py-1 text-xs font-bold text-gold-700">
-          {pending.length} تعديل معلق
+          {t('admin.siteEdits.pendingCount', '{{count}} تعديل معلق', { count: pending.length })}
         </span>
       </div>
 
@@ -82,11 +84,11 @@ export default function SiteEditsPanel() {
       )}
 
       {editRequestsLoading && pending.length === 0 ? (
-        <div className="py-14 text-center text-sm text-gray-500">جارٍ تحميل الطلبات...</div>
+        <div className="py-14 text-center text-sm text-gray-500">{t('admin.siteEdits.loading', 'جارٍ تحميل الطلبات...')}</div>
       ) : pending.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 py-14 text-center">
           <Inbox className="h-10 w-10 text-gray-300" />
-          <p className="text-sm text-gray-500">لا توجد تعديلات محتوى معلقة قيد اعتماد رئيس الاتحاد حالياً.</p>
+          <p className="text-sm text-gray-500">{t('admin.siteEdits.empty', 'لا توجد تعديلات محتوى معلقة قيد اعتماد رئيس الاتحاد حالياً.')}</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -99,7 +101,7 @@ export default function SiteEditsPanel() {
                 <span className="rounded-full bg-gold-100 px-3 py-1 text-xs font-bold text-gold-700">
                   {edit.sectionLabel}
                 </span>
-                <span className="text-sm font-bold text-navy-900">{edit.submittedBy ?? 'غير محدد'}</span>
+                <span className="text-sm font-bold text-navy-900">{edit.submittedBy ?? t('common.unspecified', 'غير محدد')}</span>
                 <span className="text-xs text-gray-500">({edit.submittedByRole ?? ''})</span>
                 <span className="mr-auto text-xs text-gray-400">{fmtDate(edit.createdAt ?? '')}</span>
               </div>
@@ -113,14 +115,14 @@ export default function SiteEditsPanel() {
                     <div className="mb-1.5 font-bold text-navy-900">{row.label}</div>
                     <div className="flex items-start gap-2">
                       <div className="flex-1">
-                        <div className="text-[11px] text-gray-400">البيانات الحالية</div>
+                        <div className="text-[11px] text-gray-400">{t('admin.siteEdits.currentData', 'البيانات الحالية')}</div>
                         <div className="mt-0.5 break-words text-xs leading-relaxed text-rose-500 line-through">
                           {row.oldValue || '—'}
                         </div>
                       </div>
                       <div className="mt-4 select-none text-base text-gray-300">←</div>
                       <div className="flex-1">
-                        <div className="text-[11px] text-gray-400">البيانات المقترحة</div>
+                        <div className="text-[11px] text-gray-400">{t('admin.siteEdits.proposedData', 'البيانات المقترحة')}</div>
                         <div className="mt-0.5 break-words text-xs leading-relaxed font-semibold text-emerald-600">
                           {row.newValue || '—'}
                         </div>
@@ -137,7 +139,7 @@ export default function SiteEditsPanel() {
                   className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-emerald-700"
                 >
                   <Check className="h-4 w-4" />
-                  اعتماد ونشر 🟢
+                  {t('admin.siteEdits.approveAndPublish', 'اعتماد ونشر 🟢')}
                 </button>
                 <button
                   onClick={() => void decide(edit.id, 'reject')}
@@ -145,7 +147,7 @@ export default function SiteEditsPanel() {
                   className="flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-rose-700"
                 >
                   <X className="h-4 w-4" />
-                  رفض الطلب 🔴
+                  {t('admin.siteEdits.reject', 'رفض الطلب 🔴')}
                 </button>
                 <button
                   onClick={() => openEdit(edit)}
@@ -153,7 +155,7 @@ export default function SiteEditsPanel() {
                   className="flex items-center gap-1.5 rounded-lg bg-navy-700 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-navy-800"
                 >
                   <Pencil className="h-4 w-4" />
-                  تعديل ثم اعتماد ✏️🟢
+                  {t('admin.siteEdits.editThenApprove', 'تعديل ثم اعتماد ✏️🟢')}
                 </button>
               </div>
             </div>
@@ -165,13 +167,13 @@ export default function SiteEditsPanel() {
       <Modal
         open={!!editingEdit}
         onClose={() => setEditingEdit(null)}
-        title={`تعديل ثم اعتماد: ${editingEdit?.sectionLabel ?? ''}`}
+        title={t('admin.siteEdits.editModalTitle', 'تعديل ثم اعتماد: {{section}}', { section: editingEdit?.sectionLabel ?? '' })}
         maxWidth="max-w-2xl"
       >
         {editingEdit && (
           <div className="space-y-4">
             <p className="rounded-xl border border-gold-200 bg-gold-50 p-3 text-xs leading-relaxed text-gold-800">
-              عدّل القيم المقترحة ثم اعتمدها لتُنشر فورًا على الموقع. الحقول غير قابلة للتعديل تظهر للاطلاع فقط.
+              {t('admin.siteEdits.editInstructions', 'عدّل القيم المقترحة ثم اعتمدها لتُنشر فورًا على الموقع. الحقول غير قابلة للتعديل تظهر للاطلاع فقط.')}
             </p>
             <div dir="ltr" className="break-all rounded-md bg-slate-100 px-2 py-1 font-mono text-[10px] text-slate-600">
               {technicalIdentity(editingEdit)}
@@ -181,7 +183,7 @@ export default function SiteEditsPanel() {
                 <label className="label-field">{d.label}</label>
                 {d.editable === false || !d.path ? (
                   <div className="rounded-lg bg-gray-50 p-3 text-sm text-gray-600">
-                    <div className="text-[11px] text-gray-400">القيمة المقترحة (غير قابلة للتعديل)</div>
+                    <div className="text-[11px] text-gray-400">{t('admin.siteEdits.proposedReadOnly', 'القيمة المقترحة (غير قابلة للتعديل)')}</div>
                     <div className="mt-1 break-words font-semibold text-emerald-700">{d.newValue || '—'}</div>
                   </div>
                 ) : (
@@ -197,7 +199,7 @@ export default function SiteEditsPanel() {
             ))}
             <div className="flex flex-wrap justify-end gap-2 pt-2">
               <button type="button" onClick={() => setEditingEdit(null)} className="btn-ghost">
-                <X className="h-4 w-4" /> إلغاء
+                <X className="h-4 w-4" /> {t('common.cancel', 'إلغاء')}
               </button>
               <button
                 type="button"
@@ -206,12 +208,12 @@ export default function SiteEditsPanel() {
                 className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-emerald-700"
               >
                 <Save className="h-4 w-4" />
-                حفظ ونشر التعديل المعدل
+                {t('admin.siteEdits.saveAndPublishRevised', 'حفظ ونشر التعديل المعدل')}
               </button>
             </div>
             {editableCount === 0 && (
               <p className="text-center text-xs text-gray-400">
-                هذا التعديل لا يحتوي حقولًا قابلة للتحرير — ستُعتمده القيم كما اقترحتها اللجنة الإعلامية.
+                {t('admin.siteEdits.noEditableFields', 'هذا التعديل لا يحتوي حقولًا قابلة للتحرير — ستُعتمده القيم كما اقترحتها اللجنة الإعلامية.')}
               </p>
             )}
           </div>

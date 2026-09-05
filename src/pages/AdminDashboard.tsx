@@ -1361,6 +1361,7 @@ function GalleryTab({ galleryAlbums, setGalleryAlbums, galleryCategories, curren
   galleryCategories: GalleryCategory[];
   currentUser: ReturnType<typeof useApp>['currentUser'];
 }) {
+  const { t } = useTranslation();
   const { uploadManagedFile, savePublishedSiteTarget } = useApp();
   // Scoped access: the president manages all albums; every other executive
   // member sees, adds, edits and deletes only the albums their role created
@@ -1430,7 +1431,7 @@ function GalleryTab({ galleryAlbums, setGalleryAlbums, galleryCategories, curren
   };
 
   const deleteAlbum = async (id: string) => {
-    if (!confirm('هل أنت متأكد من حذف هذا الألبوم بكامل محتوياته؟')) return;
+    if (!confirm(t('admin.gallery.confirmDeleteAlbum', 'هل أنت متأكد من حذف هذا الألبوم بكامل محتوياته؟'))) return;
     const next = galleryAlbums.filter((a) => a.id !== id);
     if (isPresident) {
       const saved = await savePublishedSiteTarget('galleryAlbums', next);
@@ -1493,7 +1494,7 @@ function GalleryTab({ galleryAlbums, setGalleryAlbums, galleryCategories, curren
   };
 
   const deleteMedia = async (album: GalleryAlbum, mediaId: string) => {
-    if (!confirm('هل أنت متأكد من حذف هذه الوسائط؟')) return;
+    if (!confirm(t('admin.gallery.confirmDeleteMedia', 'هل أنت متأكد من حذف هذه الوسائط؟'))) return;
     const nextAlbums = galleryAlbums.map((a) => {
       if (a.id !== album.id) return a;
       const media = a.media.filter((m) => m.id !== mediaId);
@@ -1522,17 +1523,17 @@ function GalleryTab({ galleryAlbums, setGalleryAlbums, galleryCategories, curren
     <div>
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-sm font-bold text-gray-600">
-          {galleryAlbums.length} ألبوم في المعرض · {visibleAlbums.length} ألبوم متاح لك
+          {t('admin.gallery.countSummary', '{{total}} ألبوم في المعرض · {{visible}} ألبوم متاح لك', { total: galleryAlbums.length, visible: visibleAlbums.length })}
         </div>
         <button onClick={openAddAlbum} className="btn-primary">
-          <Plus className="h-4 w-4" /> إضافة ألبوم جديد
+          <Plus className="h-4 w-4" /> {t('admin.gallery.addAlbum', 'إضافة ألبوم جديد')}
         </button>
       </div>
 
       {!isPresident && currentUser && (
         <div className="mb-4 flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-2.5 text-xs text-sky-800">
           <Info className="h-4 w-4 shrink-0" />
-          تظهر هنا الألبومات التي أنشأتها لجنتك ({ROLE_LABEL[currentUser.role]}) فقط. الرئيس يطّلع على جميع الألبومات ويديرها بالكامل.
+          {t('admin.gallery.scopedNotice', 'تظهر هنا الألبومات التي أنشأتها لجنتك ({{role}}) فقط. الرئيس يطّلع على جميع الألبومات ويديرها بالكامل.', { role: ROLE_LABEL[currentUser.role] })}
         </div>
       )}
 
@@ -1560,9 +1561,9 @@ function GalleryTab({ galleryAlbums, setGalleryAlbums, galleryCategories, curren
               </div>
               <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-gray-600">{album.description}</p>
               <div className="mt-3 flex gap-1.5">
-                <button onClick={() => openEditAlbum(album)} className="flex h-8 w-8 items-center justify-center rounded-lg text-navy-600 transition-colors hover:bg-navy-50" title="تعديل الألبوم"><Edit3 className="h-4 w-4" /></button>
-                <button onClick={() => openAddMedia(album)} className="flex items-center gap-1 rounded-lg bg-navy-700 px-2.5 text-xs font-bold text-white hover:bg-navy-800" title="إدارة الوسائط"><Plus className="h-3.5 w-3.5" /> الوسائط</button>
-                <button onClick={() => deleteAlbum(album.id)} className="flex h-8 w-8 items-center justify-center rounded-lg text-rose-600 transition-colors hover:bg-rose-50" title="حذف الألبوم"><Trash2 className="h-4 w-4" /></button>
+                <button onClick={() => openEditAlbum(album)} className="flex h-8 w-8 items-center justify-center rounded-lg text-navy-600 transition-colors hover:bg-navy-50" title={t('admin.gallery.editAlbumTitle', 'تعديل الألبوم')}><Edit3 className="h-4 w-4" /></button>
+                <button onClick={() => openAddMedia(album)} className="flex items-center gap-1 rounded-lg bg-navy-700 px-2.5 text-xs font-bold text-white hover:bg-navy-800" title={t('admin.gallery.manageMedia', 'الوسائط')}><Plus className="h-3.5 w-3.5" /> {t('admin.gallery.manageMedia', 'الوسائط')}</button>
+                <button onClick={() => deleteAlbum(album.id)} className="flex h-8 w-8 items-center justify-center rounded-lg text-rose-600 transition-colors hover:bg-rose-50" title={t('admin.gallery.deleteAlbumTitle', 'حذف الألبوم')}><Trash2 className="h-4 w-4" /></button>
               </div>
             </div>
           </div>
@@ -1570,40 +1571,40 @@ function GalleryTab({ galleryAlbums, setGalleryAlbums, galleryCategories, curren
       </div>
       {visibleAlbums.length === 0 && (
         <div className="py-14 text-center text-sm text-gray-400">
-          لا توجد ألبومات في نطاقك. اضغط "إضافة ألبوم جديد" لإنشاء أول ألبوم للجنتك.
+          {t('admin.gallery.empty', 'لا توجد ألبومات في نطاقك. اضغط "إضافة ألبوم جديد" لإنشاء أول ألبوم للجنتك.')}
         </div>
       )}
 
       {/* Album modal */}
-      <Modal open={albumModalOpen} onClose={() => setAlbumModalOpen(false)} title={editingAlbum ? 'تعديل الألبوم' : 'إضافة ألبوم جديد'} maxWidth="max-w-lg">
+      <Modal open={albumModalOpen} onClose={() => setAlbumModalOpen(false)} title={editingAlbum ? t('admin.gallery.albumModal.editTitle', 'تعديل الألبوم') : t('admin.gallery.albumModal.addTitle', 'إضافة ألبوم جديد')} maxWidth="max-w-lg">
         <form onSubmit={saveAlbum} className="space-y-4">
           <div>
-            <label className="label-field">عنوان الألبوم <RequiredMark /></label>
+            <label className="label-field">{t('admin.gallery.albumModal.titleLabel', 'عنوان الألبوم')} <RequiredMark /></label>
             <input id={fieldId('title')} type="text" value={albumForm.title} onChange={(e) => { setAlbumForm({ ...albumForm, title: e.target.value }); clearInvalid(setInvalid, 'title'); }} className={`${isInvalid(invalid, 'title') ? 'input-field-error' : 'input-field'}`} />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="label-field">التصنيف <RequiredMark /></label>
+              <label className="label-field">{t('admin.gallery.albumModal.categoryLabel', 'التصنيف')} <RequiredMark /></label>
               <select id={fieldId('categoryId')} value={albumForm.categoryId} onChange={(e) => { setAlbumForm({ ...albumForm, categoryId: e.target.value }); clearInvalid(setInvalid, 'categoryId'); }} className={`${isInvalid(invalid, 'categoryId') ? 'input-field-error' : 'input-field'}`}>
-                <option value="">اختر تصنيفًا...</option>
+                <option value="">{t('admin.gallery.albumModal.categorySelectPlaceholder', 'اختر تصنيفًا...')}</option>
                 {galleryCategories.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
               </select>
             </div>
             <div>
-              <label className="label-field">التاريخ <RequiredMark /></label>
+              <label className="label-field">{t('admin.gallery.albumModal.dateLabel', 'التاريخ')} <RequiredMark /></label>
               <input id={fieldId('date')} type="date" value={albumForm.date} onChange={(e) => { setAlbumForm({ ...albumForm, date: e.target.value }); clearInvalid(setInvalid, 'date'); }} className={`${isInvalid(invalid, 'date') ? 'input-field-error' : 'input-field'}`} />
             </div>
           </div>
           <div>
-            <label className="label-field">المكان <RequiredMark /></label>
+            <label className="label-field">{t('admin.gallery.albumModal.locationLabel', 'المكان')} <RequiredMark /></label>
             <input id={fieldId('location')} type="text" value={albumForm.location} onChange={(e) => { setAlbumForm({ ...albumForm, location: e.target.value }); clearInvalid(setInvalid, 'location'); }} className={`${isInvalid(invalid, 'location') ? 'input-field-error' : 'input-field'}`} />
           </div>
           <ManagedFileField
             usage="gallery-image"
-            label="صورة غلاف الألبوم"
+            label={t('admin.gallery.albumModal.coverImageLabel', 'صورة غلاف الألبوم')}
             currentUrl={albumForm.coverImage}
             required
-            error={isInvalid(invalid, 'coverImage') ? 'يرجى رفع صورة غلاف الألبوم.' : null}
+            error={isInvalid(invalid, 'coverImage') ? t('admin.gallery.albumModal.coverImageError', 'يرجى رفع صورة غلاف الألبوم.') : null}
             onUpload={(file, onProgress) => uploadManagedFile('gallery-image', file, onProgress)}
             onUploaded={(asset) => {
               setAlbumForm((current) => ({ ...current, coverImage: asset.publicUrl }));
@@ -1611,23 +1612,23 @@ function GalleryTab({ galleryAlbums, setGalleryAlbums, galleryCategories, curren
             }}
           />
           <div>
-            <label className="label-field">الوصف <RequiredMark /></label>
+            <label className="label-field">{t('admin.gallery.albumModal.descriptionLabel', 'الوصف')} <RequiredMark /></label>
             <textarea id={fieldId('description')} rows={2} value={albumForm.description} onChange={(e) => { setAlbumForm({ ...albumForm, description: e.target.value }); clearInvalid(setInvalid, 'description'); }} className={`${isInvalid(invalid, 'description') ? 'input-field-error' : 'input-field'} resize-none`} />
           </div>
           {albumForm.coverImage && (
             <div className="overflow-hidden rounded-xl">
-              <img src={albumForm.coverImage} alt="معاينة الغلاف" className="aspect-video w-full object-cover" />
+              <img src={albumForm.coverImage} alt={t('admin.gallery.albumModal.coverPreviewAlt', 'معاينة الغلاف')} className="aspect-video w-full object-cover" />
             </div>
           )}
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setAlbumModalOpen(false)} className="btn-ghost">إلغاء</button>
-            <button type="submit" className="btn-primary"><Save className="h-4 w-4" /> {editingAlbum ? 'حفظ التعديلات' : 'إضافة'}</button>
+            <button type="button" onClick={() => setAlbumModalOpen(false)} className="btn-ghost">{t('common.cancel', 'إلغاء')}</button>
+            <button type="submit" className="btn-primary"><Save className="h-4 w-4" /> {editingAlbum ? t('admin.gallery.albumModal.saveChanges', 'حفظ التعديلات') : t('admin.gallery.albumModal.add', 'إضافة')}</button>
           </div>
         </form>
       </Modal>
 
       {/* Media modal */}
-      <Modal open={mediaModalOpen} onClose={() => setMediaModalOpen(false)} title={editingMedia ? 'تعديل وسائط' : `إضافة وسائط — ${mediaAlbum?.title ?? ''}`} maxWidth="max-w-md">
+      <Modal open={mediaModalOpen} onClose={() => setMediaModalOpen(false)} title={editingMedia ? t('admin.gallery.mediaModal.editTitle', 'تعديل وسائط') : t('admin.gallery.mediaModal.addTitle', 'إضافة وسائط — {{album}}', { album: mediaAlbum?.title ?? '' })} maxWidth="max-w-md">
         {mediaAlbum && mediaAlbum.media.length > 0 && !editingMedia && (
           <div className="mb-4 grid max-h-48 grid-cols-3 gap-2 overflow-y-auto">
             {mediaAlbum.media.map((m) => (
@@ -1637,14 +1638,14 @@ function GalleryTab({ galleryAlbums, setGalleryAlbums, galleryCategories, curren
                   <button
                     onClick={() => openEditMedia(mediaAlbum, m)}
                     className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-navy-700 shadow ring-1 ring-gray-200 hover:bg-navy-50"
-                    title="تعديل"
+                    title={t('common.edit', 'تعديل')}
                   >
                     <Edit3 className="h-3 w-3" />
                   </button>
                   <button
                     onClick={() => deleteMedia(mediaAlbum, m.id)}
                     className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-rose-600 shadow ring-1 ring-gray-200 hover:bg-rose-50"
-                    title="حذف"
+                    title={t('common.delete', 'حذف')}
                   >
                     <Trash2 className="h-3 w-3" />
                   </button>
@@ -1655,40 +1656,40 @@ function GalleryTab({ galleryAlbums, setGalleryAlbums, galleryCategories, curren
         )}
         <form onSubmit={saveMedia} className="space-y-4">
           <div>
-            <label className="label-field">نوع الوسائط</label>
+            <label className="label-field">{t('admin.gallery.mediaModal.mediaTypeLabel', 'نوع الوسائط')}</label>
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => setMediaForm({ ...mediaForm, type: 'photo' })}
                 className={`flex flex-1 items-center justify-center gap-2 rounded-xl border-2 px-4 py-2.5 text-sm font-bold transition-colors ${mediaForm.type === 'photo' ? 'border-navy-600 bg-navy-50 text-navy-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
               >
-                <Image className="h-4 w-4" /> صورة
+                <Image className="h-4 w-4" /> {t('admin.gallery.mediaModal.photo', 'صورة')}
               </button>
               <button
                 type="button"
                 onClick={() => setMediaForm({ ...mediaForm, type: 'video' })}
                 className={`flex flex-1 items-center justify-center gap-2 rounded-xl border-2 px-4 py-2.5 text-sm font-bold transition-colors ${mediaForm.type === 'video' ? 'border-navy-600 bg-navy-50 text-navy-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
               >
-                <Film className="h-4 w-4" /> فيديو
+                <Film className="h-4 w-4" /> {t('admin.gallery.mediaModal.video', 'فيديو')}
               </button>
             </div>
           </div>
           {mediaForm.type === 'video' && (
             <div>
-              <label className="label-field">مصدر الفيديو</label>
+              <label className="label-field">{t('admin.gallery.mediaModal.videoSourceLabel', 'مصدر الفيديو')}</label>
               <div className="flex gap-2">
-                <button type="button" onClick={() => setMediaForm({ ...mediaForm, source: 'upload', url: '' })} className={mediaForm.source === 'upload' ? 'btn-primary' : 'btn-ghost'}>رفع من الجهاز</button>
-                <button type="button" onClick={() => setMediaForm({ ...mediaForm, source: 'external', url: '' })} className={mediaForm.source === 'external' ? 'btn-primary' : 'btn-ghost'}>رابط YouTube / Vimeo</button>
+                <button type="button" onClick={() => setMediaForm({ ...mediaForm, source: 'upload', url: '' })} className={mediaForm.source === 'upload' ? 'btn-primary' : 'btn-ghost'}>{t('admin.gallery.mediaModal.uploadFromDevice', 'رفع من الجهاز')}</button>
+                <button type="button" onClick={() => setMediaForm({ ...mediaForm, source: 'external', url: '' })} className={mediaForm.source === 'external' ? 'btn-primary' : 'btn-ghost'}>{t('admin.gallery.mediaModal.externalVideoLink', 'رابط YouTube / Vimeo')}</button>
               </div>
             </div>
           )}
           {mediaForm.type === 'photo' || mediaForm.source === 'upload' ? (
             <ManagedFileField
               usage={mediaForm.type === 'photo' ? 'gallery-image' : 'video-file'}
-              label={mediaForm.type === 'photo' ? 'الصورة' : 'ملف الفيديو'}
+              label={mediaForm.type === 'photo' ? t('admin.gallery.mediaModal.photoLabel', 'الصورة') : t('admin.gallery.mediaModal.videoFileLabel', 'ملف الفيديو')}
               currentUrl={mediaForm.url}
               required
-              error={isInvalid(invalid, 'url') ? 'يرجى رفع الملف قبل الحفظ.' : null}
+              error={isInvalid(invalid, 'url') ? t('admin.gallery.mediaModal.fileRequiredError', 'يرجى رفع الملف قبل الحفظ.') : null}
               onUpload={(file, onProgress) => uploadManagedFile(mediaForm.type === 'photo' ? 'gallery-image' : 'video-file', file, onProgress)}
               onUploaded={(asset) => {
                 setMediaForm((current) => ({ ...current, url: asset.publicUrl }));
@@ -1697,17 +1698,17 @@ function GalleryTab({ galleryAlbums, setGalleryAlbums, galleryCategories, curren
             />
           ) : (
             <div>
-              <label className="label-field">رابط YouTube / Vimeo <RequiredMark /></label>
+              <label className="label-field">{t('admin.gallery.mediaModal.videoUrlLabel', 'رابط YouTube / Vimeo')} <RequiredMark /></label>
               <input id={fieldId('url')} type="url" dir="ltr" value={mediaForm.url} onChange={(e) => { setMediaForm({ ...mediaForm, url: e.target.value }); clearInvalid(setInvalid, 'url'); }} className={`${isInvalid(invalid, 'url') ? 'input-field-error' : 'input-field'}`} placeholder="https://www.youtube.com/..." />
             </div>
           )}
           {mediaForm.type === 'video' && (
             <ManagedFileField
               usage="gallery-image"
-              label="الصورة المصغرة للفيديو"
+              label={t('admin.gallery.mediaModal.videoThumbnailLabel', 'الصورة المصغرة للفيديو')}
               currentUrl={mediaForm.thumbnail}
               required
-              error={isInvalid(invalid, 'thumbnail') ? 'يرجى رفع صورة مصغرة للفيديو.' : null}
+              error={isInvalid(invalid, 'thumbnail') ? t('admin.gallery.mediaModal.videoThumbnailError', 'يرجى رفع صورة مصغرة للفيديو.') : null}
               onUpload={(file, onProgress) => uploadManagedFile('gallery-image', file, onProgress)}
               onUploaded={(asset) => {
                 setMediaForm((current) => ({ ...current, thumbnail: asset.publicUrl }));
@@ -1716,25 +1717,25 @@ function GalleryTab({ galleryAlbums, setGalleryAlbums, galleryCategories, curren
             />
           )}
           <div>
-            <label className="label-field">تعليق / وصف <RequiredMark /></label>
+            <label className="label-field">{t('admin.gallery.mediaModal.captionLabel', 'تعليق / وصف')} <RequiredMark /></label>
             <input id={fieldId('caption')} type="text" value={mediaForm.caption} onChange={(e) => { setMediaForm({ ...mediaForm, caption: e.target.value }); clearInvalid(setInvalid, 'caption'); }} className={`${isInvalid(invalid, 'caption') ? 'input-field-error' : 'input-field'}`} />
           </div>
           <div>
-            <label className="label-field">رابط المنشور (انستغرام / فيسبوك) {mediaForm.type === 'photo' ? <RequiredMark /> : <span className="text-gray-400">(اختياري للفيديو)</span>}</label>
+            <label className="label-field">{t('admin.gallery.mediaModal.postUrlLabel', 'رابط المنشور (انستغرام / فيسبوك)')} {mediaForm.type === 'photo' ? <RequiredMark /> : <span className="text-gray-400">{t('admin.gallery.mediaModal.optionalForVideo', '(اختياري للفيديو)')}</span>}</label>
             <div className="relative">
               <Link2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input id={fieldId('photoUrl')} type="url" dir="ltr" value={mediaForm.photoUrl} onChange={(e) => { setMediaForm({ ...mediaForm, photoUrl: e.target.value }); clearInvalid(setInvalid, 'photoUrl'); }} className={`${isInvalid(invalid, 'photoUrl') ? 'input-field-error' : 'input-field'} pr-10`} placeholder="https://www.instagram.com/..." />
             </div>
-            <p className="mt-1 text-xs text-gray-400">{mediaForm.type === 'photo' ? 'إجباري: رابط منشور الصورة على انستغرام/فيسبوك. يظهر زر "زيارة المنشور" عند عرض الصورة.' : 'اختياري: رابط منشور الفيديو على انستغرام/فيسبوك.'}</p>
+            <p className="mt-1 text-xs text-gray-400">{mediaForm.type === 'photo' ? t('admin.gallery.mediaModal.photoPostHint', 'إجباري: رابط منشور الصورة على انستغرام/فيسبوك. يظهر زر "زيارة المنشور" عند عرض الصورة.') : t('admin.gallery.mediaModal.videoPostHint', 'اختياري: رابط منشور الفيديو على انستغرام/فيسبوك.')}</p>
           </div>
           {mediaForm.url && mediaForm.type === 'photo' && (
             <div className="overflow-hidden rounded-xl">
-              <img src={mediaForm.url} alt="معاينة" className="aspect-video w-full object-cover" />
+              <img src={mediaForm.url} alt={t('admin.gallery.mediaModal.previewAlt', 'معاينة')} className="aspect-video w-full object-cover" />
             </div>
           )}
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setMediaModalOpen(false)} className="btn-ghost">إلغاء</button>
-            <button type="submit" className="btn-primary"><Save className="h-4 w-4" /> {editingMedia ? 'حفظ التعديلات' : 'إضافة'}</button>
+            <button type="button" onClick={() => setMediaModalOpen(false)} className="btn-ghost">{t('common.cancel', 'إلغاء')}</button>
+            <button type="submit" className="btn-primary"><Save className="h-4 w-4" /> {editingMedia ? t('admin.gallery.mediaModal.saveChanges', 'حفظ التعديلات') : t('admin.gallery.mediaModal.add', 'إضافة')}</button>
           </div>
         </form>
       </Modal>
@@ -1747,6 +1748,7 @@ function EventsTab({ events, currentUser }: {
   events: UEvent[];
   currentUser: ReturnType<typeof useApp>['currentUser'];
 }) {
+  const { t } = useTranslation();
   const { uploadManagedFile, savePublishedSiteTarget, createPublishedEvent } = useApp();
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -1793,7 +1795,7 @@ function EventsTab({ events, currentUser }: {
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canCreate || (editId && !isPresident)) {
-      setToast({ id: Date.now(), type: 'error', text: editId ? 'تعديل الفعاليات المنشورة متاح لرئيس الاتحاد فقط.' : 'إنشاء الفعاليات متاح لأعضاء الهيئة التنفيذية فقط.' });
+      setToast({ id: Date.now(), type: 'error', text: editId ? t('admin.events.editRestrictedPresident', 'تعديل الفعاليات المنشورة متاح لرئيس الاتحاد فقط.') : t('admin.events.createRestrictedExecutive', 'إنشاء الفعاليات متاح لأعضاء الهيئة التنفيذية فقط.') });
       return;
     }
     const ok = validateRequired(form, ['title', 'category', 'date', 'time', 'location', 'description', 'image', 'status', 'activityType', 'registrationDeadline'], setInvalid);
@@ -1815,20 +1817,20 @@ function EventsTab({ events, currentUser }: {
       const newEvent: UEvent = { id: publicEventId, title: form.title, category: form.category, date: iso, location: form.location, description: form.description, status: form.status, capacity: Number(form.capacity), registered: 0, image, eventUrl, createdBy: currentUser?.email, createdByRole: currentUser?.role, activityType: form.activityType, pointsValue: Number(form.pointsValue), registrationDeadline };
       const saved = await createPublishedEvent(newEvent);
       if (!saved.ok) {
-        setToast({ id: Date.now(), type: 'error', text: saved.error ?? 'تعذر إنشاء الفعالية.' });
+        setToast({ id: Date.now(), type: 'error', text: saved.error ?? t('admin.events.createFailed', 'تعذر إنشاء الفعالية.') });
         return;
       }
     }
     setModalOpen(false);
-    setToast({ id: Date.now(), type: 'success', text: 'تم حفظ الفعالية وإعدادات التسجيل الدائم.' });
+    setToast({ id: Date.now(), type: 'success', text: t('admin.events.savedSuccess', 'تم حفظ الفعالية وإعدادات التسجيل الدائم.') });
   };
 
   const remove = async (id: string) => {
     if (!isPresident) {
-      setToast({ id: Date.now(), type: 'error', text: 'حذف الفعاليات المنشورة متاح لرئيس الاتحاد فقط.' });
+      setToast({ id: Date.now(), type: 'error', text: t('admin.events.deleteRestrictedPresident', 'حذف الفعاليات المنشورة متاح لرئيس الاتحاد فقط.') });
       return;
     }
-    if (confirm('هل أنت متأكد من حذف هذه الفعالية؟')) {
+    if (confirm(t('admin.events.confirmDelete', 'هل أنت متأكد من حذف هذه الفعالية؟'))) {
       const next = events.filter((e) => e.id !== id);
       const saved = await savePublishedSiteTarget('events', next);
       if (!saved.ok) return;
@@ -1842,11 +1844,11 @@ function EventsTab({ events, currentUser }: {
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative max-w-xs flex-1">
           <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} className="input-field pr-10" placeholder="ابحث عن فعالية..." />
+          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} className="input-field pr-10" placeholder={t('admin.events.searchPlaceholder', 'ابحث عن فعالية...')} />
         </div>
         {canCreate && (
           <button onClick={openAdd} className="btn-primary">
-            <Plus className="h-4 w-4" /> إضافة فعالية جديدة
+            <Plus className="h-4 w-4" /> {t('admin.events.addEvent', 'إضافة فعالية جديدة')}
           </button>
         )}
       </div>
@@ -1854,7 +1856,7 @@ function EventsTab({ events, currentUser }: {
       {!isPresident && currentUser && (
         <div className="mb-4 flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-2.5 text-xs text-sky-800">
           <Info className="h-4 w-4 shrink-0" />
-          يمكنك إنشاء فعالية جديدة. يبقى تعديل أو حذف فعالية منشورة ضمن الصلاحيات الإدارية المقررة دون تغيير.
+          {t('admin.events.executiveNotice', 'يمكنك إنشاء فعالية جديدة. يبقى تعديل أو حذف فعالية منشورة ضمن الصلاحيات الإدارية المقررة دون تغيير.')}
         </div>
       )}
 
@@ -1863,12 +1865,12 @@ function EventsTab({ events, currentUser }: {
           <table className="w-full text-right text-sm">
             <thead className="bg-gray-50 text-xs uppercase text-gray-500">
               <tr>
-                <th className="px-4 py-3 font-bold">الفعالية</th>
-                <th className="px-4 py-3 font-bold">التصنيف</th>
-                <th className="px-4 py-3 font-bold">التاريخ</th>
-                <th className="px-4 py-3 font-bold">التسجيل</th>
-                <th className="px-4 py-3 font-bold">الحالة</th>
-                <th className="px-4 py-3 font-bold">إجراءات</th>
+                <th className="px-4 py-3 font-bold">{t('admin.events.table.event', 'الفعالية')}</th>
+                <th className="px-4 py-3 font-bold">{t('admin.events.table.category', 'التصنيف')}</th>
+                <th className="px-4 py-3 font-bold">{t('admin.events.table.date', 'التاريخ')}</th>
+                <th className="px-4 py-3 font-bold">{t('admin.events.table.registration', 'التسجيل')}</th>
+                <th className="px-4 py-3 font-bold">{t('admin.events.table.status', 'الحالة')}</th>
+                <th className="px-4 py-3 font-bold">{t('admin.events.table.actions', 'إجراءات')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -1884,23 +1886,23 @@ function EventsTab({ events, currentUser }: {
                   <td className="px-4 py-3 text-gray-600">{new Date(e.date).toLocaleDateString('ar-EG')}</td>
                   <td className="px-4 py-3 text-gray-600">{e.registered}/{e.capacity}</td>
                   <td className="px-4 py-3">
-                    {e.status === 'upcoming' ? <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-700">قادمة</span>
-                      : <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-bold text-gray-600">منتهية</span>}
+                    {e.status === 'upcoming' ? <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-700">{t('admin.events.status.upcoming', 'قادمة')}</span>
+                      : <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-bold text-gray-600">{t('admin.events.status.past', 'منتهية')}</span>}
                   </td>
                   <td className="px-4 py-3">
                     {isPresident ? (
                       <div className="flex gap-1">
-                        <button onClick={() => openEdit(e)} className="flex h-8 w-8 items-center justify-center rounded-lg text-navy-600 transition-colors hover:bg-navy-50" title="تعديل"><Edit3 className="h-4 w-4" /></button>
-                        <button onClick={() => remove(e.id)} className="flex h-8 w-8 items-center justify-center rounded-lg text-rose-600 transition-colors hover:bg-rose-50" title="حذف"><Trash2 className="h-4 w-4" /></button>
+                        <button onClick={() => openEdit(e)} className="flex h-8 w-8 items-center justify-center rounded-lg text-navy-600 transition-colors hover:bg-navy-50" title={t('common.edit', 'تعديل')}><Edit3 className="h-4 w-4" /></button>
+                        <button onClick={() => remove(e.id)} className="flex h-8 w-8 items-center justify-center rounded-lg text-rose-600 transition-colors hover:bg-rose-50" title={t('common.delete', 'حذف')}><Trash2 className="h-4 w-4" /></button>
                       </div>
-                    ) : <span className="text-xs text-gray-400">عرض فقط</span>}
+                    ) : <span className="text-xs text-gray-400">{t('admin.events.viewOnly', 'عرض فقط')}</span>}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
           {filtered.length === 0 && (
-            <div className="py-10 text-center text-sm text-gray-400">لا توجد فعاليات.</div>
+            <div className="py-10 text-center text-sm text-gray-400">{t('admin.events.empty', 'لا توجد فعاليات.')}</div>
           )}
         </div>
       </div>
@@ -1909,67 +1911,67 @@ function EventsTab({ events, currentUser }: {
         <InternalTaskCreationPanel />
       )}
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editId ? 'تعديل الفعالية' : 'إضافة فعالية جديدة'} maxWidth="max-w-xl">
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editId ? t('admin.events.modal.editTitle', 'تعديل الفعالية') : t('admin.events.modal.addTitle', 'إضافة فعالية جديدة')} maxWidth="max-w-xl">
         <form onSubmit={save} className="space-y-4">
           <div>
-            <label className="label-field">عنوان الفعالية <RequiredMark /></label>
-            <input id={fieldId('title')} type="text" value={form.title} onChange={(e) => { setForm({ ...form, title: e.target.value }); clearInvalid(setInvalid, 'title'); }} className={`${isInvalid(invalid, 'title') ? 'input-field-error' : 'input-field'}`} placeholder="عنوان الفعالية" />
+            <label className="label-field">{t('admin.events.modal.titleLabel', 'عنوان الفعالية')} <RequiredMark /></label>
+            <input id={fieldId('title')} type="text" value={form.title} onChange={(e) => { setForm({ ...form, title: e.target.value }); clearInvalid(setInvalid, 'title'); }} className={`${isInvalid(invalid, 'title') ? 'input-field-error' : 'input-field'}`} placeholder={t('admin.events.modal.titlePlaceholder', 'عنوان الفعالية')} />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="label-field">التصنيف <RequiredMark /></label>
+              <label className="label-field">{t('admin.events.modal.categoryLabel', 'التصنيف')} <RequiredMark /></label>
               <select id={fieldId('category')} value={form.category} onChange={(e) => { setForm({ ...form, category: e.target.value as EventCategory }); clearInvalid(setInvalid, 'category'); }} className={`${isInvalid(invalid, 'category') ? 'input-field-error' : 'input-field'}`}>
-                <option value="">اختر التصنيف...</option>
+                <option value="">{t('admin.events.modal.categorySelectPlaceholder', 'اختر التصنيف...')}</option>
                 {(Object.keys(categoryLabels) as EventCategory[]).map((c) => <option key={c} value={c}>{categoryLabels[c]}</option>)}
               </select>
             </div>
             <div>
-              <label className="label-field">السعة <RequiredMark /></label>
+              <label className="label-field">{t('admin.events.modal.capacityLabel', 'السعة')} <RequiredMark /></label>
               <input id={fieldId('capacity')} type="number" min={1} value={form.capacity} onChange={(e) => { setForm({ ...form, capacity: Number(e.target.value) }); clearInvalid(setInvalid, 'capacity'); }} className={`${isInvalid(invalid, 'capacity') ? 'input-field-error' : 'input-field'}`} />
             </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="label-field">نوع النشاط الداخلي <RequiredMark /></label>
+              <label className="label-field">{t('admin.events.modal.activityTypeLabel', 'نوع النشاط الداخلي')} <RequiredMark /></label>
               <select id={fieldId('activityType')} value={form.activityType} onChange={(e) => { setForm({ ...form, activityType: e.target.value as ActivityType }); clearInvalid(setInvalid, 'activityType'); }} className={isInvalid(invalid, 'activityType') ? 'input-field-error' : 'input-field'}>
-                <option value="MANDATORY">إلزامي</option>
-                <option value="OPTIONAL">اختياري</option>
-                <option value="PAID">حصري مدفوع بالنقاط</option>
+                <option value="MANDATORY">{t('admin.events.modal.activityTypes.mandatory', 'إلزامي')}</option>
+                <option value="OPTIONAL">{t('admin.events.modal.activityTypes.optional', 'اختياري')}</option>
+                <option value="PAID">{t('admin.events.modal.activityTypes.paid', 'حصري مدفوع بالنقاط')}</option>
               </select>
             </div>
             <div>
-              <label className="label-field">قيمة النقاط <RequiredMark /></label>
+              <label className="label-field">{t('admin.events.modal.pointsValueLabel', 'قيمة النقاط')} <RequiredMark /></label>
               <input id={fieldId('pointsValue')} type="number" min="0" value={form.pointsValue} onChange={(e) => { setForm({ ...form, pointsValue: Number(e.target.value) }); clearInvalid(setInvalid, 'pointsValue'); }} className={isInvalid(invalid, 'pointsValue') ? 'input-field-error' : 'input-field'} />
             </div>
           </div>
           <div>
-            <label className="label-field">تاريخ ووقت إغلاق التسجيل <RequiredMark /></label>
+            <label className="label-field">{t('admin.events.modal.registrationDeadlineLabel', 'تاريخ ووقت إغلاق التسجيل')} <RequiredMark /></label>
             <input id={fieldId('registrationDeadline')} type="datetime-local" value={form.registrationDeadline} onChange={(e) => { setForm({ ...form, registrationDeadline: e.target.value }); clearInvalid(setInvalid, 'registrationDeadline'); }} className={isInvalid(invalid, 'registrationDeadline') ? 'input-field-error' : 'input-field'} />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="label-field">التاريخ <RequiredMark /></label>
+              <label className="label-field">{t('admin.events.modal.dateLabel', 'التاريخ')} <RequiredMark /></label>
               <input id={fieldId('date')} type="date" value={form.date} onChange={(e) => { setForm({ ...form, date: e.target.value }); clearInvalid(setInvalid, 'date'); }} className={`${isInvalid(invalid, 'date') ? 'input-field-error' : 'input-field'}`} />
             </div>
             <div>
-              <label className="label-field">الوقت <RequiredMark /></label>
+              <label className="label-field">{t('admin.events.modal.timeLabel', 'الوقت')} <RequiredMark /></label>
               <input id={fieldId('time')} type="time" value={form.time} onChange={(e) => { setForm({ ...form, time: e.target.value }); clearInvalid(setInvalid, 'time'); }} className={`${isInvalid(invalid, 'time') ? 'input-field-error' : 'input-field'}`} />
             </div>
           </div>
           <div>
-            <label className="label-field">الموقع <RequiredMark /></label>
-            <input id={fieldId('location')} type="text" value={form.location} onChange={(e) => { setForm({ ...form, location: e.target.value }); clearInvalid(setInvalid, 'location'); }} className={`${isInvalid(invalid, 'location') ? 'input-field-error' : 'input-field'}`} placeholder="مكان الفعالية" />
+            <label className="label-field">{t('admin.events.modal.locationLabel', 'الموقع')} <RequiredMark /></label>
+            <input id={fieldId('location')} type="text" value={form.location} onChange={(e) => { setForm({ ...form, location: e.target.value }); clearInvalid(setInvalid, 'location'); }} className={`${isInvalid(invalid, 'location') ? 'input-field-error' : 'input-field'}`} placeholder={t('admin.events.modal.locationPlaceholder', 'مكان الفعالية')} />
           </div>
           <div>
-            <label className="label-field">الوصف <RequiredMark /></label>
-            <textarea id={fieldId('description')} rows={3} value={form.description} onChange={(e) => { setForm({ ...form, description: e.target.value }); clearInvalid(setInvalid, 'description'); }} className={`${isInvalid(invalid, 'description') ? 'input-field-error' : 'input-field'} resize-none`} placeholder="وصف الفعالية" />
+            <label className="label-field">{t('admin.events.modal.descriptionLabel', 'الوصف')} <RequiredMark /></label>
+            <textarea id={fieldId('description')} rows={3} value={form.description} onChange={(e) => { setForm({ ...form, description: e.target.value }); clearInvalid(setInvalid, 'description'); }} className={`${isInvalid(invalid, 'description') ? 'input-field-error' : 'input-field'} resize-none`} placeholder={t('admin.events.modal.descriptionPlaceholder', 'وصف الفعالية')} />
           </div>
           <ManagedFileField
             usage="event-image"
-            label="صورة الفعالية"
+            label={t('admin.events.modal.imageLabel', 'صورة الفعالية')}
             currentUrl={form.image}
             required
-            error={isInvalid(invalid, 'image') ? 'يرجى رفع صورة الفعالية قبل الحفظ.' : null}
+            error={isInvalid(invalid, 'image') ? t('admin.events.modal.imageError', 'يرجى رفع صورة الفعالية قبل الحفظ.') : null}
             onUpload={(file, onProgress) => uploadManagedFile('event-image', file, onProgress)}
             onUploaded={(asset) => {
               setForm((current) => ({ ...current, image: asset.publicUrl }));
@@ -1977,24 +1979,24 @@ function EventsTab({ events, currentUser }: {
             }}
           />
           <div>
-            <label className="label-field">رابط المنشور الخارجي <span className="text-gray-400">(اختياري)</span></label>
+            <label className="label-field">{t('admin.events.modal.externalUrlLabel', 'رابط المنشور الخارجي')} <span className="text-gray-400">{t('admin.events.modal.optionalTag', '(اختياري)')}</span></label>
             <div className="relative">
               <Link2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input id={fieldId('eventUrl')} type="url" value={form.eventUrl} onChange={(e) => { setForm({ ...form, eventUrl: e.target.value }); clearInvalid(setInvalid, 'eventUrl'); }} className="input-field pr-10" placeholder="https://instagram.com/..." dir="ltr" />
             </div>
-            <p className="mt-1 text-xs text-gray-400">اختياري: رابط منشور إنستغرام/فيسبوك للفعالية. يظهر زر "زيارة الفعالية" على الكرت عند إدخاله.</p>
+            <p className="mt-1 text-xs text-gray-400">{t('admin.events.modal.externalUrlHint', 'اختياري: رابط منشور إنستغرام/فيسبوك للفعالية. يظهر زر "زيارة الفعالية" على الكرت عند إدخاله.')}</p>
           </div>
           <div>
-            <label className="label-field">الحالة <RequiredMark /></label>
+            <label className="label-field">{t('admin.events.modal.statusLabel', 'الحالة')} <RequiredMark /></label>
             <select id={fieldId('status')} value={form.status} onChange={(e) => { setForm({ ...form, status: e.target.value as 'upcoming' | 'past' }); clearInvalid(setInvalid, 'status'); }} className={`${isInvalid(invalid, 'status') ? 'input-field-error' : 'input-field'}`}>
-              <option value="">اختر حالة الفعالية...</option>
-              <option value="upcoming">قادمة</option>
-              <option value="past">منتهية</option>
+              <option value="">{t('admin.events.modal.statusSelectPlaceholder', 'اختر حالة الفعالية...')}</option>
+              <option value="upcoming">{t('admin.events.status.upcoming', 'قادمة')}</option>
+              <option value="past">{t('admin.events.status.past', 'منتهية')}</option>
             </select>
           </div>
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setModalOpen(false)} className="btn-ghost">إلغاء</button>
-            <button type="submit" className="btn-primary"><CheckCircle2 className="h-4 w-4" /> {editId ? 'حفظ التعديلات' : 'إضافة'}</button>
+            <button type="button" onClick={() => setModalOpen(false)} className="btn-ghost">{t('common.cancel', 'إلغاء')}</button>
+            <button type="submit" className="btn-primary"><CheckCircle2 className="h-4 w-4" /> {editId ? t('admin.events.modal.saveChanges', 'حفظ التعديلات') : t('common.add', 'إضافة')}</button>
           </div>
         </form>
       </Modal>
@@ -2009,6 +2011,7 @@ function NewsTab({ news, currentUser, submitSiteEdit }: {
   currentUser: ReturnType<typeof useApp>['currentUser'];
   submitSiteEdit: ReturnType<typeof useApp>['submitSiteEdit'];
 }) {
+  const { t } = useTranslation();
   const { uploadManagedFile, savePublishedSiteTarget } = useApp();
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -2118,7 +2121,7 @@ function NewsTab({ news, currentUser, submitSiteEdit }: {
   };
 
   const remove = async (id: string) => {
-    if (!confirm('هل أنت متأكد من حذف هذا الخبر؟')) return;
+    if (!confirm(t('admin.news.confirmDelete', 'هل أنت متأكد من حذف هذا الخبر؟'))) return;
     const current = news.find((n) => n.id === id);
     if (!current) return;
     if (currentUser?.role === 'MEDIA_HEAD') {
@@ -2160,7 +2163,7 @@ function NewsTab({ news, currentUser, submitSiteEdit }: {
     <div>
       <div className="mb-4 flex items-center justify-between">
         <button onClick={openAdd} className="btn-primary">
-          <Plus className="h-4 w-4" /> إضافة خبر جديد
+          <Plus className="h-4 w-4" /> {t('admin.news.addNews', 'إضافة خبر جديد')}
         </button>
       </div>
 
@@ -2177,50 +2180,50 @@ function NewsTab({ news, currentUser, submitSiteEdit }: {
               className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
                 n.pinnedOnHomepage ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
               }`}
-              title="تثبيت في الصفحة الرئيسية"
+              title={t('admin.news.pinTitle', 'تثبيت في الصفحة الرئيسية')}
             >
               {n.pinnedOnHomepage ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-              {n.pinnedOnHomepage ? 'مثبت' : 'غير مثبت'}
+              {n.pinnedOnHomepage ? t('admin.news.pinned', 'مثبت') : t('admin.news.unpinned', 'غير مثبت')}
             </button>
-            <button onClick={() => openEdit(n)} className="flex h-8 w-8 items-center justify-center rounded-lg text-navy-600 hover:bg-navy-50" title="تعديل"><Edit3 className="h-4 w-4" /></button>
-            <button onClick={() => remove(n.id)} className="flex h-8 w-8 items-center justify-center rounded-lg text-rose-600 hover:bg-rose-50" title="حذف"><Trash2 className="h-4 w-4" /></button>
+            <button onClick={() => openEdit(n)} className="flex h-8 w-8 items-center justify-center rounded-lg text-navy-600 hover:bg-navy-50" title={t('common.edit', 'تعديل')}><Edit3 className="h-4 w-4" /></button>
+            <button onClick={() => remove(n.id)} className="flex h-8 w-8 items-center justify-center rounded-lg text-rose-600 hover:bg-rose-50" title={t('common.delete', 'حذف')}><Trash2 className="h-4 w-4" /></button>
           </div>
         ))}
         {sorted.length === 0 && (
-          <div className="py-10 text-center text-sm text-gray-400">لا توجد أخبار بعد.</div>
+          <div className="py-10 text-center text-sm text-gray-400">{t('admin.news.empty', 'لا توجد أخبار بعد.')}</div>
         )}
       </div>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editId ? 'تعديل الخبر' : 'إضافة خبر جديد'} maxWidth="max-w-xl">
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editId ? t('admin.news.modal.editTitle', 'تعديل الخبر') : t('admin.news.modal.addTitle', 'إضافة خبر جديد')} maxWidth="max-w-xl">
         <form onSubmit={save} className="space-y-4">
           <div>
-            <label className="label-field">عنوان الخبر <RequiredMark /></label>
-            <input id={fieldId('title')} type="text" value={form.title} onChange={(e) => { setForm({ ...form, title: e.target.value }); clearInvalid(setInvalid, 'title'); }} className={`${isInvalid(invalid, 'title') ? 'input-field-error' : 'input-field'}`} placeholder="عنوان الخبر" />
+            <label className="label-field">{t('admin.news.modal.titleLabel', 'عنوان الخبر')} <RequiredMark /></label>
+            <input id={fieldId('title')} type="text" value={form.title} onChange={(e) => { setForm({ ...form, title: e.target.value }); clearInvalid(setInvalid, 'title'); }} className={`${isInvalid(invalid, 'title') ? 'input-field-error' : 'input-field'}`} placeholder={t('admin.news.modal.titlePlaceholder', 'عنوان الخبر')} />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="label-field">التصنيف <RequiredMark /></label>
-              <input id={fieldId('category')} type="text" value={form.category} onChange={(e) => { setForm({ ...form, category: e.target.value }); clearInvalid(setInvalid, 'category'); }} className={`${isInvalid(invalid, 'category') ? 'input-field-error' : 'input-field'}`} placeholder="مثال: شراكات / إنجازات" />
+              <label className="label-field">{t('admin.news.modal.categoryLabel', 'التصنيف')} <RequiredMark /></label>
+              <input id={fieldId('category')} type="text" value={form.category} onChange={(e) => { setForm({ ...form, category: e.target.value }); clearInvalid(setInvalid, 'category'); }} className={`${isInvalid(invalid, 'category') ? 'input-field-error' : 'input-field'}`} placeholder={t('admin.news.modal.categoryPlaceholder', 'مثال: شراكات / إنجازات')} />
             </div>
             <div>
-              <label className="label-field">التاريخ <RequiredMark /></label>
+              <label className="label-field">{t('admin.news.modal.dateLabel', 'التاريخ')} <RequiredMark /></label>
               <input id={fieldId('date')} type="date" value={form.date} onChange={(e) => { setForm({ ...form, date: e.target.value }); clearInvalid(setInvalid, 'date'); }} className={`${isInvalid(invalid, 'date') ? 'input-field-error' : 'input-field'}`} />
             </div>
           </div>
           <div>
-            <label className="label-field">الملخص للصفحة الرئيسية <RequiredMark /></label>
-            <textarea id={fieldId('excerpt')} rows={2} value={form.excerpt} onChange={(e) => { setForm({ ...form, excerpt: e.target.value }); clearInvalid(setInvalid, 'excerpt'); }} className={`${isInvalid(invalid, 'excerpt') ? 'input-field-error' : 'input-field'} resize-none`} placeholder="ملخص قصير يظهر على بطاقة الخبر" />
+            <label className="label-field">{t('admin.news.modal.excerptLabel', 'الملخص للصفحة الرئيسية')} <RequiredMark /></label>
+            <textarea id={fieldId('excerpt')} rows={2} value={form.excerpt} onChange={(e) => { setForm({ ...form, excerpt: e.target.value }); clearInvalid(setInvalid, 'excerpt'); }} className={`${isInvalid(invalid, 'excerpt') ? 'input-field-error' : 'input-field'} resize-none`} placeholder={t('admin.news.modal.excerptPlaceholder', 'ملخص قصير يظهر على بطاقة الخبر')} />
           </div>
           <div>
-            <label className="label-field">النص الكامل <RequiredMark /></label>
-            <textarea id={fieldId('fullContent')} rows={5} value={form.fullContent} onChange={(e) => { setForm({ ...form, fullContent: e.target.value }); clearInvalid(setInvalid, 'fullContent'); }} className={`${isInvalid(invalid, 'fullContent') ? 'input-field-error' : 'input-field'} resize-none`} placeholder="المحتوى الكامل للخبر" />
+            <label className="label-field">{t('admin.news.modal.fullContentLabel', 'النص الكامل')} <RequiredMark /></label>
+            <textarea id={fieldId('fullContent')} rows={5} value={form.fullContent} onChange={(e) => { setForm({ ...form, fullContent: e.target.value }); clearInvalid(setInvalid, 'fullContent'); }} className={`${isInvalid(invalid, 'fullContent') ? 'input-field-error' : 'input-field'} resize-none`} placeholder={t('admin.news.modal.fullContentPlaceholder', 'المحتوى الكامل للخبر')} />
           </div>
           <ManagedFileField
             usage="news-image"
-            label="صورة الخبر"
+            label={t('admin.news.modal.imageLabel', 'صورة الخبر')}
             currentUrl={form.image}
             required
-            error={isInvalid(invalid, 'image') ? 'يرجى رفع صورة الخبر قبل الحفظ.' : null}
+            error={isInvalid(invalid, 'image') ? t('admin.news.modal.imageError', 'يرجى رفع صورة الخبر قبل الحفظ.') : null}
             onUpload={(file, onProgress) => uploadManagedFile('news-image', file, onProgress)}
             onUploaded={(asset) => {
               setForm((current) => ({ ...current, image: asset.publicUrl }));
@@ -2228,20 +2231,20 @@ function NewsTab({ news, currentUser, submitSiteEdit }: {
             }}
           />
           <div>
-            <label className="label-field">رابط المنشور الخارجي <span className="text-gray-400">(اختياري)</span></label>
+            <label className="label-field">{t('admin.news.modal.externalUrlLabel', 'رابط المنشور الخارجي')} <span className="text-gray-400">{t('admin.news.modal.optionalTag', '(اختياري)')}</span></label>
             <div className="relative">
               <Link2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input id={fieldId('externalUrl')} type="url" value={form.externalUrl} onChange={(e) => { setForm({ ...form, externalUrl: e.target.value }); clearInvalid(setInvalid, 'externalUrl'); }} className="input-field pr-10" placeholder="https://instagram.com/..." dir="ltr" />
             </div>
-            <p className="mt-1 text-xs text-gray-400">اختياري: رابط منشور إنستغرام/فيسبوك للخبر. يظهر زر "زيارة الخبر" على الكرت والتفاصيل عند إدخاله.</p>
+            <p className="mt-1 text-xs text-gray-400">{t('admin.news.modal.externalUrlHint', 'اختياري: رابط منشور إنستغرام/فيسبوك للخبر. يظهر زر "زيارة الخبر" على الكرت والتفاصيل عند إدخاله.')}</p>
           </div>
           <label className="flex cursor-pointer items-center gap-2">
             <input type="checkbox" checked={form.pinnedOnHomepage} onChange={(e) => setForm({ ...form, pinnedOnHomepage: e.target.checked })} className="h-4 w-4 accent-navy-700" />
-            <span className="text-sm font-semibold text-navy-900">تثبيت في الصفحة الرئيسية</span>
+            <span className="text-sm font-semibold text-navy-900">{t('admin.news.modal.pinCheckbox', 'تثبيت في الصفحة الرئيسية')}</span>
           </label>
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setModalOpen(false)} className="btn-ghost">إلغاء</button>
-            <button type="submit" className="btn-primary"><CheckCircle2 className="h-4 w-4" /> {editId ? 'حفظ التعديلات' : 'إضافة'}</button>
+            <button type="button" onClick={() => setModalOpen(false)} className="btn-ghost">{t('common.cancel', 'إلغاء')}</button>
+            <button type="submit" className="btn-primary"><CheckCircle2 className="h-4 w-4" /> {editId ? t('admin.news.modal.saveChanges', 'حفظ التعديلات') : t('admin.news.modal.add', 'إضافة')}</button>
           </div>
         </form>
       </Modal>
@@ -3028,6 +3031,7 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
   setReports: React.Dispatch<React.SetStateAction<ReturnType<typeof useApp>['reports']>>;
   currentUser: ReturnType<typeof useApp>['currentUser'];
 }) {
+  const { t } = useTranslation();
   const { uploadManagedFile, savePublishedSiteTarget } = useApp();
   const isPresident = currentUser?.role === 'PRESIDENT';
 
@@ -3087,7 +3091,7 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
     setPlanModal(false);
   };
   const removePlan = async (id: string) => {
-    if (!confirm('هل أنت متأكد من حذف هذه الخطة؟')) return;
+    if (!confirm(t('admin.plans.confirmDeletePlan', 'هل أنت متأكد من حذف هذه الخطة؟'))) return;
     const next = plans.filter((p) => p.id !== id);
     if (isPresident) await savePublishedSiteTarget('plans', next);
     else setPlans(next);
@@ -3127,7 +3131,7 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
     setReportModal(false);
   };
   const removeReport = async (id: string) => {
-    if (!confirm('هل أنت متأكد من حذف هذا التقرير؟')) return;
+    if (!confirm(t('admin.plans.confirmDeleteReport', 'هل أنت متأكد من حذف هذا التقرير؟'))) return;
     const next = reports.filter((r) => r.id !== id);
     if (isPresident) await savePublishedSiteTarget('reports', next);
     else setReports(next);
@@ -3136,20 +3140,20 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
   const [viewReport, setViewReport] = useState<ReturnType<typeof useApp>['reports'][0] | null>(null);
 
   const statusMap = {
-    planned: { label: 'مخطط', cls: 'bg-gray-100 text-gray-600' },
-    'in-progress': { label: 'قيد التنفيذ', cls: 'bg-gold-100 text-gold-700' },
-    completed: { label: 'مكتمل', cls: 'bg-emerald-100 text-emerald-700' },
+    planned: { label: t('admin.plans.statuses.planned', 'مخطط'), cls: 'bg-gray-100 text-gray-600' },
+    'in-progress': { label: t('admin.plans.statuses.inProgress', 'قيد التنفيذ'), cls: 'bg-gold-100 text-gold-700' },
+    completed: { label: t('admin.plans.statuses.completed', 'مكتمل'), cls: 'bg-emerald-100 text-emerald-700' },
   };
 
   return (
     <div className="space-y-8">
       <div>
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="flex items-center gap-2 text-lg font-bold text-navy-900"><Target className="h-5 w-5 text-navy-600" /> الخطط الإدارية</h3>
-          <button onClick={openAddPlan} className="btn-primary"><Plus className="h-4 w-4" /> خطة جديدة</button>
+          <h3 className="flex items-center gap-2 text-lg font-bold text-navy-900"><Target className="h-5 w-5 text-navy-600" /> {t('admin.plans.title', 'الخطط الإدارية')}</h3>
+          <button onClick={openAddPlan} className="btn-primary"><Plus className="h-4 w-4" /> {t('admin.plans.addPlan', 'خطة جديدة')}</button>
         </div>
         {visiblePlans.length === 0 ? (
-          <div className="card p-8 text-center text-sm text-gray-400">لا توجد خطط متاحة لعرضها حالياً.</div>
+          <div className="card p-8 text-center text-sm text-gray-400">{t('admin.plans.emptyPlans', 'لا توجد خطط متاحة لعرضها حالياً.')}</div>
         ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {visiblePlans.map((p) => (
@@ -3158,15 +3162,15 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
                 <div className="flex-1">
                   <h4 className="text-base font-bold text-navy-900">{p.title}</h4>
                   {p.committee && (
-                    <span className={`mt-1.5 inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ${COMMITTEE_BADGE_CLS[p.committee]}`}>خطة {COMMITTEE_LABELS[p.committee]}</span>
+                    <span className={`mt-1.5 inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ${COMMITTEE_BADGE_CLS[p.committee]}`}>{t('admin.plans.planPrefix', { committee: COMMITTEE_LABELS[p.committee], defaultValue: `خطة ${COMMITTEE_LABELS[p.committee]}` })}</span>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold ${statusMap[p.status].cls}`}>{statusMap[p.status].label}</span>
                   {canModifyPlan(p) && (
                     <>
-                      <button onClick={() => openEditPlan(p)} className="flex h-7 w-7 items-center justify-center rounded-lg text-navy-600 transition-colors hover:bg-navy-50" title="تعديل"><Edit3 className="h-3.5 w-3.5" /></button>
-                      <button onClick={() => removePlan(p.id)} className="flex h-7 w-7 items-center justify-center rounded-lg text-rose-600 transition-colors hover:bg-rose-50" title="حذف"><Trash2 className="h-3.5 w-3.5" /></button>
+                      <button onClick={() => openEditPlan(p)} className="flex h-7 w-7 items-center justify-center rounded-lg text-navy-600 transition-colors hover:bg-navy-50" title={t('common.edit', 'تعديل')}><Edit3 className="h-3.5 w-3.5" /></button>
+                      <button onClick={() => removePlan(p.id)} className="flex h-7 w-7 items-center justify-center rounded-lg text-rose-600 transition-colors hover:bg-rose-50" title={t('common.delete', 'حذف')}><Trash2 className="h-3.5 w-3.5" /></button>
                     </>
                   )}
                 </div>
@@ -3174,7 +3178,7 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
               <p className="mt-2 text-sm leading-relaxed text-gray-500">{p.description}</p>
               <div className="mt-4">
                 <div className="mb-1 flex items-center justify-between text-xs">
-                  <span className="text-gray-500">التقدم</span>
+                  <span className="text-gray-500">{t('admin.plans.progressLabel', 'التقدم')}</span>
                   <span className="font-bold text-navy-900">{p.progress}%</span>
                 </div>
                 <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
@@ -3187,7 +3191,7 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
               </div>
               {p.pdfUrl && (
                 <a href={p.pdfUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-navy-50 px-3 py-1.5 text-xs font-bold text-navy-700 transition-colors hover:bg-navy-100">
-                  <FileText className="h-3.5 w-3.5" /> معاينة/تحميل ملف PDF التصور
+                  <FileText className="h-3.5 w-3.5" /> {t('admin.plans.previewPdf', 'معاينة/تحميل ملف PDF التصور')}
                 </a>
               )}
             </div>
@@ -3198,18 +3202,18 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
 
       <div>
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="flex items-center gap-2 text-lg font-bold text-navy-900"><FileText className="h-5 w-5 text-navy-600" /> التقارير</h3>
-          <button onClick={openAddReport} className="btn-primary"><Plus className="h-4 w-4" /> تقرير جديد</button>
+          <h3 className="flex items-center gap-2 text-lg font-bold text-navy-900"><FileText className="h-5 w-5 text-navy-600" /> {t('admin.plans.reportsTitle', 'التقارير')}</h3>
+          <button onClick={openAddReport} className="btn-primary"><Plus className="h-4 w-4" /> {t('admin.plans.addReport', 'تقرير جديد')}</button>
         </div>
         {visibleReports.length === 0 ? (
-          <div className="card p-8 text-center text-sm text-gray-400">لا توجد تقارير متاحة لعرضها حالياً.</div>
+          <div className="card p-8 text-center text-sm text-gray-400">{t('admin.plans.emptyReports', 'لا توجد تقارير متاحة لعرضها حالياً.')}</div>
         ) : (
         <div className="grid gap-4 md:grid-cols-3">
           {visibleReports.map((r) => (
             <div key={r.id} className="card flex flex-col p-5 transition-all hover:shadow-md">
               <div className="flex items-center gap-2">
                 <span className="rounded-full bg-navy-50 px-2.5 py-0.5 text-xs font-bold text-navy-700">{r.type}</span>
-                {r.isGeneral && <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700">عام</span>}
+                {r.isGeneral && <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700">{t('admin.plans.generalBadge', 'عام')}</span>}
                 {r.committee && !r.isGeneral && <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${COMMITTEE_BADGE_CLS[r.committee]}`}>{COMMITTEE_LABELS[r.committee]}</span>}
               </div>
               <h4 className="mt-3 text-base font-bold text-navy-900">{r.title}</h4>
@@ -3217,11 +3221,11 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
               <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-3">
                 <span className="text-xs text-gray-400">{r.date}</span>
                 <div className="flex items-center gap-1">
-                  <button onClick={() => setViewReport(r)} className="inline-flex items-center gap-1 text-xs font-bold text-navy-700 hover:text-navy-900">عرض التقرير <ChevronLeft className="h-3.5 w-3.5" /></button>
+                  <button onClick={() => setViewReport(r)} className="inline-flex items-center gap-1 text-xs font-bold text-navy-700 hover:text-navy-900">{t('admin.plans.viewReportBtn', 'عرض التقرير')} <ChevronLeft className="h-3.5 w-3.5" /></button>
                   {canModifyReport(r) && (
                     <>
-                      <button onClick={() => openEditReport(r)} className="flex h-7 w-7 items-center justify-center rounded-lg text-navy-600 transition-colors hover:bg-navy-50" title="تعديل"><Edit3 className="h-3.5 w-3.5" /></button>
-                      <button onClick={() => removeReport(r.id)} className="flex h-7 w-7 items-center justify-center rounded-lg text-rose-600 transition-colors hover:bg-rose-50" title="حذف"><Trash2 className="h-3.5 w-3.5" /></button>
+                      <button onClick={() => openEditReport(r)} className="flex h-7 w-7 items-center justify-center rounded-lg text-navy-600 transition-colors hover:bg-navy-50" title={t('common.edit', 'تعديل')}><Edit3 className="h-3.5 w-3.5" /></button>
+                      <button onClick={() => removeReport(r.id)} className="flex h-7 w-7 items-center justify-center rounded-lg text-rose-600 transition-colors hover:bg-rose-50" title={t('common.delete', 'حذف')}><Trash2 className="h-3.5 w-3.5" /></button>
                     </>
                   )}
                 </div>
@@ -3233,60 +3237,60 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
       </div>
 
       {/* Plan Modal */}
-      <Modal open={planModal} onClose={() => setPlanModal(false)} title={editPlanId ? 'تعديل الخطة' : 'إضافة خطة إدارية'} maxWidth="max-w-lg">
+      <Modal open={planModal} onClose={() => setPlanModal(false)} title={editPlanId ? t('admin.plans.planModal.editTitle', 'تعديل الخطة') : t('admin.plans.planModal.addTitle', 'إضافة خطة إدارية')} maxWidth="max-w-lg">
         <form onSubmit={savePlan} className="space-y-4">
           <div>
-            <label className="label-field">عنوان الخطة <RequiredMark /></label>
+            <label className="label-field">{t('admin.plans.planModal.titleLabel', 'عنوان الخطة')} <RequiredMark /></label>
             <input id={fieldId('title')} type="text" value={planForm.title} onChange={(e) => { setPlanForm({ ...planForm, title: e.target.value }); clearInvalid(setInvalid, 'title'); }} className={`${isInvalid(invalid, 'title') ? 'input-field-error' : 'input-field'}`} />
           </div>
           <div>
-            <label className="label-field">اللجنة / المكتب التابع <RequiredMark /></label>
+            <label className="label-field">{t('admin.plans.planModal.committeeLabel', 'اللجنة / المكتب التابع')} <RequiredMark /></label>
             <select id={fieldId('committee')} value={planForm.committee} onChange={(e) => { setPlanForm({ ...planForm, committee: e.target.value as CommitteeId }); clearInvalid(setInvalid, 'committee'); }} className={`${isInvalid(invalid, 'committee') ? 'input-field-error' : 'input-field'}`} disabled={!isPresident}>
               {Object.entries(COMMITTEE_LABELS).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
             </select>
           </div>
           <div>
-            <label className="label-field">الوصف التفصيلي <RequiredMark /></label>
+            <label className="label-field">{t('admin.plans.planModal.descriptionLabel', 'الوصف التفصيلي')} <RequiredMark /></label>
             <textarea id={fieldId('description')} rows={3} value={planForm.description} onChange={(e) => { setPlanForm({ ...planForm, description: e.target.value }); clearInvalid(setInvalid, 'description'); }} className={`${isInvalid(invalid, 'description') ? 'input-field-error' : 'input-field'} resize-none`} />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="label-field">الحالة <RequiredMark /></label>
+              <label className="label-field">{t('admin.plans.planModal.statusLabel', 'الحالة')} <RequiredMark /></label>
               <select id={fieldId('status')} value={planForm.status} onChange={(e) => { setPlanForm({ ...planForm, status: e.target.value as 'planned' | 'in-progress' | 'completed' }); clearInvalid(setInvalid, 'status'); }} className={`${isInvalid(invalid, 'status') ? 'input-field-error' : 'input-field'}`}>
-                <option value="planned">مخطط</option>
-                <option value="in-progress">قيد التنفيذ</option>
-                <option value="completed">مكتمل</option>
+                <option value="planned">{t('admin.plans.statuses.planned', 'مخطط')}</option>
+                <option value="in-progress">{t('admin.plans.statuses.inProgress', 'قيد التنفيذ')}</option>
+                <option value="completed">{t('admin.plans.statuses.completed', 'مكتمل')}</option>
               </select>
             </div>
             <div>
-              <label className="label-field">نسبة التقدم: {planForm.progress}% <RequiredMark /></label>
+              <label className="label-field">{t('admin.plans.planModal.progressRatioLabel', { progress: planForm.progress, defaultValue: `نسبة التقدم: ${planForm.progress}%` })} <RequiredMark /></label>
               <input id={fieldId('progress')} type="range" min={0} max={100} value={planForm.progress} onChange={(e) => { setPlanForm({ ...planForm, progress: Number(e.target.value) }); clearInvalid(setInvalid, 'progress'); }} className="w-full accent-navy-700" />
             </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="label-field">الفترة الزمنية <RequiredMark /></label>
+              <label className="label-field">{t('admin.plans.planModal.quarterLabel', 'الفترة الزمنية')} <RequiredMark /></label>
               <select id={fieldId('quarter')} value={planForm.quarter} onChange={(e) => { setPlanForm({ ...planForm, quarter: e.target.value }); clearInvalid(setInvalid, 'quarter'); }} className={`${isInvalid(invalid, 'quarter') ? 'input-field-error' : 'input-field'}`}>
-                <option value="">اختر من القائمة...</option>
-                <option>الربع الأول 2026</option>
-                <option>الربع الثاني 2026</option>
-                <option>الربع الثالث 2026</option>
-                <option>الربع الرابع 2026</option>
-                <option>السنة 2026</option>
-                <option>الربع الأول 2027</option>
+                <option value="">{t('common.selectFromList', 'اختر من القائمة...')}</option>
+                <option>{t('admin.plans.planModal.quarters.q1_2026', 'الربع الأول 2026')}</option>
+                <option>{t('admin.plans.planModal.quarters.q2_2026', 'الربع الثاني 2026')}</option>
+                <option>{t('admin.plans.planModal.quarters.q3_2026', 'الربع الثالث 2026')}</option>
+                <option>{t('admin.plans.planModal.quarters.q4_2026', 'الربع الرابع 2026')}</option>
+                <option>{t('admin.plans.planModal.quarters.year_2026', 'السنة 2026')}</option>
+                <option>{t('admin.plans.planModal.quarters.q1_2027', 'الربع الأول 2027')}</option>
               </select>
             </div>
             <div>
-              <label className="label-field">المسؤول <RequiredMark /></label>
+              <label className="label-field">{t('admin.plans.planModal.ownerLabel', 'المسؤول')} <RequiredMark /></label>
               <input id={fieldId('owner')} type="text" value={planForm.owner} onChange={(e) => { setPlanForm({ ...planForm, owner: e.target.value }); clearInvalid(setInvalid, 'owner'); }} className={`${isInvalid(invalid, 'owner') ? 'input-field-error' : 'input-field'}`} />
             </div>
           </div>
           <ManagedFileField
             usage="plan-document"
-            label="ملف تصور الخطة"
+            label={t('admin.plans.planModal.documentLabel', 'ملف تصور الخطة')}
             currentUrl={planForm.pdfUrl}
             required
-            error={isInvalid(invalid, 'pdfUrl') ? 'يرجى رفع ملف الخطة قبل الحفظ.' : null}
+            error={isInvalid(invalid, 'pdfUrl') ? t('admin.plans.planModal.documentError', 'يرجى رفع ملف الخطة قبل الحفظ.') : null}
             onUpload={(file, onProgress) => uploadManagedFile('plan-document', file, onProgress)}
             onUploaded={(asset) => {
               setPlanForm((current) => ({ ...current, pdfUrl: asset.publicUrl }));
@@ -3294,30 +3298,30 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
             }}
           />
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setPlanModal(false)} className="btn-ghost">إلغاء</button>
-            <button type="submit" className="btn-primary"><CheckCircle2 className="h-4 w-4" /> {editPlanId ? 'حفظ التعديلات' : 'إضافة'}</button>
+            <button type="button" onClick={() => setPlanModal(false)} className="btn-ghost">{t('common.cancel', 'إلغاء')}</button>
+            <button type="submit" className="btn-primary"><CheckCircle2 className="h-4 w-4" /> {editPlanId ? t('admin.plans.planModal.saveChanges', 'حفظ التعديلات') : t('admin.plans.planModal.add', 'إضافة')}</button>
           </div>
         </form>
       </Modal>
 
       {/* Report Modal */}
-      <Modal open={reportModal} onClose={() => setReportModal(false)} title={editReportId ? 'تعديل التقرير' : 'إضافة تقرير'} maxWidth="max-w-lg">
+      <Modal open={reportModal} onClose={() => setReportModal(false)} title={editReportId ? t('admin.plans.reportModal.editTitle', 'تعديل التقرير') : t('admin.plans.reportModal.addTitle', 'إضافة تقرير')} maxWidth="max-w-lg">
         <form onSubmit={saveReport} className="space-y-4">
           <div>
-            <label className="label-field">عنوان التقرير <RequiredMark /></label>
+            <label className="label-field">{t('admin.plans.reportModal.titleLabel', 'عنوان التقرير')} <RequiredMark /></label>
             <input id={fieldId('title')} type="text" value={reportForm.title} onChange={(e) => { setReportForm({ ...reportForm, title: e.target.value }); clearInvalid(setInvalid, 'title'); }} className={`${isInvalid(invalid, 'title') ? 'input-field-error' : 'input-field'}`} />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="label-field">نوع التقرير <RequiredMark /></label>
+              <label className="label-field">{t('admin.plans.reportModal.typeLabel', 'نوع التقرير')} <RequiredMark /></label>
               <select id={fieldId('type')} value={reportForm.type} onChange={(e) => { setReportForm({ ...reportForm, type: e.target.value }); clearInvalid(setInvalid, 'type'); }} className={`${isInvalid(invalid, 'type') ? 'input-field-error' : 'input-field'}`}>
-                <option>تقرير سنوي</option>
-                <option>تقرير ربع سنوي</option>
-                <option>تقرير لجنة</option>
+                <option>{t('admin.plans.reportModal.reportTypes.annual', 'تقرير سنوي')}</option>
+                <option>{t('admin.plans.reportModal.reportTypes.quarterly', 'تقرير ربع سنوي')}</option>
+                <option>{t('admin.plans.reportModal.reportTypes.committee', 'تقرير لجنة')}</option>
               </select>
             </div>
             <div>
-              <label className="label-field">اللجنة التابعة <RequiredMark /></label>
+              <label className="label-field">{t('admin.plans.reportModal.committeeLabel', 'اللجنة التابعة')} <RequiredMark /></label>
               <select id={fieldId('committee')} value={reportForm.committee} onChange={(e) => { setReportForm({ ...reportForm, committee: e.target.value as CommitteeId }); clearInvalid(setInvalid, 'committee'); }} className={`${isInvalid(invalid, 'committee') ? 'input-field-error' : 'input-field'}`} disabled={!isPresident}>
                 {Object.entries(COMMITTEE_LABELS).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
               </select>
@@ -3325,24 +3329,24 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="label-field">تاريخ الصدور <RequiredMark /></label>
+              <label className="label-field">{t('admin.plans.reportModal.dateLabel', 'تاريخ الصدور')} <RequiredMark /></label>
               <input id={fieldId('date')} type="date" value={reportForm.date} onChange={(e) => { setReportForm({ ...reportForm, date: e.target.value }); clearInvalid(setInvalid, 'date'); }} className={`${isInvalid(invalid, 'date') ? 'input-field-error' : 'input-field'}`} />
             </div>
             <div>
-              <label className="label-field">الفترة <RequiredMark /></label>
-              <input id={fieldId('period')} type="text" value={reportForm.period} onChange={(e) => { setReportForm({ ...reportForm, period: e.target.value }); clearInvalid(setInvalid, 'period'); }} className={`${isInvalid(invalid, 'period') ? 'input-field-error' : 'input-field'}`} placeholder="مثال: سنوي / ربع سنوي" />
+              <label className="label-field">{t('admin.plans.reportModal.periodLabel', 'الفترة')} <RequiredMark /></label>
+              <input id={fieldId('period')} type="text" value={reportForm.period} onChange={(e) => { setReportForm({ ...reportForm, period: e.target.value }); clearInvalid(setInvalid, 'period'); }} className={`${isInvalid(invalid, 'period') ? 'input-field-error' : 'input-field'}`} placeholder={t('admin.plans.reportModal.periodPlaceholder', 'مثال: سنوي / ربع سنوي')} />
             </div>
           </div>
           <div>
-            <label className="label-field">ملخص التقرير <RequiredMark /></label>
+            <label className="label-field">{t('admin.plans.reportModal.summaryLabel', 'ملخص التقرير')} <RequiredMark /></label>
             <textarea id={fieldId('summary')} rows={3} value={reportForm.summary} onChange={(e) => { setReportForm({ ...reportForm, summary: e.target.value }); clearInvalid(setInvalid, 'summary'); }} className={`${isInvalid(invalid, 'summary') ? 'input-field-error' : 'input-field'} resize-none`} />
           </div>
           <ManagedFileField
             usage="report-document"
-            label="ملف التقرير الكامل"
+            label={t('admin.plans.reportModal.documentLabel', 'ملف التقرير الكامل')}
             currentUrl={reportForm.pdfUrl}
             required
-            error={isInvalid(invalid, 'pdfUrl') ? 'يرجى رفع ملف التقرير قبل الحفظ.' : null}
+            error={isInvalid(invalid, 'pdfUrl') ? t('admin.plans.reportModal.documentError', 'يرجى رفع ملف التقرير قبل الحفظ.') : null}
             onUpload={(file, onProgress) => uploadManagedFile('report-document', file, onProgress)}
             onUploaded={(asset) => {
               setReportForm((current) => ({ ...current, pdfUrl: asset.publicUrl }));
@@ -3351,37 +3355,37 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
           />
           <label className="flex items-center gap-2 text-sm text-gray-600">
             <input type="checkbox" checked={reportForm.isGeneral} onChange={(e) => setReportForm({ ...reportForm, isGeneral: e.target.checked })} className="h-4 w-4 accent-navy-700" />
-            تقرير عام (متاح لجميع اللجان)
+            {t('admin.plans.reportModal.generalReportLabel', 'تقرير عام (متاح لجميع اللجان)')}
           </label>
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setReportModal(false)} className="btn-ghost">إلغاء</button>
-            <button type="submit" className="btn-primary"><CheckCircle2 className="h-4 w-4" /> {editReportId ? 'حفظ التعديلات' : 'إضافة'}</button>
+            <button type="button" onClick={() => setReportModal(false)} className="btn-ghost">{t('common.cancel', 'إلغاء')}</button>
+            <button type="submit" className="btn-primary"><CheckCircle2 className="h-4 w-4" /> {editReportId ? t('admin.plans.reportModal.saveChanges', 'حفظ التعديلات') : t('admin.plans.reportModal.add', 'إضافة')}</button>
           </div>
         </form>
       </Modal>
 
       {/* View Report Modal */}
-      <Modal open={!!viewReport} onClose={() => setViewReport(null)} title="استعراض التقرير" maxWidth="max-w-xl">
+      <Modal open={!!viewReport} onClose={() => setViewReport(null)} title={t('admin.plans.viewModal.modalTitle', 'استعراض التقرير')} maxWidth="max-w-xl">
         {viewReport && (
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full bg-navy-50 px-2.5 py-0.5 text-xs font-bold text-navy-700">{viewReport.type}</span>
-              {viewReport.isGeneral && <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700">عام</span>}
+              {viewReport.isGeneral && <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700">{t('admin.plans.generalBadge', 'عام')}</span>}
               {viewReport.committee && !viewReport.isGeneral && <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${COMMITTEE_BADGE_CLS[viewReport.committee]}`}>{COMMITTEE_LABELS[viewReport.committee]}</span>}
               <span className="text-xs text-gray-400">{viewReport.date}</span>
             </div>
             <h4 className="text-lg font-bold text-navy-900">{viewReport.title}</h4>
             <div className="rounded-xl bg-gray-50 p-4">
-              <div className="mb-2 text-xs font-bold text-gray-400">الملخص التنفيذي</div>
+              <div className="mb-2 text-xs font-bold text-gray-400">{t('admin.plans.viewModal.executiveSummaryTitle', 'الملخص التنفيذي')}</div>
               <p className="text-sm leading-relaxed text-gray-600">{viewReport.summary}</p>
             </div>
             {viewReport.pdfUrl ? (
               <a href={viewReport.pdfUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-lg bg-navy-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-navy-700">
-                <Download className="h-4 w-4" /> معاينة / تحميل التقرير PDF
+                <Download className="h-4 w-4" /> {t('admin.plans.viewModal.downloadPdf', 'معاينة / تحميل التقرير PDF')}
               </a>
             ) : (
               <div className="flex items-center gap-2 rounded-lg bg-gray-50 px-4 py-2.5 text-sm text-gray-400">
-                <FileText className="h-4 w-4" /> لا يوجد ملف PDF مرفق لهذا التقرير.
+                <FileText className="h-4 w-4" /> {t('admin.plans.viewModal.noPdfAttached', 'لا يوجد ملف PDF مرفق لهذا التقرير.')}
               </div>
             )}
           </div>
