@@ -14,6 +14,7 @@ import LanguageSwitcher from './LanguageSwitcher';
 import { canExposeAdminUi } from '../domain/liveIdentityRouting';
 import { resolvePublicBrandName } from '../domain/publicBrand';
 import { splitNavLabel } from '../domain/navLabel';
+import { getExecutiveSectionLabel } from '../domain/executivePresentation';
 
 const committeeIcons: Record<CommitteeId, typeof Crown> = {
   presidency: Crown,
@@ -102,7 +103,8 @@ export default function Navbar() {
     if (role === 'PRESIDENT') return t('roles.unionPresident');
     if (role === 'VICE_PRESIDENT') return t('roles.vicePresident');
     if (committee && committeeMeta[committee]) {
-      return t('roles.committeeOfficer', { committee: committeeMeta[committee].shortName });
+      const localizedShortName = getExecutiveSectionLabel(committee, t, 'short') || committeeMeta[committee].shortName;
+      return t('roles.committeeOfficer', { committee: localizedShortName });
     }
     return t('roles.member');
   };
@@ -206,7 +208,7 @@ export default function Navbar() {
                       className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-start text-sm font-medium text-gray-700 transition-colors hover:bg-navy-50 hover:text-navy-800"
                     >
                       <Icon className="h-4 w-4 text-navy-500 shrink-0" />
-                      {c?.name || committeeMeta[id].name}
+                      {getExecutiveSectionLabel(id, t) || c?.name || committeeMeta[id].name}
                     </button>
                   );
                 })}

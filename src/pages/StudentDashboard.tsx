@@ -16,6 +16,8 @@ import StudentGamificationPanel from '../components/StudentGamificationPanel';
 import { SidebarLayout } from '../components/SidebarLayout';
 import { studentPortalTabs, type StudentPortalTabId } from '../domain/phaseThreeEconomy';
 import { resolvePublicBrandName } from '../domain/publicBrand';
+import { getAcademicYearPresentation } from '../domain/academicYearPresentation';
+import { getExecutiveSectionLabel, getExecutiveRoleLabel } from '../domain/executivePresentation';
 
 const STUDENT_TAB_ICONS = {
   activities: CalendarDays,
@@ -263,7 +265,7 @@ export default function StudentDashboard() {
                     { icon: Mail, label: t('student.profileEmail', 'البريد'), value: currentStudent.email, ltr: true },
                     { icon: Building2, label: t('student.profileUniversity', 'الجامعة'), value: currentStudent.university },
                     { icon: GraduationCap, label: t('student.profileMajor', 'التخصص'), value: currentStudent.major },
-                    { icon: UserCircle, label: t('student.profileYear', 'السنة'), value: currentStudent.year },
+                    { icon: UserCircle, label: t('student.profileYear', 'السنة'), value: getAcademicYearPresentation(currentStudent.year, t) },
                   ].map((r) => {
                     const Icon = r.icon;
                     return (
@@ -333,7 +335,7 @@ export default function StudentDashboard() {
                     <option value="">{t('common.selectFromList', 'اختر من القائمة...')}</option>
                     {SUGGESTION_TARGETS.map((tRole) => (
                       <option key={tRole.role} value={tRole.role}>
-                        {roleLabels[tRole.role] || tRole.label}
+                        {getExecutiveSectionLabel(tRole.role, t) || roleLabels[tRole.role] || tRole.label}
                       </option>
                     ))}
                   </select>
@@ -389,7 +391,7 @@ export default function StudentDashboard() {
                     <div key={s.id} className="card p-5">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="rounded-full bg-gold-50 px-2.5 py-0.5 text-xs font-bold text-gold-700">{t('student.suggestions.directedTo', 'موجّه إلى: ')}{roleLabels[s.targetRole] || SUGGESTION_TARGET_LABEL[s.targetRole]}</span>
+                          <span className="rounded-full bg-gold-50 px-2.5 py-0.5 text-xs font-bold text-gold-700">{t('student.suggestions.directedTo', 'موجّه إلى: ')}{getExecutiveSectionLabel(s.targetRole, t) || roleLabels[s.targetRole] || SUGGESTION_TARGET_LABEL[s.targetRole]}</span>
                           <span className="rounded-full bg-navy-50 px-2.5 py-0.5 text-xs font-bold text-navy-700">{s.category}</span>
                           <h4 className="text-sm font-bold text-navy-900">{s.title}</h4>
                         </div>
@@ -404,7 +406,7 @@ export default function StudentDashboard() {
                               <div className="mb-2 flex items-center justify-between text-xs font-bold text-navy-700">
                                 <span className="flex items-center gap-2">
                                   <MessageSquareReply className="h-4 w-4" />
-                                  {t('student.suggestions.replyFrom', 'رد: ')}{r.by} ({roleLabels[r.byRole] || r.byRole})
+                                  {t('student.suggestions.replyFrom', 'رد: ')}{r.by} ({getExecutiveRoleLabel(r.byRole, t) || roleLabels[r.byRole] || r.byRole})
                                 </span>
                                 <span className="text-gray-400">{r.at}</span>
                               </div>
@@ -672,7 +674,7 @@ function ApplicationDetails({ application, isAccepted }: { application: NonNulla
             { label: t('student.applicationDetails.email', 'البريد الإلكتروني'), value: application.email, ltr: true },
             { label: t('student.applicationDetails.university', 'الجامعة'), value: application.university },
             { label: t('student.applicationDetails.major', 'التخصص'), value: application.major },
-            { label: t('student.applicationDetails.academicYear', 'السنة الدراسية'), value: application.year },
+            { label: t('student.applicationDetails.academicYear', 'السنة الدراسية'), value: getAcademicYearPresentation(application.year, t) },
             { label: t('student.applicationDetails.appliedAt', 'تاريخ التقديم'), value: application.appliedAt },
             {
               label: t('student.stats.status', 'الحالة'),

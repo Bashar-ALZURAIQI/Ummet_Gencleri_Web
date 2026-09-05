@@ -32,6 +32,9 @@ import { buildRevocationConfirmation, getOfficeName, type ExecutiveRole } from '
 import { canAccessContactInbox, canRetryContactEmail } from '../domain/contactMessagingPolicy';
 import { canManageGuideSuggestions } from '../domain/guideSuggestionPolicy';
 import { getAcademicYearPresentation } from '../domain/academicYearPresentation';
+import { formatStatisticNumber, formatStatisticMonth } from '../domain/numberPresentation';
+import { getEventCategoryLabel } from '../domain/eventCategoryPresentation';
+import { getExecutiveRoleLabel, getExecutiveSectionLabel } from '../domain/executivePresentation';
 import type { ManagedAssetReference } from '../services/managedAssetService';
 import type {
   ApplicationEmailEventType,
@@ -203,6 +206,7 @@ function ContactInboxTab({ messages, loading, error, markRead, reply, retryEmail
   reply: ReturnType<typeof useApp>['replyToContactMessage'];
   retryEmail: ReturnType<typeof useApp>['retryContactReplyEmail'];
 }) {
+  const { t } = useTranslation();
   const [activeId, setActiveId] = useState<string | null>(messages[0]?.id ?? null);
   const [replyText, setReplyText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -229,13 +233,13 @@ function ContactInboxTab({ messages, loading, error, markRead, reply, retryEmail
     const result = await reply(active.id, replyText.trim());
     setBusy(false);
     if (!result.ok) {
-      setFeedback({ kind: 'error', text: result.error ?? 'تعذر حفظ الرد.' });
+      setFeedback({ kind: 'error', text: result.error ?? t('admin.inbox.feedback.saveFailed', 'تعذر حفظ الرد.') });
       return;
     }
     setReplyText('');
     setFeedback(result.emailWarning
       ? { kind: 'warning', text: result.emailWarning }
-      : { kind: 'ok', text: 'تم حفظ الرد وإرساله بنجاح.' });
+      : { kind: 'ok', text: t('admin.inbox.feedback.saveSuccess', 'تم حفظ الرد وإرساله بنجاح.') });
   };
 
   const retryDelivery = async () => {
@@ -245,19 +249,36 @@ function ContactInboxTab({ messages, loading, error, markRead, reply, retryEmail
     const result = await retryEmail(active.reply.id);
     setBusy(false);
     setFeedback(result.ok
-      ? { kind: 'ok', text: 'تم إرسال البريد وتحديث سجل التسليم.' }
-      : { kind: 'error', text: result.error ?? 'تعذر إعادة إرسال البريد.' });
+      ? { kind: 'ok', text: t('admin.inbox.feedback.resendSuccess', 'تم إرسال البريد وتحديث سجل التسليم.') }
+      : { kind: 'error', text: result.error ?? t('admin.inbox.feedback.resendFailed', 'تعذر إعادة إرسال البريد.') });
   };
 
-  const statusLabel = (status: string) => status === 'UNREAD' ? 'غير مقروءة' : status === 'READ' ? 'قيد الانتظار' : 'تم الرد';
-  const deliveryLabel = (status: string) => ({
-    NOT_REQUIRED: 'ظهر للطالب داخل البوابة', PENDING: 'بانتظار إرسال البريد', SENT: 'أُرسل بالبريد', FAILED: 'تعذر إرسال البريد',
-  }[status] ?? status);
+  const statusLabel = (status: string) => {
+    switch (status) {
+      case 'UNREAD':
+        return t('admin.inbox.status.unread', 'غير مقروءة');
+      case 'READ':
+        return t('admin.inbox.status.read', 'قيد الانتظار');
+      case 'REPLIED':
+        return t('admin.inbox.status.replied', 'تم الرد');
+      default:
+        return status;
+    }
+  };
+  const deliveryLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      NOT_REQUIRED: t('admin.inbox.delivery.notRequired', 'ظهر للطالب داخل البوابة'),
+      PENDING: t('admin.inbox.delivery.pending', 'بانتظار إرسال البريد'),
+      SENT: t('admin.inbox.delivery.sent', 'أُرسل بالبريد'),
+      FAILED: t('admin.inbox.delivery.failed', 'تعذر إرسال البريد'),
+    };
+    return labels[status] ?? status;
+  };
   const formatDate = (value: string) => new Intl.DateTimeFormat('ar', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 
-  if (loading) return <div className="card p-10 text-center text-sm text-gray-500">جاري تحميل البريد الوارد...</div>;
+  if (loading) return <div className="card p-10 text-center text-sm text-gray-500">{t('admin.inbox.loading', 'جاري تحميل البريد الوارد...')}</div>;
   if (error) return <div className="card border-red-200 bg-red-50 p-6 text-sm font-semibold text-red-700">{error}</div>;
-  if (!messages.length) return <div className="card p-10 text-center"><Inbox className="mx-auto h-10 w-10 text-gray-300" /><p className="mt-3 text-gray-500">لا توجد رسائل واردة بعد.</p></div>;
+  if (!messages.length) return <div className="card p-10 text-center"><Inbox className="mx-auto h-10 w-10 text-gray-300" /><p className="mt-3 text-gray-500">{t('admin.inbox.empty', 'لا توجد رسائل واردة بعد.')}</p></div>;
 
   return (
     <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
@@ -292,24 +313,24 @@ function ContactInboxTab({ messages, loading, error, markRead, reply, retryEmail
 
           {active.reply ? (
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
-              <div className="flex items-center gap-2 text-sm font-extrabold text-emerald-800"><CheckCircle2 className="h-5 w-5" /> تم الرد</div>
+              <div className="flex items-center gap-2 text-sm font-extrabold text-emerald-800"><CheckCircle2 className="h-5 w-5" /> {t('admin.inbox.repliedBadge', 'تم الرد')}</div>
               <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-gray-800">{active.reply.replyText}</p>
               <div className="mt-4 border-t border-emerald-200 pt-3 text-xs text-emerald-800">
-                ردّ بواسطة: <strong>{active.reply.repliedByName}</strong> ({ROLE_LABEL[active.reply.repliedByRole]}) · {formatDate(active.reply.repliedAt)}
-                <span className="mt-1 block">حالة التسليم: {deliveryLabel(active.reply.deliveryStatus)}</span>
+                {t('admin.inbox.repliedBy', 'ردّ بواسطة:')} <strong>{active.reply.repliedByName}</strong> ({ROLE_LABEL[active.reply.repliedByRole]}) · {formatDate(active.reply.repliedAt)}
+                <span className="mt-1 block">{t('admin.inbox.deliveryStatus', 'حالة التسليم:')} {deliveryLabel(active.reply.deliveryStatus)}</span>
                 {canRetryContactEmail(active.reply) && (
                   <button type="button" disabled={busy} onClick={() => { void retryDelivery(); }} className="mt-3 rounded-lg border border-emerald-300 bg-white px-3 py-1.5 font-bold text-emerald-800 disabled:opacity-50">
-                    <RefreshCw className={`ml-1 inline h-3.5 w-3.5 ${busy ? 'animate-spin' : ''}`} /> إعادة إرسال البريد
+                    <RefreshCw className={`ml-1 inline h-3.5 w-3.5 ${busy ? 'animate-spin' : ''}`} /> {t('admin.inbox.resendEmail', 'إعادة إرسال البريد')}
                   </button>
                 )}
               </div>
             </div>
           ) : (
             <form onSubmit={sendReply} className="space-y-3 rounded-2xl border border-gray-200 p-5">
-              <label className="label-field">الرد الإداري داخل الموقع</label>
-              <textarea rows={6} value={replyText} onChange={(e) => setReplyText(e.target.value)} className="input-field resize-none" placeholder="اكتب الرد الواضح للطالب أو الزائر..." />
+              <label className="label-field">{t('admin.inbox.form.label', 'الرد الإداري داخل الموقع')}</label>
+              <textarea rows={6} value={replyText} onChange={(e) => setReplyText(e.target.value)} className="input-field resize-none" placeholder={t('admin.inbox.form.placeholder', 'اكتب الرد الواضح للطالب أو الزائر...')} />
               <button type="submit" disabled={busy || replyText.trim().length < 2} className="btn-primary disabled:opacity-50">
-                <Send className="h-4 w-4" /> {busy ? 'جاري حفظ الرد...' : 'إرسال الرد'}
+                <Send className="h-4 w-4" /> {busy ? t('admin.inbox.form.submitting', 'جاري حفظ الرد...') : t('admin.inbox.form.submit', 'إرسال الرد')}
               </button>
             </form>
           )}
@@ -331,7 +352,8 @@ function StatsTab({ events, students, suggestions, contactMessages, applications
   respondToSuggestion: ReturnType<typeof useApp>['respondToSuggestion'];
   canRespondToSuggestion: ReturnType<typeof useApp>['canRespondToSuggestion'];
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language;
   const [replyOpen, setReplyOpen] = useState(false);
   const [activeSuggestion, setActiveSuggestion] = useState<Suggestion | null>(null);
   const [status, setStatus] = useState<SuggestionStatus>('reviewing');
@@ -351,23 +373,17 @@ function StatsTab({ events, students, suggestions, contactMessages, applications
     training: '#0ea5e9', trip: '#f43f5e', entertainment: '#8b5cf6', visit: '#ec4899',
   };
   const catData = (Object.keys(categoryLabels) as EventCategory[]).map((c) => ({
-    label: categoryLabels[c],
+    label: getEventCategoryLabel(c, t),
     value: events.filter((e) => e.category === c).length,
     color: catColors[c],
   })).filter((d) => d.value > 0);
 
   const monthlyData = useMemo(() => {
-    const months = [
-      { key: 0, label: 'ينا' }, { key: 1, label: 'فبر' }, { key: 2, label: 'مار' },
-      { key: 3, label: 'أبر' }, { key: 4, label: 'ماي' }, { key: 5, label: 'يون' },
-      { key: 6, label: 'يول' }, { key: 7, label: 'أغس' }, { key: 8, label: 'سبت' },
-      { key: 9, label: 'أكت' }, { key: 10, label: 'نوف' }, { key: 11, label: 'ديس' },
-    ];
     const now = new Date();
     const curMonth = now.getMonth();
     const last6 = [4, 5, 6, 7, 8, 9].map((back) => (curMonth - back + 12) % 12);
     return last6.reverse().map((m) => {
-      const monthLabel = months[m].label;
+      const monthLabel = formatStatisticMonth(m, locale);
       const joiners = students.filter((s) => {
         const d = new Date(s.joinedAt);
         return d.getMonth() === m && d.getFullYear() === now.getFullYear();
@@ -377,7 +393,7 @@ function StatsTab({ events, students, suggestions, contactMessages, applications
         .reduce((sum, e) => sum + e.registered, 0);
       return { label: monthLabel, value: joiners + registrants };
     });
-  }, [students, events]);
+  }, [students, events, locale]);
 
   const openSuggestion = (s: Suggestion) => {
     setActiveSuggestion(s);
@@ -469,7 +485,7 @@ function StatsTab({ events, students, suggestions, contactMessages, applications
                 </div>
                 <ChevronLeft className="h-5 w-5 text-gray-300" />
               </div>
-              <div className="mt-4 text-3xl font-extrabold text-navy-900">{k.value.toLocaleString('ar-EG')}</div>
+              <div className="mt-4 text-3xl font-extrabold text-navy-900">{formatStatisticNumber(k.value, locale)}</div>
               <div className="text-sm text-gray-500">{k.label}</div>
             </div>
           );
@@ -505,7 +521,7 @@ function StatsTab({ events, students, suggestions, contactMessages, applications
           </h3>
           <BarChart
             data={(Object.keys(categoryLabels) as EventCategory[]).map((c) => ({
-              label: categoryLabels[c],
+              label: getEventCategoryLabel(c, t),
               value: events.filter((e) => e.category === c).reduce((s, e) => s + e.registered, 0),
               color: catColors[c],
             }))}
@@ -597,6 +613,7 @@ function SuggestionsTab({ suggestions, currentUser, respondToSuggestion, canResp
   respondToSuggestion: ReturnType<typeof useApp>['respondToSuggestion'];
   canRespondToSuggestion: ReturnType<typeof useApp>['canRespondToSuggestion'];
 }) {
+  const { t } = useTranslation();
   const [activeSuggestion, setActiveSuggestion] = useState<Suggestion | null>(null);
   const [replyOpen, setReplyOpen] = useState(false);
   const [status, setStatus] = useState<SuggestionStatus>('reviewing');
@@ -609,11 +626,11 @@ function SuggestionsTab({ suggestions, currentUser, respondToSuggestion, canResp
   const filtered = statusFilter === 'all' ? suggestions : suggestions.filter((s) => s.status === statusFilter);
 
   const statusFilters: { id: 'all' | SuggestionStatus; label: string }[] = [
-    { id: 'all', label: 'الكل' },
-    { id: 'new', label: 'جديد' },
-    { id: 'reviewing', label: 'قيد المراجعة' },
-    { id: 'implemented', label: 'تم الإجراء' },
-    { id: 'closed', label: 'مغلق' },
+    { id: 'all', label: t('common.all', 'الكل') },
+    { id: 'new', label: t('admin.suggestions.status.new', 'جديد') },
+    { id: 'reviewing', label: t('admin.suggestions.status.reviewing', 'قيد المراجعة') },
+    { id: 'implemented', label: t('admin.suggestions.status.implemented', 'تم الإجراء') },
+    { id: 'closed', label: t('admin.suggestions.status.closed', 'مغلق') },
   ];
 
   const openSuggestion = (s: Suggestion) => {
@@ -641,13 +658,13 @@ function SuggestionsTab({ suggestions, currentUser, respondToSuggestion, canResp
         <div>
           <h3 className="flex items-center gap-2 text-base font-bold text-navy-900">
             <Lightbulb className="h-5 w-5 text-gold-500" />
-            الاقتراحات والشكاوى
+            {t('admin.suggestions.title', 'الاقتراحات والشكاوى')}
             <span className="rounded-full bg-navy-50 px-2.5 py-0.5 text-xs font-bold text-navy-700">{suggestions.length}</span>
           </h3>
           <p className="mt-1 text-sm text-gray-500">
             {isPresident
-              ? 'تظهر لك جميع الاقتراحات الموجهة لجميع الجهات مع شارة الوجهة.'
-              : `تظهر لك الاقتراحات الموجهة إلى ${SUGGESTION_TARGET_LABEL[currentUser.role as SuggestionTargetRole]} فقط.`}
+              ? t('admin.suggestions.subtitlePresident', 'تظهر لك جميع الاقتراحات الموجهة لجميع الجهات مع شارة الوجهة.')
+              : t('admin.suggestions.subtitleTargeted', 'تظهر لك الاقتراحات الموجهة إلى {{target}} فقط.', { target: getExecutiveSectionLabel(currentUser.role, t) || SUGGESTION_TARGET_LABEL[currentUser.role as SuggestionTargetRole] })}
           </p>
         </div>
       </div>
@@ -669,9 +686,11 @@ function SuggestionsTab({ suggestions, currentUser, respondToSuggestion, canResp
       {filtered.length === 0 ? (
         <div className="card flex flex-col items-center justify-center py-16 text-center">
           <MessageCircle className="h-12 w-12 text-gray-300" />
-          <p className="mt-3 text-sm font-bold text-navy-900">لا توجد اقتراحات هنا</p>
+          <p className="mt-3 text-sm font-bold text-navy-900">{t('admin.suggestions.emptyTitle', 'لا توجد اقتراحات هنا')}</p>
           <p className="mt-1 text-sm text-gray-500">
-            {isPresident ? 'لم تصل أي اقتراحات حتى الآن.' : 'لم تصل اقتراحات موجهة إلى جهتك بعد.'}
+            {isPresident
+              ? t('admin.suggestions.emptySubtitlePresident', 'لم تصل أي اقتراحات حتى الآن.')
+              : t('admin.suggestions.emptySubtitleTargeted', 'لم تصل اقتراحات موجهة إلى جهتك بعد.')}
           </p>
         </div>
       ) : (
@@ -689,7 +708,7 @@ function SuggestionsTab({ suggestions, currentUser, respondToSuggestion, canResp
                     <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
                       s.targetRole === currentUser.role || isPresident ? 'bg-gold-50 text-gold-700' : 'bg-gray-100 text-gray-600'
                     }`}>
-                      موجّه إلى: {SUGGESTION_TARGET_LABEL[s.targetRole]}
+                      {t('admin.suggestions.targetedTo', 'موجّه إلى: {{target}}', { target: getExecutiveSectionLabel(s.targetRole, t) || SUGGESTION_TARGET_LABEL[s.targetRole] })}
                     </span>
                     <span className="rounded-full bg-navy-50 px-2.5 py-0.5 text-xs font-bold text-navy-700">{s.category}</span>
                     <h4 className="truncate text-sm font-bold text-navy-900">{s.title}</h4>
@@ -697,7 +716,7 @@ function SuggestionsTab({ suggestions, currentUser, respondToSuggestion, canResp
                   <div className="flex shrink-0 items-center gap-2">
                     {s.responses.length > 0 && (
                       <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
-                        <MessageSquareReply className="h-3 w-3" /> {s.responses.length} رد
+                        <MessageSquareReply className="h-3 w-3" /> {t('admin.suggestions.repliesCount', '{{count}} رد', { count: s.responses.length })}
                       </span>
                     )}
                     <StatusPill status={s.status} />
@@ -707,9 +726,9 @@ function SuggestionsTab({ suggestions, currentUser, respondToSuggestion, canResp
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-400">
                   <span>{s.studentName} · {s.createdAt}</span>
                   {canReply ? (
-                    <span className="font-bold text-navy-700">يمكنك الرد</span>
+                    <span className="font-bold text-navy-700">{t('admin.suggestions.canReply', 'يمكنك الرد')}</span>
                   ) : (
-                    <span className="font-bold text-rose-500">عرض فقط — غير موجه لجهتك</span>
+                    <span className="font-bold text-rose-500">{t('admin.suggestions.viewOnly', 'عرض فقط — غير موجه لجهتك')}</span>
                   )}
                 </div>
               </button>
@@ -736,7 +755,7 @@ function SuggestionsTab({ suggestions, currentUser, respondToSuggestion, canResp
       {toast && (
         <div className="fixed bottom-6 left-1/2 z-[200] -translate-x-1/2 animate-slide-up rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-2xl">
           <CheckCircle2 className="ml-2 inline h-4 w-4" />
-          تم إرسال الرد وتحديث حالة الاقتراح
+          {t('admin.suggestions.replyToast', 'تم إرسال الرد وتحديث حالة الاقتراح')}
         </div>
       )}
     </div>
@@ -744,15 +763,22 @@ function SuggestionsTab({ suggestions, currentUser, respondToSuggestion, canResp
 }
 
 function StatusPill({ status }: { status: SuggestionStatus }) {
+  const { t } = useTranslation();
   const map: Record<SuggestionStatus, string> = {
     new: 'bg-sky-100 text-sky-700',
     reviewing: 'bg-gold-100 text-gold-700',
     implemented: 'bg-emerald-100 text-emerald-700',
     closed: 'bg-slate-200 text-slate-700',
   };
+  const labelMap: Record<SuggestionStatus, string> = {
+    new: t('admin.suggestions.status.new', 'جديد'),
+    reviewing: t('admin.suggestions.status.reviewing', 'قيد المراجعة'),
+    implemented: t('admin.suggestions.status.implemented', 'تم الإجراء'),
+    closed: t('admin.suggestions.status.closed', 'مغلق'),
+  };
   return (
     <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold ${map[status] ?? map.new}`}>
-      {SUGGESTION_STATUS_LABEL[status]}
+      {labelMap[status] ?? SUGGESTION_STATUS_LABEL[status]}
     </span>
   );
 }
@@ -773,18 +799,19 @@ function SuggestionReplyModal({
   setInvalid: React.Dispatch<React.SetStateAction<string[]>>;
   onSubmit: (e: React.FormEvent) => void;
 }) {
+  const { t } = useTranslation();
   const statusOptions: { value: SuggestionStatus; label: string; color: string }[] = [
-    { value: 'reviewing', label: 'قيد المراجعة', color: 'bg-gold-100 text-gold-700 border-gold-300' },
-    { value: 'implemented', label: 'تم الإجراء', color: 'bg-emerald-100 text-emerald-700 border-emerald-300' },
-    { value: 'closed', label: 'مغلق', color: 'bg-rose-100 text-rose-700 border-rose-300' },
+    { value: 'reviewing', label: t('admin.suggestions.status.reviewing', 'قيد المراجعة'), color: 'bg-gold-100 text-gold-700 border-gold-300' },
+    { value: 'implemented', label: t('admin.suggestions.status.implemented', 'تم الإجراء'), color: 'bg-emerald-100 text-emerald-700 border-emerald-300' },
+    { value: 'closed', label: t('admin.suggestions.status.closed', 'مغلق'), color: 'bg-rose-100 text-rose-700 border-rose-300' },
   ];
   const isPresident = currentUser?.role === 'PRESIDENT';
   return (
-    <Modal open={open} onClose={onClose} title="تفاصيل الاقتراح والرد عليه" maxWidth="max-w-2xl">
+    <Modal open={open} onClose={onClose} title={t('admin.suggestions.modal.title', 'تفاصيل الاقتراح والرد عليه')} maxWidth="max-w-2xl">
       {!suggestion ? (
         <div className="py-10 text-center">
           <Inbox className="mx-auto h-10 w-10 text-gray-300" />
-          <p className="mt-3 text-sm text-gray-400">لا توجد اقتراحات حالية.</p>
+          <p className="mt-3 text-sm text-gray-400">{t('admin.suggestions.modal.empty', 'لا توجد اقتراحات حالية.')}</p>
         </div>
       ) : (
         <div className="space-y-5">
@@ -792,47 +819,55 @@ function SuggestionReplyModal({
             <div className="flex items-center gap-3">
               <UserAvatar name={suggestion.studentName} className="h-12 w-12" fallbackClassName="bg-navy-100 text-lg text-navy-700" />
               <div>
-                <div className="text-base font-bold text-navy-900">{suggestion.studentName ?? 'غير محدد'}</div>
+                <div className="text-base font-bold text-navy-900">{suggestion.studentName ?? t('common.unspecified', 'غير محدد')}</div>
                 <div className="text-xs text-gray-500">{suggestion.createdAt ?? '—'}</div>
               </div>
             </div>
             <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
               <div className="flex items-center gap-2 text-gray-600">
                 <Mail className="h-4 w-4 text-gray-400" />
-                <span dir="ltr">{suggestion.studentEmail ?? 'غير محدد'}</span>
+                <span dir="ltr">{suggestion.studentEmail ?? t('common.unspecified', 'غير محدد')}</span>
               </div>
               <div className="flex items-center gap-2 text-gray-600">
                 <GraduationCap className="h-4 w-4 text-gray-400" />
-                {suggestion.studentUniversity ?? 'غير محدد'}
+                {suggestion.studentUniversity ?? t('common.unspecified', 'غير محدد')}
               </div>
               <div className="flex items-center gap-2 text-gray-600">
                 <FileText className="h-4 w-4 text-gray-400" />
-                {suggestion.studentMajor ?? 'غير محدد'}
+                {suggestion.studentMajor ?? t('common.unspecified', 'غير محدد')}
               </div>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-gold-50 px-2.5 py-0.5 text-xs font-bold text-gold-700">موجّه إلى: {SUGGESTION_TARGET_LABEL[suggestion.targetRole]}</span>
-            <span className="rounded-full bg-navy-50 px-2.5 py-0.5 text-xs font-bold text-navy-700">{suggestion.category ?? 'عام'}</span>
+            <span className="rounded-full bg-gold-50 px-2.5 py-0.5 text-xs font-bold text-gold-700">
+              {t('admin.suggestions.targetedTo', 'موجّه إلى: {{target}}', { target: getExecutiveSectionLabel(suggestion.targetRole, t) || SUGGESTION_TARGET_LABEL[suggestion.targetRole] })}
+            </span>
+            <span className="rounded-full bg-navy-50 px-2.5 py-0.5 text-xs font-bold text-navy-700">
+              {suggestion.category ?? t('admin.suggestions.modal.generalCategory', 'عام')}
+            </span>
             <StatusPill status={suggestion.status} />
             {isPresident && suggestion.targetRole !== 'PRESIDENT' && (
-              <span className="rounded-full bg-sky-50 px-2.5 py-0.5 text-xs font-bold text-sky-700">إشراف رئيس الاتحاد</span>
+              <span className="rounded-full bg-sky-50 px-2.5 py-0.5 text-xs font-bold text-sky-700">
+                {t('admin.suggestions.modal.presidentSupervision', 'إشراف رئيس الاتحاد')}
+              </span>
             )}
           </div>
 
           <div>
-            <div className="mb-1 text-xs font-bold uppercase tracking-wider text-gray-400">عنوان الاقتراح</div>
-            <div className="text-sm font-bold text-navy-900">{suggestion.title ?? 'بدون عنوان'}</div>
+            <div className="mb-1 text-xs font-bold uppercase tracking-wider text-gray-400">{t('admin.suggestions.modal.suggestionTitle', 'عنوان الاقتراح')}</div>
+            <div className="text-sm font-bold text-navy-900">{suggestion.title ?? t('admin.suggestions.modal.untitled', 'بدون عنوان')}</div>
           </div>
           <div>
-            <div className="mb-1 text-xs font-bold uppercase tracking-wider text-gray-400">النص الكامل</div>
-            <p className="rounded-xl border border-gray-100 bg-white p-3 text-sm leading-relaxed text-gray-700">{suggestion.content ?? 'لا يوجد نص.'}</p>
+            <div className="mb-1 text-xs font-bold uppercase tracking-wider text-gray-400">{t('admin.suggestions.modal.fullText', 'النص الكامل')}</div>
+            <p className="rounded-xl border border-gray-100 bg-white p-3 text-sm leading-relaxed text-gray-700">{suggestion.content ?? t('admin.suggestions.modal.noContent', 'لا يوجد نص.')}</p>
           </div>
 
           {suggestion.responses.length > 0 && (
             <div>
-              <div className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-400">سجل الردود ({suggestion.responses.length})</div>
+              <div className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-400">
+                {t('admin.suggestions.modal.responsesLog', 'سجل الردود ({{count}})', { count: suggestion.responses.length })}
+              </div>
               <div className="space-y-3">
                 {suggestion.responses.map((r) => (
                   <div key={r.id} className="rounded-xl border border-navy-100 bg-navy-50 p-4">
@@ -852,20 +887,20 @@ function SuggestionReplyModal({
 
           {!canReply ? (
             <div className="rounded-xl border border-rose-100 bg-rose-50 p-4 text-sm font-bold text-rose-600">
-              هذا الاقتراح غير موجه إلى جهتك — يمكنك الاطلاع عليه دون حق الرد أو تغيير الحالة.
+              {t('admin.suggestions.modal.notTargetedNotice', 'هذا الاقتراح غير موجه إلى جهتك — يمكنك الاطلاع عليه دون حق الرد أو تغيير الحالة.')}
             </div>
           ) : suggestion.status === 'closed' ? (
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-slate-600">
-              هذا الاقتراح مغلق — لا يمكن الرد عليه أو تغيير حالته.
+              {t('admin.suggestions.modal.closedNotice', 'هذا الاقتراح مغلق — لا يمكن الرد عليه أو تغيير حالته.')}
             </div>
           ) : (
             <form onSubmit={onSubmit} className="space-y-4 border-t border-gray-100 pt-4">
               <div className="flex items-center gap-2 text-sm font-bold text-navy-800">
                 <MessageSquareReply className="h-4 w-4" />
-                الرد على الاقتراح وتحديث حالته
+                {t('admin.suggestions.modal.formTitle', 'الرد على الاقتراح وتحديث حالته')}
               </div>
               <div>
-                <label className="label-field">حالة الاقتراح</label>
+                <label className="label-field">{t('admin.suggestions.modal.statusLabel', 'حالة الاقتراح')}</label>
                 <div className="flex flex-wrap gap-2">
                   {statusOptions.map((opt) => (
                     <button
@@ -880,23 +915,23 @@ function SuggestionReplyModal({
                 </div>
               </div>
               <div>
-                <label className="label-field">نص الرد للطالب <RequiredMark /></label>
+                <label className="label-field">{t('admin.suggestions.modal.replyLabel', 'نص الرد للطالب')} <RequiredMark /></label>
                 <textarea
                   id={fieldId('replyText')}
                   rows={3}
                   value={replyText}
                   onChange={(e) => { setReplyText(e.target.value); clearInvalid(setInvalid, 'replyText'); }}
                   className={`${isInvalid(invalid, 'replyText') ? 'input-field-error' : 'input-field'} resize-none`}
-                  placeholder="اكتب ردك الموجه للطالب هنا..."
+                  placeholder={t('admin.suggestions.modal.replyPlaceholder', 'اكتب ردك الموجه للطالب هنا...')}
                 />
               </div>
               <div className="flex items-center justify-end gap-3 pt-1">
                 <button type="button" onClick={onClose} className="rounded-xl border border-gray-200 px-5 py-2.5 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-50">
-                  إلغاء
+                  {t('common.cancel', 'إلغاء')}
                 </button>
                 <button type="submit" className="btn-primary">
                   <Send className="h-4 w-4" />
-                  إرسال الرد وتحديث الحالة
+                  {t('admin.suggestions.modal.submitButton', 'إرسال الرد وتحديث الحالة')}
                 </button>
               </div>
             </form>
@@ -1121,7 +1156,7 @@ function BoardTab({ committees, setCommittees, students, currentUser, updateBoar
                 <UserAvatar name={c.head?.name} photo={c.head?.photo} avatarPath={c.head?.photo} updatedAt={c.head?.updatedAt} className="h-16 w-16" />
                 <div className="flex-1 space-y-2">
                   <input type="text" value={c.head?.name ?? ''} readOnly className="input-field bg-gray-100 font-bold text-gray-600" placeholder={t('admin.board.namePlaceholder', 'الاسم')} />
-                  <input type="text" value={c.head?.role ?? ''} readOnly className="input-field bg-gray-100 text-sm text-gray-500" placeholder={t('admin.board.positionPlaceholder', 'المسمى')} />
+                  <input type="text" value={c.head ? getExecutiveRoleLabel(c.head.role, t) : ''} readOnly className="input-field bg-gray-100 text-sm text-gray-500" placeholder={t('admin.board.positionPlaceholder', 'المسمى')} />
                 </div>
               </div>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -1289,7 +1324,7 @@ function BoardTab({ committees, setCommittees, students, currentUser, updateBoar
           </div>
           <div>
             <label className="label-field">{t('admin.board.headModal.positionLabel', 'المسمى الوظيفي')}</label>
-            <input id={fieldId('role')} readOnly className="input-field bg-gray-100 text-gray-500" value={headForm.role} />
+            <input id={fieldId('role')} readOnly className="input-field bg-gray-100 text-gray-500" value={getExecutiveRoleLabel(headForm.role, t) || headForm.role} />
           </div>
           <div>
             <label className="label-field">{t('admin.board.headModal.bioLabel', 'النبذة التعريفية')} <RequiredMark /></label>
@@ -2654,7 +2689,7 @@ function ApplicationsTab({
   };
 
   const formatAcademicYear = (rawYear: string | undefined | null) =>
-    getAcademicYearPresentation(rawYear, (k, fb) => (fb ? t(k, fb) : t(k)));
+    getAcademicYearPresentation(rawYear, t);
 
   // Minimum selectable interview date: today (local time, YYYY-MM-DD)
   const todayMin = (() => {

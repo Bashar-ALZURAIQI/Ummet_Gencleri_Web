@@ -15,9 +15,13 @@ export const ACADEMIC_YEAR_KEY_MAP: Record<string, string> = {
  * If an old or unknown historical value is encountered, it falls back to displaying
  * the raw value unchanged.
  */
+import type { TFunction } from 'i18next';
+
+export type TranslationFn = TFunction | ((key: string, fallback?: string) => string);
+
 export function getAcademicYearPresentation(
   rawYear: string | undefined | null,
-  t: (key: string, fallback?: string) => string,
+  t: TranslationFn,
 ): string {
   if (!rawYear) return '';
   const key = ACADEMIC_YEAR_KEY_MAP[rawYear];

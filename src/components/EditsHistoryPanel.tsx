@@ -4,11 +4,12 @@ import { useTranslation } from 'react-i18next';
 import { useApp } from '../context/AppContext';
 import { type EditHistoryDecision } from '../data/mockData';
 import { buildEditAuditViewModel } from '../domain/editAuditView';
+import { getExecutiveRoleLabel, getExecutiveSectionLabel } from '../domain/executivePresentation';
 import EditDiffTable from './EditDiffTable';
 
-const fmtDate = (iso: string) => {
+const fmtDate = (iso: string, locale = 'ar-EG') => {
   try {
-    return new Date(iso).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' });
+    return new Date(iso).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' });
   } catch {
     return iso;
   }
@@ -23,7 +24,7 @@ const decisionStyle: Record<FinalEditDecision, { chip: string; icon: typeof Chec
 };
 
 export default function EditsHistoryPanel() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const {
     editsHistory,
     currentUser,
@@ -45,6 +46,8 @@ export default function EditsHistoryPanel() {
     REJECTED: t('admin.history.decisions.rejected', 'تم الرفض 🔴'),
     EDITED_APPROVED: t('admin.history.decisions.editedApproved', 'تم التعديل والقبول ✏️🟢'),
   }), [t]);
+
+  const localeCode = i18n.language === 'tr' ? 'tr-TR' : i18n.language === 'en' ? 'en-US' : 'ar-EG';
 
   if (!currentUser || currentUser.role === 'STUDENT') return null;
 
@@ -126,9 +129,13 @@ export default function EditsHistoryPanel() {
                   </span>
                   <span className="flex items-center gap-1 rounded-full bg-navy-800 px-3 py-1 text-xs font-bold text-white">
                     {entry.type === 'profile' ? <Users className="h-3 w-3" /> : <FileText className="h-3 w-3" />}
-                    {entry.editType ?? ''}
+                    {entry.type === 'profile' || entry.editType === 'تعديل بيانات الهيئة'
+                      ? t('admin.history.editTypes.profile', 'تعديل بيانات الهيئة')
+                      : entry.type === 'site' || entry.editType === 'تعديل محتوى الموقع'
+                      ? t('admin.history.editTypes.site', 'تعديل محتوى الموقع')
+                      : (entry.editType ?? '')}
                   </span>
-                  <span className="mr-auto text-xs text-gray-400">{fmtDate(entry.decisionDate ?? '')}</span>
+                  <span className="mr-auto text-xs text-gray-400">{fmtDate(entry.decisionDate ?? '', localeCode)}</span>
                 </div>
 
                 {entry.decisionNote && entry.decision !== 'EDITED_APPROVED' && (
@@ -139,8 +146,8 @@ export default function EditsHistoryPanel() {
 
                 <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                   <span className="font-bold text-navy-900">{entry.applicantName ?? t('common.unspecified', 'غير محدد')}</span>
-                  <span className="text-xs text-gray-500">({entry.applicantRole ?? ''})</span>
-                  <span className="text-xs text-gray-400">— {entry.committee ?? ''}</span>
+                  <span className="text-xs text-gray-500">({getExecutiveRoleLabel(entry.applicantRole, t) || entry.applicantRole || ''})</span>
+                  <span className="text-xs text-gray-400">— {getExecutiveSectionLabel(entry.committee, t) || entry.committee || ''}</span>
                 </div>
 
                 <div className="mt-3">

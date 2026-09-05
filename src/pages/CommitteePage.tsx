@@ -20,6 +20,13 @@ import {
   resolveExecutiveContentEditState,
 } from '../domain/executiveEditWorkflow';
 import { persistPresidentCommitteeEdit } from '../domain/executiveEditCoordinator';
+import {
+  getExecutiveSectionLabel,
+  getExecutiveSectionDescription,
+  getExecutiveRoleLabel,
+  getExecutiveMetricLabel,
+} from '../domain/executivePresentation';
+import { formatStatisticNumber } from '../domain/numberPresentation';
 
 const iconMap: Record<string, typeof Crown> = {
   Crown, UserCog, Megaphone, GraduationCap, ShieldCheck, CalendarDays, Wallet,
@@ -31,7 +38,8 @@ type StatForm = { label: string; value: string };
 type SubmissionFeedback = { id: number; type: 'success' | 'error'; text: string };
 
 export default function CommitteePage({ committeeId }: { committeeId: CommitteeId }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language;
   const { committees, currentUser, setView, pendingProfileEdits, submitProfileEdit, updateBoardHead, uploadManagedFile, savePublishedSiteTarget } = useApp();
 
   // Modals
@@ -239,8 +247,8 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
                   {committeeId === 'presidency' || committeeId === 'vice-presidency' ? t('committee.executiveOffice') : t('committee.committeeTag')}
                 </span>
               </div>
-              <h1 className="mt-2 text-3xl font-extrabold text-white lg:text-4xl">{committee.name}</h1>
-              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/80">{committee.description}</p>
+              <h1 className="mt-2 text-3xl font-extrabold text-white lg:text-4xl">{getExecutiveSectionLabel(committee.id, t) || committee.name}</h1>
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/80">{getExecutiveSectionDescription(committee.id, t, committee.description)}</p>
             </div>
           </div>
         </div>
@@ -287,7 +295,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
                   fallbackClassName="bg-navy-700 text-2xl text-white"
                 />
                 <h3 className="mt-3 text-lg font-extrabold text-navy-900">{committee.head?.name || '—'}</h3>
-                <p className="text-sm font-semibold text-navy-600">{committee.head?.role || '—'}</p>
+                <p className="text-sm font-semibold text-navy-600">{getExecutiveRoleLabel(committee.head?.role, t) || '—'}</p>
                 <p className="mt-3 text-xs leading-relaxed text-gray-500">{committee.head?.bio || ''}</p>
                 <div className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-gray-50 px-3 py-2 text-xs text-gray-500">
                   <Mail className="h-3.5 w-3.5" />
@@ -307,8 +315,8 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
                   {canEditContent && (
                     <Edit3 className="absolute left-1.5 top-1.5 h-3 w-3 text-gray-300 opacity-0 transition-opacity group-hover/stat:opacity-100" />
                   )}
-                  <div className="text-lg font-extrabold text-navy-900">{s.value ?? '—'}</div>
-                  <div className="text-[10px] text-gray-500">{s.label ?? ''}</div>
+                  <div className="text-lg font-extrabold text-navy-900">{formatStatisticNumber(s.value, locale)}</div>
+                  <div className="text-[10px] text-gray-500">{getExecutiveMetricLabel(s.label, t)}</div>
                 </button>
               ))}
             </div>
@@ -373,7 +381,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               <div className="flex items-center justify-between">
                 <h3 className="flex items-center gap-2 text-lg font-bold text-navy-900">
                   <Users className="h-5 w-5 text-navy-600" />
-                  {t('committee.membersTitle', { committee: committee.shortName })}
+                  {t('committee.membersTitle', { committee: getExecutiveSectionLabel(committee.id, t) })}
                 </h3>
                 {canEditContent && (
                   <button onClick={openAddMember} className="flex items-center gap-1 rounded-lg bg-navy-50 px-2.5 py-1.5 text-xs font-bold text-navy-700 transition-colors hover:bg-navy-100">
@@ -417,7 +425,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-navy-700 transition-colors hover:bg-navy-50"
             >
               <ChevronRight className="h-4 w-4 rtl:rotate-0 ltr:rotate-180" />
-              {committeeMeta[prev].name}
+              {getExecutiveSectionLabel(prev, t) || committeeMeta[prev].name}
             </button>
           ) : (
             <button
@@ -433,7 +441,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               onClick={() => { setView({ kind: 'committee', committeeId: next }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
               className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-navy-700 transition-colors hover:bg-navy-50"
             >
-              {committeeMeta[next].name}
+              {getExecutiveSectionLabel(next, t) || committeeMeta[next].name}
               <ChevronLeft className="h-4 w-4 rtl:rotate-0 ltr:rotate-180" />
             </button>
           ) : (
@@ -450,26 +458,26 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
 
       {/* Head edit modal */}
       {canEditPersonalProfile && (
-        <Modal open={headModal} onClose={() => setHeadModal(false)} title="تعديل بيانات المسؤول" maxWidth="max-w-md">
+        <Modal open={headModal} onClose={() => setHeadModal(false)} title={t('committee.headModal.title', 'تعديل بيانات المسؤول')} maxWidth="max-w-md">
           <form onSubmit={saveHead} className="space-y-4">
             <div>
-              <label htmlFor={fieldId('name')} className="label-field">الاسم الكامل <RequiredMark /></label>
+              <label htmlFor={fieldId('name')} className="label-field">{t('committee.headModal.fullName', 'الاسم الكامل')} <RequiredMark /></label>
               <input id={fieldId('name')} required className={`input-field ${isInvalid(invalid, 'name')}`} value={headForm.name} onChange={(e) => { setHeadForm({ ...headForm, name: e.target.value }); clearInvalid(setInvalid, 'name'); }} />
             </div>
             <div>
-              <label htmlFor={fieldId('role')} className="label-field">المسمى الوظيفي <RequiredMark /></label>
-              <input id={fieldId('role')} readOnly className="input-field bg-gray-100 text-gray-500" value={headForm.role} />
+              <label htmlFor={fieldId('role')} className="label-field">{t('committee.headModal.role', 'المسمى الوظيفي')} <RequiredMark /></label>
+              <input id={fieldId('role')} readOnly className="input-field bg-gray-100 text-gray-500" value={getExecutiveRoleLabel(headForm.role, t) || headForm.role} />
             </div>
             <div>
-              <label htmlFor={fieldId('bio')} className="label-field">النبذة التعريفية <RequiredMark /></label>
+              <label htmlFor={fieldId('bio')} className="label-field">{t('committee.headModal.bio', 'النبذة التعريفية')} <RequiredMark /></label>
               <textarea id={fieldId('bio')} required rows={3} className={`input-field resize-none ${isInvalid(invalid, 'bio')}`} value={headForm.bio} onChange={(e) => { setHeadForm({ ...headForm, bio: e.target.value }); clearInvalid(setInvalid, 'bio'); }} />
             </div>
             <ManagedFileField
               usage="avatar"
-              label="الصورة الشخصية"
+              label={t('committee.headModal.photo', 'الصورة الشخصية')}
               currentUrl={headForm.photo}
               required
-              error={isInvalid(invalid, 'photo') ? 'يرجى رفع صورة شخصية.' : null}
+              error={isInvalid(invalid, 'photo') ? t('committee.headModal.photoError', 'يرجى رفع صورة شخصية.') : null}
               onUpload={(file, onProgress) => uploadManagedFile('avatar', file, onProgress)}
               onUploaded={(asset) => {
                 setHeadForm((current) => ({ ...current, photo: asset.publicUrl }));
@@ -477,12 +485,12 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               }}
             />
             <div>
-              <label htmlFor={fieldId('email')} className="label-field">البريد الإلكتروني الرسمي <RequiredMark /></label>
+              <label htmlFor={fieldId('email')} className="label-field">{t('committee.headModal.officialEmail', 'البريد الإلكتروني الرسمي')} <RequiredMark /></label>
               <input id={fieldId('email')} required type="email" dir="ltr" className={`input-field ${isInvalid(invalid, 'email')}`} value={headForm.email} onChange={(e) => { setHeadForm({ ...headForm, email: e.target.value }); clearInvalid(setInvalid, 'email'); }} />
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setHeadModal(false)} className="btn-ghost">إلغاء</button>
-              <button type="submit" className="btn-primary"><Save className="h-4 w-4" /> حفظ</button>
+              <button type="button" onClick={() => setHeadModal(false)} className="btn-ghost">{t('common.cancel', 'إلغاء')}</button>
+              <button type="submit" className="btn-primary"><Save className="h-4 w-4" /> {t('common.save', 'حفظ')}</button>
             </div>
           </form>
         </Modal>
@@ -490,16 +498,16 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
 
       {/* Responsibility modal */}
       {canEditContent && (
-        <Modal open={respModal} onClose={() => setRespModal(false)} title={respIdx >= 0 ? 'تعديل البند' : 'إضافة بند جديد'} maxWidth="max-w-md">
+        <Modal open={respModal} onClose={() => setRespModal(false)} title={respIdx >= 0 ? t('committee.respModal.editTitle', 'تعديل البند') : t('committee.respModal.addTitle', 'إضافة بند جديد')} maxWidth="max-w-md">
           <form onSubmit={saveResp} className="space-y-4">
             <div>
-              <label htmlFor={fieldId('respText')} className="label-field">نص البند <RequiredMark /></label>
-              <textarea id={fieldId('respText')} required rows={3} className={`input-field resize-none ${isInvalid(invalid, 'respText')}`} value={respText} onChange={(e) => { setRespText(e.target.value); clearInvalid(setInvalid, 'respText'); }} placeholder="اكتب المهمة أو المسؤولية" />
+              <label htmlFor={fieldId('respText')} className="label-field">{t('committee.respModal.textLabel', 'نص البند')} <RequiredMark /></label>
+              <textarea id={fieldId('respText')} required rows={3} className={`input-field resize-none ${isInvalid(invalid, 'respText')}`} value={respText} onChange={(e) => { setRespText(e.target.value); clearInvalid(setInvalid, 'respText'); }} placeholder={t('committee.respModal.placeholder', 'اكتب المهمة أو المسؤولية')} />
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setRespModal(false)} className="btn-ghost">إلغاء</button>
+              <button type="button" onClick={() => setRespModal(false)} className="btn-ghost">{t('common.cancel', 'إلغاء')}</button>
               <button type="submit" disabled={contentSubmitting} className="btn-primary disabled:cursor-not-allowed disabled:opacity-60">
-                <Save className="h-4 w-4" /> {contentSubmitting ? 'جارٍ الإرسال...' : 'حفظ'}
+                <Save className="h-4 w-4" /> {contentSubmitting ? t('common.sending', 'جارٍ الإرسال...') : t('common.save', 'حفظ')}
               </button>
             </div>
           </form>
@@ -508,20 +516,20 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
 
       {/* Stat modal */}
       {canEditContent && (
-        <Modal open={statModal} onClose={() => setStatModal(false)} title="تعديل الإحصائية" maxWidth="max-w-xs">
+        <Modal open={statModal} onClose={() => setStatModal(false)} title={t('committee.statModal.title', 'تعديل الإحصائية')} maxWidth="max-w-xs">
           <form onSubmit={saveStat} className="space-y-4">
             <div>
-              <label htmlFor={fieldId('value')} className="label-field">الرقم/القيمة <RequiredMark /></label>
+              <label htmlFor={fieldId('value')} className="label-field">{t('committee.statModal.valueLabel', 'الرقم/القيمة')} <RequiredMark /></label>
               <input id={fieldId('value')} required className={`input-field ${isInvalid(invalid, 'value')}`} value={statForm.value} onChange={(e) => { setStatForm({ ...statForm, value: e.target.value }); clearInvalid(setInvalid, 'value'); }} />
             </div>
             <div>
-              <label htmlFor={fieldId('label')} className="label-field">المسمى <RequiredMark /></label>
+              <label htmlFor={fieldId('label')} className="label-field">{t('committee.statModal.nameLabel', 'المسمى')} <RequiredMark /></label>
               <input id={fieldId('label')} required className={`input-field ${isInvalid(invalid, 'label')}`} value={statForm.label} onChange={(e) => { setStatForm({ ...statForm, label: e.target.value }); clearInvalid(setInvalid, 'label'); }} />
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setStatModal(false)} className="btn-ghost">إلغاء</button>
+              <button type="button" onClick={() => setStatModal(false)} className="btn-ghost">{t('common.cancel', 'إلغاء')}</button>
               <button type="submit" disabled={contentSubmitting} className="btn-primary disabled:cursor-not-allowed disabled:opacity-60">
-                <Save className="h-4 w-4" /> {contentSubmitting ? 'جارٍ الإرسال...' : 'حفظ'}
+                <Save className="h-4 w-4" /> {contentSubmitting ? t('common.sending', 'جارٍ الإرسال...') : t('common.save', 'حفظ')}
               </button>
             </div>
           </form>
@@ -530,22 +538,22 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
 
       {/* Member modal */}
       {canEditContent && (
-        <Modal open={memberModal} onClose={() => setMemberModal(false)} title={editingMember ? 'تعديل عضو' : 'إضافة عضو جديد'} maxWidth="max-w-md">
+        <Modal open={memberModal} onClose={() => setMemberModal(false)} title={editingMember ? t('committee.memberModal.editTitle', 'تعديل عضو') : t('committee.memberModal.addTitle', 'إضافة عضو جديد')} maxWidth="max-w-md">
           <form onSubmit={saveMember} className="space-y-4">
             <div>
-              <label htmlFor={fieldId('name')} className="label-field">الاسم <RequiredMark /></label>
+              <label htmlFor={fieldId('name')} className="label-field">{t('committee.memberModal.name', 'الاسم')} <RequiredMark /></label>
               <input id={fieldId('name')} required className={`input-field ${isInvalid(invalid, 'name')}`} value={memberForm.name} onChange={(e) => { setMemberForm({ ...memberForm, name: e.target.value }); clearInvalid(setInvalid, 'name'); }} />
             </div>
             <div>
-              <label htmlFor={fieldId('position')} className="label-field">المسؤولية <RequiredMark /></label>
-              <input id={fieldId('position')} required className={`input-field ${isInvalid(invalid, 'position')}`} value={memberForm.position} onChange={(e) => { setMemberForm({ ...memberForm, position: e.target.value }); clearInvalid(setInvalid, 'position'); }} placeholder="مثال: منسق، مستشار..." />
+              <label htmlFor={fieldId('position')} className="label-field">{t('committee.memberModal.position', 'المسؤولية')} <RequiredMark /></label>
+              <input id={fieldId('position')} required className={`input-field ${isInvalid(invalid, 'position')}`} value={memberForm.position} onChange={(e) => { setMemberForm({ ...memberForm, position: e.target.value }); clearInvalid(setInvalid, 'position'); }} placeholder={t('committee.memberModal.positionPlaceholder', 'مثال: منسق، مستشار...')} />
             </div>
             <ManagedFileField
               usage="avatar"
-              label="الصورة الشخصية"
+              label={t('committee.memberModal.photo', 'الصورة الشخصية')}
               currentUrl={memberForm.photo}
               required
-              error={isInvalid(invalid, 'photo') ? 'يرجى رفع صورة شخصية.' : null}
+              error={isInvalid(invalid, 'photo') ? t('committee.memberModal.photoError', 'يرجى رفع صورة شخصية.') : null}
               onUpload={(file, onProgress) => uploadManagedFile('avatar', file, onProgress)}
               onUploaded={(asset) => {
                 setMemberForm((current) => ({ ...current, photo: asset.publicUrl }));
@@ -553,9 +561,9 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               }}
             />
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setMemberModal(false)} className="btn-ghost">إلغاء</button>
+              <button type="button" onClick={() => setMemberModal(false)} className="btn-ghost">{t('common.cancel', 'إلغاء')}</button>
               <button type="submit" disabled={contentSubmitting} className="btn-primary disabled:cursor-not-allowed disabled:opacity-60">
-                <Save className="h-4 w-4" /> {contentSubmitting ? 'جارٍ الإرسال...' : 'حفظ'}
+                <Save className="h-4 w-4" /> {contentSubmitting ? t('common.sending', 'جارٍ الإرسال...') : t('common.save', 'حفظ')}
               </button>
             </div>
           </form>
@@ -570,9 +578,9 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
             className="fixed bottom-6 left-6 z-40 flex items-center gap-2 rounded-full bg-navy-800 px-4 py-3 text-sm font-bold text-white shadow-xl transition-colors hover:bg-navy-700"
           >
             <ClipboardCheck className="h-4 w-4" />
-            طلبات تعديل الهيئة ({pendingCount})
+            {t('committee.reviewFloatingButton', 'طلبات تعديل الهيئة ({{count}})', { count: pendingCount })}
           </button>
-          <Modal open={reviewOpen} onClose={() => setReviewOpen(false)} title="طلبات تعديل بيانات الهيئة التنفيذية" maxWidth="max-w-2xl">
+          <Modal open={reviewOpen} onClose={() => setReviewOpen(false)} title={t('committee.reviewModalTitle', 'طلبات تعديل بيانات الهيئة التنفيذية')} maxWidth="max-w-2xl">
             <ProfileEditsPanel />
           </Modal>
         </>

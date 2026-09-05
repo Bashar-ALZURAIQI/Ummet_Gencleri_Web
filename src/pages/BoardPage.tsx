@@ -9,6 +9,11 @@ import Modal from '../components/Modal';
 import ProfileEditsPanel from '../components/ProfileEditsPanel';
 import UserAvatar from '../components/UserAvatar';
 import { committeeOrder, committeeMeta, type CommitteeId } from '../data/mockData';
+import {
+  getExecutiveSectionLabel,
+  getExecutiveSectionDescription,
+  getExecutiveRoleLabel,
+} from '../domain/executivePresentation';
 
 const iconMap: Record<string, typeof Crown> = {
   Crown, UserCog, Megaphone, GraduationCap, ShieldCheck, CalendarDays, Wallet,
@@ -67,8 +72,8 @@ export default function BoardPage() {
                   />
                   <div className="text-right">
                     <div className="text-base font-extrabold text-navy-900">{c.head?.name || '—'}</div>
-                    <div className="text-sm font-semibold text-navy-600">{c.head?.role || '—'}</div>
-                    <div className="mt-0.5 text-xs text-gray-400">{c.name || '—'}</div>
+                    <div className="text-sm font-semibold text-navy-600">{getExecutiveRoleLabel(c.head?.role, t) || '—'}</div>
+                    <div className="mt-0.5 text-xs text-gray-400">{getExecutiveSectionLabel(c.id, t) || '—'}</div>
                   </div>
                   <ChevronLeft className="mr-auto h-5 w-5 text-gray-300 transition-transform group-hover:-translate-x-1 group-hover:text-navy-600" />
                 </div>
@@ -107,10 +112,10 @@ export default function BoardPage() {
                     className="h-16 w-16 transition-transform group-hover:scale-110"
                     fallbackClassName={`bg-gradient-to-br ${c.color || 'from-navy-700 to-navy-950'} text-xl text-white shadow-lg`}
                   />
-                  <h3 className="mt-4 text-lg font-bold text-navy-900">{c.name || '—'}</h3>
+                  <h3 className="mt-4 text-lg font-bold text-navy-900">{getExecutiveSectionLabel(c.id, t) || '—'}</h3>
                   <p className="mt-1 text-sm font-bold text-navy-700">{c.head?.name || t('board.noHeadAssigned')}</p>
-                  <p className="text-xs text-gray-400">{c.head?.role || ''}</p>
-                  <p className="mt-1 line-clamp-2 text-sm text-gray-500">{c.description || ''}</p>
+                  <p className="text-xs text-gray-400">{getExecutiveRoleLabel(c.head?.role, t) || ''}</p>
+                  <p className="mt-1 line-clamp-2 text-sm text-gray-500">{getExecutiveSectionDescription(c.id, t, c.description) || ''}</p>
                   <div className="mt-4 flex items-center gap-2 text-xs text-gray-400">
                     <Users className="h-3.5 w-3.5" />
                     {t('board.membersCount', { count: memberCount + 1 })}
@@ -139,7 +144,7 @@ export default function BoardPage() {
                   className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-navy-700 transition-all hover:bg-navy-50 hover:shadow-sm"
                 >
                   <Icon className="h-4 w-4" />
-                  {meta.name}
+                  {getExecutiveSectionLabel(id, t, 'short') || meta.name}
                 </button>
               );
             })}
@@ -155,9 +160,9 @@ export default function BoardPage() {
             className="fixed bottom-6 left-6 z-40 flex items-center gap-2 rounded-full bg-navy-800 px-4 py-3 text-sm font-bold text-white shadow-xl transition-colors hover:bg-navy-700"
           >
             <ClipboardCheck className="h-4 w-4" />
-            طلبات تعديل الهيئة ({pendingCount})
+            {t('admin.tabs.pendingEdits', 'طلبات تعديل الهيئة')} ({pendingCount})
           </button>
-          <Modal open={reviewOpen} onClose={() => setReviewOpen(false)} title="طلبات تعديل بيانات الهيئة التنفيذية" maxWidth="max-w-2xl">
+          <Modal open={reviewOpen} onClose={() => setReviewOpen(false)} title={t('admin.profileEditsModal.title', 'طلبات تعديل بيانات الهيئة التنفيذية')} maxWidth="max-w-2xl">
             <ProfileEditsPanel />
           </Modal>
         </>
