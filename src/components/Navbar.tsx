@@ -15,6 +15,7 @@ import { canExposeAdminUi } from '../domain/liveIdentityRouting';
 import { resolvePublicBrandName } from '../domain/publicBrand';
 import { splitNavLabel } from '../domain/navLabel';
 import { getExecutiveSectionLabel } from '../domain/executivePresentation';
+import { loadLastAdminTab } from '../domain/adminTabMemory';
 
 const committeeIcons: Record<CommitteeId, typeof Crown> = {
   presidency: Crown,
@@ -46,7 +47,7 @@ export default function Navbar() {
   const { t, i18n } = useTranslation();
   const {
     view,
-    setView,
+    navigate,
     currentUser,
     logout,
     siteContent,
@@ -85,17 +86,22 @@ export default function Navbar() {
     view.kind === 'board' || view.kind === 'committee';
 
   const go = (v: View) => {
-    setView(v);
+    navigate(v);
     setMobileOpen(false);
     setBoardOpen(false);
     setProfileOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const goAdmin = () => {
+    const lastTab = currentUser?.userId ? loadLastAdminTab(currentUser.userId) : null;
+    go({ kind: 'admin', ...(lastTab ? { tab: lastTab } : {}) });
+  };
+
   const goStudentPortal = () => {
     if (authInitializing || identityRefreshing) return;
     if (currentUser?.role === 'STUDENT') go({ kind: 'student-dashboard' });
-    else if (adminUiAllowed) go({ kind: 'admin' });
+    else if (adminUiAllowed) goAdmin();
     else go({ kind: 'login' });
   };
 
@@ -261,7 +267,7 @@ export default function Navbar() {
                   <div className="mt-1">
                     {adminUiAllowed && (
                       <button
-                        onMouseDown={() => go({ kind: 'admin' })}
+                        onMouseDown={goAdmin}
                         className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-start text-sm font-bold text-navy-900 transition-colors hover:bg-navy-50"
                       >
                         <Shield className="h-4 w-4 text-navy-600" />
@@ -360,7 +366,7 @@ export default function Navbar() {
             </button>
             {currentUser && adminUiAllowed && (
               <button
-                onClick={() => go({ kind: 'admin' })}
+                onClick={goAdmin}
                 className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-navy-800 hover:bg-navy-50"
               >
                 <Shield className="h-5 w-5" />

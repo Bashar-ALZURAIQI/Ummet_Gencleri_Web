@@ -159,7 +159,21 @@ import {
   type TransferMemberRoleResult,
 } from '../domain/executiveTransfer';
 import { executeExecutiveRevocation } from '../domain/executiveRevocation';
-import { routeAfterConfirmedIdentityRefresh } from '../domain/liveIdentityRouting';
+import {
+  type AdminTab,
+  urlToView,
+  createHistoryNavigator,
+  validateReturnTo,
+} from '../domain/appNavigation';
+import {
+  saveLastAdminTab,
+  loadLastAdminTab,
+  clearLastAdminTab,
+} from '../domain/adminTabMemory';
+import {
+  canExposeAdminUi,
+  routeAfterConfirmedIdentityRefresh,
+} from '../domain/liveIdentityRouting';
 import {
   createIdentitySubscriptionGeneration,
   reduceRealtimeWarning,
@@ -229,14 +243,16 @@ export type View =
   | { kind: 'news' }
   | { kind: 'guide' }
   | { kind: 'faq' }
-  | { kind: 'login' }
+  | { kind: 'login'; returnTo?: string }
   | { kind: 'register' }
   | { kind: 'forgot-password' }
   | { kind: 'update-password' }
   | { kind: 'student-dashboard' }
-  | { kind: 'admin' }
+  | { kind: 'admin'; tab?: AdminTab }
   | { kind: 'board' }
   | { kind: 'committee'; committeeId: CommitteeId };
+
+export type { AdminTab };
 
 export type CurrentUser = SupabaseCurrentUser;
 
@@ -557,7 +573,8 @@ type PublishedContentTarget = SiteEditTarget | 'plans' | 'reports' | 'committees
 
 interface AppContextValue {
   view: View;
-  setView: (v: View) => void;
+  setView: (v: View | ((prev: View) => View)) => void;
+  navigate: (view: View, options?: { replace?: boolean }) => void;
   events: UEvent[];
   setEvents: React.Dispatch<React.SetStateAction<UEvent[]>>;
   news: NewsItem[];
@@ -828,7 +845,12 @@ const browserAuthTimerScheduler = {
 };
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [view, setView] = useState<View>({ kind: 'home' });
+  const [view, setViewState] = useState<View>(() => {
+    if (typeof window !== 'undefined') {
+      return urlToView(window.location.href).view;
+    }
+    return { kind: 'home' };
+  });
   const [events, setEvents] = useState<UEvent[]>(() => {
     const bundle = safeParse<SiteContentBundle>(LS_SITE_CONTENT_KEY);
     const local = safeParse<UEvent[]>(LS_EVENTS_KEY);
@@ -899,6 +921,49 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const captureConfirmedAuthOwner = useCallback((): ConfirmedAuthOwner | null => (
     confirmedAuthOwner.capture((epoch) => authEpoch.isCurrent(epoch))
   ), [authEpoch, confirmedAuthOwner]);
+
+  const navigatorRef = useRef<ReturnType<typeof createHistoryNavigator> | null>(null);
+
+  const navigate = useCallback((targetView: View, options?: { replace?: boolean }) => {
+    if (navigatorRef.current) {
+      navigatorRef.current.navigate(targetView, options);
+    } else {
+      setViewState(targetView);
+    }
+    if (targetView.kind === 'admin' && targetView.tab) {
+      const owner = captureConfirmedAuthOwner();
+      if (owner?.userId) {
+        saveLastAdminTab(owner.userId, targetView.tab);
+      }
+    }
+  }, [captureConfirmedAuthOwner]);
+
+  const setView = useCallback((v: View | ((prev: View) => View)) => {
+    if (typeof v === 'function') {
+      setViewState((prev) => {
+        const next = v(prev);
+        if (navigatorRef.current) {
+          navigatorRef.current.navigate(next);
+        }
+        return next;
+      });
+    } else {
+      navigate(v);
+    }
+  }, [navigate]);
+
+  useEffect(() => {
+    const nav = createHistoryNavigator({
+      onViewChange: (nextView) => {
+        setViewState(nextView);
+      },
+    });
+    navigatorRef.current = nav;
+    return () => {
+      nav.destroy();
+      navigatorRef.current = null;
+    };
+  }, []);
 
   const [contactMessages, setContactMessages] = useState<ContactMessage[]>([]);
   const [contactMessagesLoading, setContactMessagesLoading] = useState(false);
@@ -1665,7 +1730,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const applySession = useCallback(async (
     session: Session,
     capturedEpoch: number,
-    navigation: boolean | { previousRole: UserRole } = true,
+    navigation: boolean | 'initial' | { previousRole: UserRole } = true,
   ): Promise<{ ok: boolean; error?: string }> => {
     if (!authEpoch.isCurrent(capturedEpoch)) {
       return { ok: false, error: 'تم استبدال محاولة تحميل الجلسة بمحاولة أحدث.' };
@@ -1685,7 +1750,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setAuthError(message);
       setAuthInitializing(false);
       setIdentityRefreshing(false);
-      setView({ kind: 'login' });
+      navigate({ kind: 'login' }, { replace: true });
       return { ok: false, error: message };
     }
 
@@ -1725,20 +1790,89 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAuthError(null);
     setAuthInitializing(false);
     setIdentityRefreshing(false);
-    if (navigation === true) {
-      setView(confirmedUser.role === 'STUDENT' ? { kind: 'student-dashboard' } : { kind: 'admin' });
+
+    if (navigation === 'initial') {
+      const currentParsed = typeof window !== 'undefined'
+        ? urlToView(window.location.href)
+        : { view: { kind: 'home' as const } };
+
+      if (currentParsed.view.kind === 'admin') {
+        if (canExposeAdminUi(confirmedUser.role, false, false)) {
+          const currentTab = currentParsed.view.tab;
+          navigate({ kind: 'admin', ...(currentTab ? { tab: currentTab } : {}) }, { replace: true });
+        } else {
+          navigate(confirmedUser.role === 'STUDENT' ? { kind: 'student-dashboard' } : { kind: 'home' }, { replace: true });
+        }
+      } else if (currentParsed.view.kind === 'student-dashboard') {
+        if (confirmedUser.role !== 'STUDENT') {
+          const lastTab = loadLastAdminTab(confirmedUser.userId);
+          navigate(canExposeAdminUi(confirmedUser.role, false, false) ? { kind: 'admin', ...(lastTab ? { tab: lastTab } : {}) } : { kind: 'home' }, { replace: true });
+        }
+      } else if (currentParsed.view.kind === 'login' && currentParsed.returnTo) {
+        const validated = validateReturnTo(currentParsed.returnTo);
+        if (validated) {
+          const target = urlToView(validated);
+          if (target.view.kind === 'admin') {
+            if (canExposeAdminUi(confirmedUser.role, false, false)) {
+              navigate(target.view, { replace: true });
+            } else {
+              navigate(confirmedUser.role === 'STUDENT' ? { kind: 'student-dashboard' } : { kind: 'home' }, { replace: true });
+            }
+          } else {
+            navigate(target.view, { replace: true });
+          }
+        }
+      }
+    } else if (navigation === true) {
+      const currentParsed = typeof window !== 'undefined'
+        ? urlToView(window.location.href)
+        : { view: { kind: 'home' as const } };
+
+      let returnTo: string | undefined;
+      if (currentParsed.view.kind === 'login' && currentParsed.returnTo) {
+        returnTo = currentParsed.returnTo;
+      }
+
+      if (returnTo) {
+        const validated = validateReturnTo(returnTo);
+        if (validated) {
+          const target = urlToView(validated);
+          if (target.view.kind === 'admin') {
+            if (canExposeAdminUi(confirmedUser.role, false, false)) {
+              navigate(target.view, { replace: true });
+            } else {
+              navigate(confirmedUser.role === 'STUDENT' ? { kind: 'student-dashboard' } : { kind: 'home' }, { replace: true });
+            }
+          } else if (target.view.kind === 'student-dashboard') {
+            navigate({ kind: 'student-dashboard' }, { replace: true });
+          } else {
+            navigate(target.view, { replace: true });
+          }
+        } else {
+          const lastTab = loadLastAdminTab(confirmedUser.userId);
+          navigate(confirmedUser.role === 'STUDENT' ? { kind: 'student-dashboard' } : { kind: 'admin', ...(lastTab ? { tab: lastTab } : {}) });
+        }
+      } else {
+        const lastTab = loadLastAdminTab(confirmedUser.userId);
+        navigate(confirmedUser.role === 'STUDENT' ? { kind: 'student-dashboard' } : { kind: 'admin', ...(lastTab ? { tab: lastTab } : {}) });
+      }
     } else if (typeof navigation === 'object') {
-      setView((currentView) => ({
-        ...currentView,
-        kind: routeAfterConfirmedIdentityRefresh(
+      setViewState((currentView) => {
+        const nextKind = routeAfterConfirmedIdentityRefresh(
           navigation.previousRole,
           confirmedUser.role,
           currentView.kind,
-        ),
-      } as View));
+        );
+        if (nextKind === currentView.kind) {
+          return currentView;
+        }
+        const nextView = { ...currentView, kind: nextKind } as View;
+        navigate(nextView, { replace: true });
+        return nextView;
+      });
     }
     return { ok: true };
-  }, [authEpoch, confirmedAuthOwner, synchronizeConfirmedProfileDisplay]);
+  }, [authEpoch, confirmedAuthOwner, navigate, synchronizeConfirmedProfileDisplay]);
 
   // Restore the Supabase session and keep it synchronized. The listener stays
   // synchronous; identity loading is deferred to avoid supabase-js callback locks.
@@ -1810,7 +1944,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setAuthError(null);
         setAuthInitializing(false);
         setIdentityRefreshing(false);
-        setView({ kind: 'home' });
+        navigate({ kind: 'home' }, { replace: true });
         return;
       }
 
@@ -1825,7 +1959,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           void applySession(
             session,
             eventEpoch,
-            event === 'SIGNED_IN' || event === 'INITIAL_SESSION',
+            event === 'SIGNED_IN' ? true : event === 'INITIAL_SESSION' ? 'initial' : false,
           );
         });
       }
@@ -1842,11 +1976,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setAuthError('تعذر التحقق من جلسة الحساب. يرجى تسجيل الدخول مرة أخرى.');
           setAuthInitializing(false);
           setIdentityRefreshing(false);
-          setView({ kind: 'login' });
+          navigate({ kind: 'login' }, { replace: true });
           return;
         }
         if (data.session) {
-          await applySession(data.session, initialEpoch);
+          await applySession(data.session, initialEpoch, 'initial');
         } else {
           if (!authEpoch.isCurrent(initialEpoch)) return;
           setCurrentStudent(null);
@@ -1862,7 +1996,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setAuthError('تعذر الاتصال بخدمة تسجيل الدخول. يرجى المحاولة لاحقاً.');
         setAuthInitializing(false);
         setIdentityRefreshing(false);
-        setView({ kind: 'login' });
+        navigate({ kind: 'login' }, { replace: true });
       }
     })();
 
@@ -1879,7 +2013,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     captureConfirmedAuthOwner,
     clearConfirmedAuthOwnership,
     identitySubscriptionGeneration,
+    navigate,
     setPasswordRecoveryGate,
+    setView,
   ]);
 
   const prepareCurrentSessionIdentityRefresh = useCallback((
@@ -1927,7 +2063,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return { ok: false, error: message };
       }
     };
-  }, [applySession, authEpoch, clearConfirmedAuthOwnership, identitySubscriptionGeneration]);
+  }, [applySession, authEpoch, clearConfirmedAuthOwnership, identitySubscriptionGeneration, setView]);
 
   const refreshCurrentSessionIdentity = useCallback((
     previousRole: UserRole,
@@ -2329,12 +2465,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     identitySubscriptionGeneration.invalidateAll();
     const logoutEpoch = authEpoch.suspendEvents();
     latestAuthEventRef.current = null;
+    const currentUserId = currentUser?.userId;
     setCurrentStudent(null);
     setCurrentUser(null);
     setAuthError(null);
     setAuthInitializing(false);
     setPasswordRecoveryGate('IDLE');
-    setView({ kind: 'home' });
+    clearLastAdminTab(currentUserId);
+    navigate({ kind: 'home' }, { replace: true });
 
     try {
       const { error } = await supabase.auth.signOut();
@@ -3444,6 +3582,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const value: AppContextValue = {
       view,
       setView,
+      navigate,
       events,
       setEvents,
       news,

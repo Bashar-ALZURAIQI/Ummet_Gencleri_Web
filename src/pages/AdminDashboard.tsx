@@ -28,6 +28,7 @@ import SiteBrandingPanel from '../components/SiteBrandingPanel';
 import TransientToast, { type ToastMessage } from '../components/TransientToast';
 import { validateRequired, clearInvalid, isInvalid, fieldId } from '../utils/formValidation';
 import { buildTransferConfirmation, runTransferWithBusyState } from '../domain/executiveTransfer';
+import { resolveEffectiveAdminTab } from '../domain/appNavigation';
 import { buildRevocationConfirmation, getOfficeName, type ExecutiveRole } from '../domain/executiveRevocation';
 import { canAccessContactInbox, canRetryContactEmail } from '../domain/contactMessagingPolicy';
 import { canManageGuideSuggestions } from '../domain/guideSuggestionPolicy';
@@ -55,12 +56,13 @@ import {
   type GalleryAlbum, type GalleryCategory, type GalleryMedia,
 } from '../data/mockData';
 
-type AdminTab = 'stats' | 'board' | 'pending-edits' | 'site-pending' | 'branding' | 'history' | 'events' | 'gallery' | 'news' | 'members' | 'applications' | 'inbox' | 'plans' | 'suggestions' | 'guide-suggestions' | 'excuses' | 'oversight' | 'task-management' | 'member-points' | 'profile';
+export type AdminTab = 'stats' | 'board' | 'pending-edits' | 'site-pending' | 'branding' | 'history' | 'events' | 'gallery' | 'news' | 'members' | 'applications' | 'inbox' | 'plans' | 'suggestions' | 'guide-suggestions' | 'excuses' | 'oversight' | 'task-management' | 'member-points' | 'profile';
 
 export default function AdminDashboard() {
   const { t } = useTranslation();
-  const [tab, setTab] = useState<AdminTab>('stats');
   const {
+    view,
+    navigate,
     events, students, plans, setPlans, reports, contactMessages,
     contactMessagesLoading, contactMessagesError, markContactMessageRead, replyToContactMessage, retryContactReplyEmail,
     applications, scheduleInterview, decideApplication,
@@ -77,65 +79,81 @@ export default function AdminDashboard() {
     authInitializing, identityRefreshing,
   } = useApp();
 
-  const tabs: { id: AdminTab; label: string; icon: typeof BarChart3; show: boolean }[] = [
-    { id: 'stats', label: 'الإحصائيات', icon: BarChart3, show: !!currentUser && isLeadershipRole(currentUser.role) },
-    { id: 'board', label: 'الهيئة التنفيذية', icon: Crown, show: canEditSection('board') },
-    { id: 'pending-edits', label: 'طلبات تعديل الهيئة', icon: ClipboardCheck, show: currentUser?.role === 'PRESIDENT' },
-    { id: 'site-pending', label: 'مراجعة تعديلات الموقع', icon: ClipboardCheck, show: currentUser?.role === 'PRESIDENT' },
-    { id: 'branding', label: 'هوية المنصة', icon: Image, show: currentUser?.role === 'PRESIDENT' },
-    { id: 'history', label: 'سجل التعديلات والقرارات', icon: FileText, show: !!currentUser && isLeadershipRole(currentUser.role) },
-    { id: 'events', label: 'إدارة الفعاليات والبرامج', icon: CalendarDays, show: !!currentUser && isLeadershipRole(currentUser.role) },
-    { id: 'gallery', label: 'إدارة معرض الصور', icon: Images, show: !!currentUser && isLeadershipRole(currentUser.role) },
-    { id: 'news', label: 'إدارة الأخبار', icon: FileText, show: canEditSection('news') },
-    { id: 'members', label: 'إدارة الأعضاء', icon: Users, show: currentUser?.role === 'PRESIDENT' },
-    { id: 'applications', label: 'طلبات الانضمام', icon: Inbox, show: currentUser?.role === 'PRESIDENT' },
-    { id: 'inbox', label: 'رسائل الزوار / البريد الوارد', icon: Mail, show: canAccessContactInbox(currentUser?.role) },
-    { id: 'plans', label: 'الخطط والتقارير', icon: ClipboardList, show: canEditSection('plans') },
-    { id: 'suggestions', label: 'الاقتراحات والشكاوى', icon: Lightbulb, show: !!currentUser && isLeadershipRole(currentUser.role) },
-    { id: 'guide-suggestions', label: 'اقتراحات الدليل', icon: GraduationCap, show: canManageGuideSuggestions(currentUser?.role) },
-    { id: 'excuses', label: 'إدارة الأعذار', icon: ClipboardCheck, show: canManageExcuses(currentUser?.role) },
-    { id: 'oversight', label: 'الرقابة والتحضير', icon: UserCheck, show: canManageOversight(currentUser?.role) },
-    { id: 'task-management', label: 'إدارة المهام', icon: ClipboardList, show: canManageTasks(currentUser?.role) },
-    { id: 'member-points', label: 'نقاط الأعضاء', icon: Target, show: canManageMemberPoints(currentUser?.role) },
-    { id: 'profile', label: 'الملف الشخصي', icon: User, show: !!currentUser && isLeadershipRole(currentUser.role) },
-  ];
+  const visibleTabs = useMemo(() => {
+    const tabs: { id: AdminTab; label: string; icon: typeof BarChart3; show: boolean }[] = [
+      { id: 'stats', label: 'الإحصائيات', icon: BarChart3, show: !!currentUser && isLeadershipRole(currentUser.role) },
+      { id: 'board', label: 'الهيئة التنفيذية', icon: Crown, show: canEditSection('board') },
+      { id: 'pending-edits', label: 'طلبات تعديل الهيئة', icon: ClipboardCheck, show: currentUser?.role === 'PRESIDENT' },
+      { id: 'site-pending', label: 'مراجعة تعديلات الموقع', icon: ClipboardCheck, show: currentUser?.role === 'PRESIDENT' },
+      { id: 'branding', label: 'هوية المنصة', icon: Image, show: currentUser?.role === 'PRESIDENT' },
+      { id: 'history', label: 'سجل التعديلات والقرارات', icon: FileText, show: !!currentUser && isLeadershipRole(currentUser.role) },
+      { id: 'events', label: 'إدارة الفعاليات والبرامج', icon: CalendarDays, show: !!currentUser && isLeadershipRole(currentUser.role) },
+      { id: 'gallery', label: 'إدارة معرض الصور', icon: Images, show: !!currentUser && isLeadershipRole(currentUser.role) },
+      { id: 'news', label: 'إدارة الأخبار', icon: FileText, show: canEditSection('news') },
+      { id: 'members', label: 'إدارة الأعضاء', icon: Users, show: currentUser?.role === 'PRESIDENT' },
+      { id: 'applications', label: 'طلبات الانضمام', icon: Inbox, show: currentUser?.role === 'PRESIDENT' },
+      { id: 'inbox', label: 'رسائل الزوار / البريد الوارد', icon: Mail, show: canAccessContactInbox(currentUser?.role) },
+      { id: 'plans', label: 'الخطط والتقارير', icon: ClipboardList, show: canEditSection('plans') },
+      { id: 'suggestions', label: 'الاقتراحات والشكاوى', icon: Lightbulb, show: !!currentUser && isLeadershipRole(currentUser.role) },
+      { id: 'guide-suggestions', label: 'اقتراحات الدليل', icon: GraduationCap, show: canManageGuideSuggestions(currentUser?.role) },
+      { id: 'excuses', label: 'إدارة الأعذار', icon: ClipboardCheck, show: canManageExcuses(currentUser?.role) },
+      { id: 'oversight', label: 'الرقابة والتحضير', icon: UserCheck, show: canManageOversight(currentUser?.role) },
+      { id: 'task-management', label: 'إدارة المهام', icon: ClipboardList, show: canManageTasks(currentUser?.role) },
+      { id: 'member-points', label: 'نقاط الأعضاء', icon: Target, show: canManageMemberPoints(currentUser?.role) },
+      { id: 'profile', label: 'الملف الشخصي', icon: User, show: !!currentUser && isLeadershipRole(currentUser.role) },
+    ];
 
-  const adminTabLabels: Record<AdminTab, string> = {
-    stats: t('admin.tabs.stats', 'الإحصائيات'),
-    board: t('admin.tabs.board', 'الهيئة التنفيذية'),
-    'pending-edits': t('admin.tabs.pendingEdits', 'طلبات تعديل الهيئة'),
-    'site-pending': t('admin.tabs.sitePending', 'مراجعة تعديلات الموقع'),
-    branding: t('admin.tabs.branding', 'هوية المنصة'),
-    history: t('admin.tabs.history', 'سجل التعديلات والقرارات'),
-    events: t('admin.tabs.events', 'إدارة الفعاليات والبرامج'),
-    gallery: t('admin.tabs.gallery', 'إدارة معرض الصور'),
-    news: t('admin.tabs.news', 'إدارة الأخبار'),
-    members: t('admin.tabs.members', 'إدارة الأعضاء'),
-    applications: t('admin.tabs.applications', 'طلبات الانضمام'),
-    inbox: t('admin.tabs.inbox', 'رسائل الزوار / البريد الوارد'),
-    plans: t('admin.tabs.plans', 'الخطط والتقارير'),
-    suggestions: t('admin.tabs.suggestions', 'الاقتراحات والشكاوى'),
-    'guide-suggestions': t('admin.tabs.guideSuggestions', 'اقتراحات الدليل'),
-    excuses: t('admin.tabs.excuses', 'إدارة الأعذار'),
-    oversight: t('admin.tabs.oversight', 'الرقابة والتحضير'),
-    'task-management': t('admin.tabs.taskManagement', 'إدارة المهام'),
-    'member-points': t('admin.tabs.memberPoints', 'نقاط الأعضاء'),
-    profile: t('admin.tabs.profile', 'الملف الشخصي'),
-  };
+    const adminTabLabels: Record<AdminTab, string> = {
+      stats: t('admin.tabs.stats', 'الإحصائيات'),
+      board: t('admin.tabs.board', 'الهيئة التنفيذية'),
+      'pending-edits': t('admin.tabs.pendingEdits', 'طلبات تعديل الهيئة'),
+      'site-pending': t('admin.tabs.sitePending', 'مراجعة تعديلات الموقع'),
+      branding: t('admin.tabs.branding', 'هوية المنصة'),
+      history: t('admin.tabs.history', 'سجل التعديلات والقرارات'),
+      events: t('admin.tabs.events', 'إدارة الفعاليات والبرامج'),
+      gallery: t('admin.tabs.gallery', 'إدارة معرض الصور'),
+      news: t('admin.tabs.news', 'إدارة الأخبار'),
+      members: t('admin.tabs.members', 'إدارة الأعضاء'),
+      applications: t('admin.tabs.applications', 'طلبات الانضمام'),
+      inbox: t('admin.tabs.inbox', 'رسائل الزوار / البريد الوارد'),
+      plans: t('admin.tabs.plans', 'الخطط والتقارير'),
+      suggestions: t('admin.tabs.suggestions', 'الاقتراحات والشكاوى'),
+      'guide-suggestions': t('admin.tabs.guideSuggestions', 'اقتراحات الدليل'),
+      excuses: t('admin.tabs.excuses', 'إدارة الأعذار'),
+      oversight: t('admin.tabs.oversight', 'الرقابة والتحضير'),
+      'task-management': t('admin.tabs.taskManagement', 'إدارة المهام'),
+      'member-points': t('admin.tabs.memberPoints', 'نقاط الأعضاء'),
+      profile: t('admin.tabs.profile', 'الملف الشخصي'),
+    };
 
-  const visibleTabs = tabs
-    .filter((t) => t.show)
-    .map((tabItem) => ({
-      ...tabItem,
-      label: adminTabLabels[tabItem.id] ?? tabItem.label,
-    }));
+    return tabs
+      .filter((t) => t.show)
+      .map((tabItem) => ({
+        ...tabItem,
+        label: adminTabLabels[tabItem.id] ?? tabItem.label,
+      }));
+  }, [currentUser, canEditSection, t]);
+
+  const permittedTabIds = useMemo(() => visibleTabs.map((item) => item.id), [visibleTabs]);
+  const requestedTab = view.kind === 'admin' ? view.tab : undefined;
+
+  const tab = resolveEffectiveAdminTab({
+    requestedTab,
+    userId: currentUser?.userId,
+    permittedTabs: permittedTabIds,
+  });
 
   useEffect(() => {
     if (authInitializing || identityRefreshing) return;
-    if (!visibleTabs.some((visibleTab) => visibleTab.id === tab)) {
-      setTab(visibleTabs[0]?.id ?? 'stats');
+    if (view.kind !== 'admin') return;
+    if (permittedTabIds.length > 0 && view.tab !== tab) {
+      navigate({ kind: 'admin', tab }, { replace: true });
     }
-  }, [authInitializing, identityRefreshing, tab, visibleTabs]);
+  }, [authInitializing, identityRefreshing, view, tab, permittedTabIds, navigate]);
+
+  const setTab = (selectedTab: AdminTab) => {
+    navigate({ kind: 'admin', tab: selectedTab });
+  };
 
   return (
     <div className="h-screen overflow-hidden bg-gray-50 pt-16 lg:pt-20">

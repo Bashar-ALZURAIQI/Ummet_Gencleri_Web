@@ -26,13 +26,14 @@ import BoardPage from './pages/BoardPage';
 import CommitteePage from './pages/CommitteePage';
 import { canExposeAdminUi } from './domain/liveIdentityRouting';
 import { pushDestinationFromUrl } from './domain/webPushClient';
+import { loadLastAdminTab } from './domain/adminTabMemory';
 
 function Router() {
   const { t } = useTranslation();
   const {
     view,
     currentUser,
-    setView,
+    navigate,
     updateSiteField,
     updateSiteFields,
     updateAboutField,
@@ -48,13 +49,13 @@ function Router() {
   useEffect(() => {
     const currentUrl = new URL(window.location.href);
     if (currentUrl.searchParams.get('auth') === 'recovery') {
-      setView({ kind: 'update-password' });
+      navigate({ kind: 'update-password' }, { replace: true });
       return;
     }
 
     const destination = pushDestinationFromUrl(window.location.href);
     if (!destination) return;
-    setView({ kind: destination });
+    navigate({ kind: destination }, { replace: true });
     const cleanUrl = new URL(window.location.href);
     cleanUrl.searchParams.delete('push');
     window.history.replaceState(
@@ -62,15 +63,28 @@ function Router() {
       '',
       `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`,
     );
-  }, [setView]);
+  }, [navigate]);
 
-  // Guard admin route: only president / committee-head may view it
+  // Guard protected routes (admin and student dashboard)
   useEffect(() => {
-    if (!authInitializing && !identityRefreshing && view.kind === 'admin'
-      && !canExposeAdminUi(currentUser?.role, false, false)) {
-      setView(currentUser?.role === 'STUDENT' ? { kind: 'student-dashboard' } : { kind: 'home' });
+    if (authInitializing || identityRefreshing) return;
+
+    if (view.kind === 'admin') {
+      if (!currentUser) {
+        const returnTo = `${window.location.pathname}${window.location.search}`;
+        navigate({ kind: 'login', returnTo }, { replace: true });
+      } else if (!canExposeAdminUi(currentUser.role, false, false)) {
+        navigate(currentUser.role === 'STUDENT' ? { kind: 'student-dashboard' } : { kind: 'home' }, { replace: true });
+      }
+    } else if (view.kind === 'student-dashboard') {
+      if (!currentUser) {
+        navigate({ kind: 'login', returnTo: '/student' }, { replace: true });
+      } else if (currentUser.role !== 'STUDENT') {
+        const lastTab = loadLastAdminTab(currentUser.userId);
+        navigate(canExposeAdminUi(currentUser.role, false, false) ? { kind: 'admin', ...(lastTab ? { tab: lastTab } : {}) } : { kind: 'home' }, { replace: true });
+      }
     }
-  }, [view, currentUser?.role, setView, authInitializing, identityRefreshing]);
+  }, [view, currentUser, authInitializing, identityRefreshing, navigate]);
 
   const adminAllowed = canExposeAdminUi(
     currentUser?.role,
