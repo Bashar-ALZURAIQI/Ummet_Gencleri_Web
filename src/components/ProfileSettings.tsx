@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AlertTriangle, Camera, CheckCircle2, KeyRound, Save, Trash2, User } from 'lucide-react';
 import type {
   OwnProfileOperationKind,
@@ -86,6 +87,7 @@ export default function ProfileSettings({
   operationResults,
   onClearOperationResult,
 }: ProfileSettingsProps) {
+  const { t } = useTranslation();
   const normalized = useMemo(() => normalizeProfile(profile), [profile]);
   const buildForm = (): FormState => ({
     name: normalized.name,
@@ -155,7 +157,7 @@ export default function ProfileSettings({
     if (profileBusy) return;
     const payload = buildProfileUpdatePayload(form);
     if (!payload.name) {
-      setProfileResult({ ok: false, error: 'يرجى إدخال الاسم الكامل.' });
+      setProfileResult({ ok: false, error: t('profile.nameRequired', 'يرجى إدخال الاسم الكامل.') });
       return;
     }
     const emailValidation = validateContactEmail(payload.contactEmail);
@@ -189,7 +191,7 @@ export default function ProfileSettings({
   };
 
   const deleteAvatar = async () => {
-    if (avatarBusy || !window.confirm('هل تريد حذف الصورة الشخصية الحالية؟')) return;
+    if (avatarBusy || !window.confirm(t('profile.confirmDeleteAvatar', 'هل تريد حذف الصورة الشخصية الحالية؟'))) return;
     setAvatarBusy(true);
     onClearOperationResult('avatar');
     setAvatarResult(null);
@@ -238,7 +240,7 @@ export default function ProfileSettings({
     <div className="space-y-6">
       <section className="card p-6" aria-labelledby="profile-avatar-heading">
         <h3 id="profile-avatar-heading" className="mb-5 flex items-center gap-2 text-lg font-bold text-navy-900">
-          <Camera className="h-5 w-5 text-navy-600" /> الصورة الشخصية
+          <Camera className="h-5 w-5 text-navy-600" /> {t('profile.avatarHeading', 'الصورة الشخصية')}
         </h3>
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
           <UserAvatar
@@ -258,13 +260,13 @@ export default function ProfileSettings({
               className="block w-full text-sm text-gray-600 file:ml-3 file:rounded-lg file:border-0 file:bg-navy-50 file:px-4 file:py-2 file:font-bold file:text-navy-700"
               disabled={avatarBusy}
             />
-            <p className="text-xs text-gray-500">JPEG أو PNG أو WebP، وبحد أقصى 5 ميجابايت. اختيار الصورة لا يرفعها تلقائياً.</p>
+            <p className="text-xs text-gray-500">{t('profile.avatarHelp', 'JPEG أو PNG أو WebP، وبحد أقصى 5 ميجابايت. اختيار الصورة لا يرفعها تلقائياً.')}</p>
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={uploadAvatar} disabled={!selectedAvatar || avatarBusy} className="btn-primary disabled:cursor-not-allowed disabled:opacity-50">
-                <Camera className="h-4 w-4" /> {avatarBusy ? 'جارٍ التنفيذ...' : 'رفع / استبدال الصورة'}
+                <Camera className="h-4 w-4" /> {avatarBusy ? t('profile.uploadingAvatar', 'جارٍ التنفيذ...') : t('profile.uploadAvatar', 'رفع / استبدال الصورة')}
               </button>
               <button type="button" onClick={deleteAvatar} disabled={avatarBusy} className="inline-flex items-center gap-2 rounded-xl border border-red-200 px-4 py-2 text-sm font-bold text-red-700 disabled:opacity-50">
-                <Trash2 className="h-4 w-4" /> حذف الصورة
+                <Trash2 className="h-4 w-4" /> {t('profile.deleteAvatar', 'حذف الصورة')}
               </button>
             </div>
           </div>
@@ -274,66 +276,66 @@ export default function ProfileSettings({
 
       <section className="card p-6" aria-labelledby="profile-personal-heading">
         <h3 id="profile-personal-heading" className="mb-5 flex items-center gap-2 text-lg font-bold text-navy-900">
-          <User className="h-5 w-5 text-navy-600" /> البيانات الشخصية
+          <User className="h-5 w-5 text-navy-600" /> {t('profile.personalHeading', 'البيانات الشخصية')}
         </h3>
         <form onSubmit={saveProfile} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block text-sm font-semibold text-gray-700">بريد الدخول
+            <label className="block text-sm font-semibold text-gray-700">{t('profile.loginEmail', 'بريد الدخول')}
               <input name="loginEmail" type="email" dir="ltr" value={normalized.loginEmail} readOnly className="input-field mt-1 bg-gray-100 text-gray-500" />
             </label>
-            <label className="block text-sm font-semibold text-gray-700">المنصب
+            <label className="block text-sm font-semibold text-gray-700">{t('profile.position', 'المنصب')}
               <input name="position" value={positionLabel} readOnly className="input-field mt-1 bg-gray-100 text-gray-500" />
             </label>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block text-sm font-semibold text-gray-700">الاسم الكامل
+            <label className="block text-sm font-semibold text-gray-700">{t('profile.fullName', 'الاسم الكامل')}
               <input name="name" value={form.name} onChange={(event) => updateField('name', event.target.value)} className="input-field mt-1" required />
             </label>
-            <label className="block text-sm font-semibold text-gray-700">بريد التواصل
+            <label className="block text-sm font-semibold text-gray-700">{t('profile.contactEmail', 'بريد التواصل')}
               <input name="contactEmail" type="email" dir="ltr" value={form.contactEmail} onChange={(event) => updateField('contactEmail', event.target.value)} className="input-field mt-1" />
             </label>
-            <label className="block text-sm font-semibold text-gray-700">رقم الهاتف / واتساب
+            <label className="block text-sm font-semibold text-gray-700">{t('profile.phone', 'رقم الهاتف / واتساب')}
               <input name="phone" type="tel" dir="ltr" value={form.phone} onChange={(event) => updateField('phone', event.target.value)} className="input-field mt-1" />
             </label>
-            <label className="block text-sm font-semibold text-gray-700">الجامعة
+            <label className="block text-sm font-semibold text-gray-700">{t('profile.university', 'الجامعة')}
               <input name="university" value={form.university} onChange={(event) => updateField('university', event.target.value)} className="input-field mt-1" />
             </label>
-            <label className="block text-sm font-semibold text-gray-700">التخصص
+            <label className="block text-sm font-semibold text-gray-700">{t('profile.major', 'التخصص')}
               <input name="major" value={form.major} onChange={(event) => updateField('major', event.target.value)} className="input-field mt-1" />
             </label>
-            <label className="block text-sm font-semibold text-gray-700">السنة الدراسية
+            <label className="block text-sm font-semibold text-gray-700">{t('profile.academicYear', 'السنة الدراسية')}
               <input name="year" value={form.year} onChange={(event) => updateField('year', event.target.value)} className="input-field mt-1" />
             </label>
           </div>
-          <label className="block text-sm font-semibold text-gray-700">نبذة شخصية
+          <label className="block text-sm font-semibold text-gray-700">{t('profile.bio', 'نبذة شخصية')}
             <textarea name="bio" rows={4} value={form.bio} onChange={(event) => updateField('bio', event.target.value)} className="input-field mt-1 resize-y" />
           </label>
           {resultBanner(operationResults.profile ?? profileResult)}
           <button type="submit" disabled={profileBusy} className="btn-primary disabled:opacity-50">
-            <Save className="h-4 w-4" /> {profileBusy ? 'جارٍ الحفظ...' : 'حفظ البيانات الشخصية'}
+            <Save className="h-4 w-4" /> {profileBusy ? t('profile.saving', 'جارٍ الحفظ...') : t('profile.saveButton', 'حفظ البيانات الشخصية')}
           </button>
         </form>
       </section>
 
       <section className="card p-6" aria-labelledby="profile-password-heading">
         <h3 id="profile-password-heading" className="mb-5 flex items-center gap-2 text-lg font-bold text-navy-900">
-          <KeyRound className="h-5 w-5 text-navy-600" /> تغيير كلمة المرور
+          <KeyRound className="h-5 w-5 text-navy-600" /> {t('profile.passwordHeading', 'تغيير كلمة المرور')}
         </h3>
         <form onSubmit={changePassword} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-3">
-            <label className="block text-sm font-semibold text-gray-700">كلمة المرور الحالية
+            <label className="block text-sm font-semibold text-gray-700">{t('profile.currentPassword', 'كلمة المرور الحالية')}
               <PasswordField name="currentPassword" value={passwords.current} onChange={(event) => updatePasswordField('current', event.target.value)} autoComplete="current-password" className="input-field mt-1" />
             </label>
-            <label className="block text-sm font-semibold text-gray-700">كلمة المرور الجديدة
+            <label className="block text-sm font-semibold text-gray-700">{t('profile.newPassword', 'كلمة المرور الجديدة')}
               <PasswordField name="newPassword" value={passwords.next} onChange={(event) => updatePasswordField('next', event.target.value)} autoComplete="new-password" minLength={8} className="input-field mt-1" />
             </label>
-            <label className="block text-sm font-semibold text-gray-700">تأكيد كلمة المرور الجديدة
+            <label className="block text-sm font-semibold text-gray-700">{t('profile.confirmNewPassword', 'تأكيد كلمة المرور الجديدة')}
               <PasswordField name="passwordConfirmation" value={passwords.confirmation} onChange={(event) => updatePasswordField('confirmation', event.target.value)} autoComplete="new-password" minLength={8} className="input-field mt-1" />
             </label>
           </div>
           {resultBanner(operationResults.password ?? passwordResult)}
           <button type="submit" disabled={passwordBusy} className="btn-primary disabled:opacity-50">
-            <KeyRound className="h-4 w-4" /> {passwordBusy ? 'جارٍ التغيير...' : 'تغيير كلمة المرور'}
+            <KeyRound className="h-4 w-4" /> {passwordBusy ? t('profile.changingPassword', 'جارٍ التغيير...') : t('profile.changePasswordButton', 'تغيير كلمة المرور')}
           </button>
         </form>
       </section>

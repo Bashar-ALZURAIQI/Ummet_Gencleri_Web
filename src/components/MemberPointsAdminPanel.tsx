@@ -104,7 +104,7 @@ export default function MemberPointsAdminPanel({ role }: { role: string }) {
   };
 
   return (
-    <section className="card p-6" dir="rtl">
+    <section className="card p-6">
       <TransientToast message={toast} onClose={() => setToast(null)} />
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -166,7 +166,7 @@ export default function MemberPointsAdminPanel({ role }: { role: string }) {
         </table>
       </div>
       <Modal open={!!selected} onClose={close} title={t('admin.memberPoints.modal.title', 'تعديل نقاط {{name}}', { name: selected?.studentName ?? '' })}>
-        <form onSubmit={submit} className="space-y-4" dir="rtl">
+        <form onSubmit={submit} className="space-y-4">
           <div>
             <label className="label-field">{t('admin.memberPoints.modal.amountLabel', 'القيمة الموقعة')}</label>
             <input className="input-field" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={t('admin.memberPoints.modal.amountPlaceholder', 'مثال: 10 أو -5')} required />

@@ -107,7 +107,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
           setSubmissionFeedback({ id: Date.now(), type: 'error', text: message });
           return false;
         }
-        setSubmissionFeedback({ id: Date.now(), type: 'success', text: 'تم الحفظ بنجاح' });
+        setSubmissionFeedback({ id: Date.now(), type: 'success', text: t('admin.vision.savedSuccess', 'تم الحفظ بنجاح') });
         return true;
       } catch (error) {
         console.error('[ExecutiveBoardEditModal] Unexpected president publication failure', error);
@@ -193,7 +193,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
     setRespModal(false);
   };
   const deleteResp = async (i: number) => {
-    if (!confirm('حذف هذا البند؟')) return;
+    if (!confirm(t('committee.confirmDeleteItem', 'حذف هذا البند؟'))) return;
     await submitOrApply((c) => ({ ...c, responsibilities: (c.responsibilities ?? []).filter((_, x) => x !== i) }));
   };
 
@@ -227,7 +227,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
     setMemberModal(false);
   };
   const deleteMember = async (mid: string) => {
-    if (!confirm('حذف هذا العضو؟')) return;
+    if (!confirm(t('committee.confirmDeleteMember', 'حذف هذا العضو؟'))) return;
     await submitOrApply((c) => ({ ...c, members: (c.members ?? []).filter((m) => m.id !== mid) }));
   };
 
@@ -279,7 +279,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
                 <button
                   onClick={openHead}
                   className="absolute left-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white text-navy-700 opacity-0 shadow ring-1 ring-gray-200 transition-opacity hover:bg-navy-50 group-hover/head:opacity-100"
-                  title="تعديل بيانات المسؤول"
+                  title={t('committee.editHeadTitle', 'تعديل بيانات المسؤول')}
                 >
                   <Edit3 className="h-4 w-4" />
                 </button>

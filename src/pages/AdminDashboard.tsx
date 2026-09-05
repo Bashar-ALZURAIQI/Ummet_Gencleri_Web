@@ -3197,7 +3197,7 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
                 <div className="flex-1">
                   <h4 className="text-base font-bold text-navy-900">{p.title}</h4>
                   {p.committee && (
-                    <span className={`mt-1.5 inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ${COMMITTEE_BADGE_CLS[p.committee]}`}>{t('admin.plans.planPrefix', { committee: COMMITTEE_LABELS[p.committee], defaultValue: `خطة ${COMMITTEE_LABELS[p.committee]}` })}</span>
+                    <span className={`mt-1.5 inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ${COMMITTEE_BADGE_CLS[p.committee]}`}>{t('admin.plans.planPrefix', { committee: getExecutiveSectionLabel(p.committee, t) || COMMITTEE_LABELS[p.committee], defaultValue: `خطة ${getExecutiveSectionLabel(p.committee, t) || COMMITTEE_LABELS[p.committee]}` })}</span>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
@@ -3433,6 +3433,7 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
 
 /* ---------------- Profile Tab ---------------- */
 function ProfileTab({ currentUser }: { currentUser: ReturnType<typeof useApp>["currentUser"] }) {
+  const { t } = useTranslation();
   const {
     committees,
     updateOwnProfile,
@@ -3463,7 +3464,7 @@ function ProfileTab({ currentUser }: { currentUser: ReturnType<typeof useApp>["c
       {currentUser && (
         <ProfileSettings
           profile={currentUser}
-          positionLabel={ROLE_LABEL[currentUser.role]}
+          positionLabel={getExecutiveRoleLabel(currentUser.role, t) || ROLE_LABEL[currentUser.role]}
           onUpdateProfile={updateOwnProfile}
           onUploadAvatar={uploadOwnAvatar}
           onDeleteAvatar={deleteOwnAvatar}
@@ -3474,28 +3475,28 @@ function ProfileTab({ currentUser }: { currentUser: ReturnType<typeof useApp>["c
       )}
       <div className="grid gap-6">
         <div className="card p-6">
-          <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-navy-900"><Target className="h-5 w-5 text-navy-600" /> رؤية وأهداف اللجنة</h3>
+          <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-navy-900"><Target className="h-5 w-5 text-navy-600" /> {t('admin.vision.title', 'رؤية وأهداف اللجنة')}</h3>
           {committee ? (
             <form onSubmit={saveVision} className="space-y-4">
-              <div className="rounded-lg bg-navy-50 px-4 py-2 text-sm font-bold text-navy-700">{committee.name}</div>
+              <div className="rounded-lg bg-navy-50 px-4 py-2 text-sm font-bold text-navy-700">{getExecutiveSectionLabel(committee.id, t) || committee.name}</div>
               <div>
-                <label className="label-field">الرؤية <RequiredMark /></label>
-                <textarea id={fieldId('vision')} rows={4} value={visionForm.vision} onChange={(e) => { setVisionForm({ ...visionForm, vision: e.target.value }); clearInvalid(setInvalid, 'vision'); }} className={`${isInvalid(invalid, 'vision') ? 'input-field-error' : 'input-field'} resize-none`} placeholder="رؤية اللجنة المستقبلية..." />
+                <label className="label-field">{t('admin.vision.visionLabel', 'الرؤية')} <RequiredMark /></label>
+                <textarea id={fieldId('vision')} rows={4} value={visionForm.vision} onChange={(e) => { setVisionForm({ ...visionForm, vision: e.target.value }); clearInvalid(setInvalid, 'vision'); }} className={`${isInvalid(invalid, 'vision') ? 'input-field-error' : 'input-field'} resize-none`} placeholder={t('admin.vision.visionPlaceholder', 'رؤية اللجنة المستقبلية...')} />
               </div>
               <div>
-                <label className="label-field">الأهداف <RequiredMark /></label>
-                <textarea id={fieldId('goals')} rows={4} value={visionForm.goals} onChange={(e) => { setVisionForm({ ...visionForm, goals: e.target.value }); clearInvalid(setInvalid, 'goals'); }} className={`${isInvalid(invalid, 'goals') ? 'input-field-error' : 'input-field'} resize-none`} placeholder="أهداف اللجنة الاستراتيجية..." />
+                <label className="label-field">{t('admin.vision.goalsLabel', 'الأهداف')} <RequiredMark /></label>
+                <textarea id={fieldId('goals')} rows={4} value={visionForm.goals} onChange={(e) => { setVisionForm({ ...visionForm, goals: e.target.value }); clearInvalid(setInvalid, 'goals'); }} className={`${isInvalid(invalid, 'goals') ? 'input-field-error' : 'input-field'} resize-none`} placeholder={t('admin.vision.goalsPlaceholder', 'أهداف اللجنة الاستراتيجية...')} />
               </div>
-              <button type="submit" className="btn-primary"><Save className="h-4 w-4" /> حفظ الرؤية والأهداف</button>
+              <button type="submit" className="btn-primary"><Save className="h-4 w-4" /> {t('admin.vision.saveButton', 'حفظ الرؤية والأهداف')}</button>
             </form>
           ) : (
-            <p className="text-sm text-gray-400">لا توجد لجنة مرتبطة بحسابك.</p>
+            <p className="text-sm text-gray-400">{t('admin.vision.noCommittee', 'لا توجد لجنة مرتبطة بحسابك.')}</p>
           )}
         </div>
 
         {savedAt && (
           <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-bold text-white shadow-lg animate-fade-in-fast">
-            <CheckCircle2 className="ml-2 inline h-4 w-4" /> تم حفظ التغييرات بنجاح
+            <CheckCircle2 className="ml-2 inline h-4 w-4" /> {t('admin.vision.savedSuccess', 'تم حفظ التغييرات بنجاح')}
           </div>
         )}
       </div>

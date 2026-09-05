@@ -121,7 +121,7 @@ export default function ContactPage() {
   const saveMap = async (e: React.FormEvent) => {
     e.preventDefault();
     const normalized = normalizeGoogleMapsInput(mapForm.source);
-    if (!mapForm.title.trim()) { setMapError('عنوان الخريطة مطلوب.'); return; }
+    if (!mapForm.title.trim()) { setMapError(t('contact.editMapModal.titleRequired', 'عنوان الخريطة مطلوب.')); return; }
     if (!normalized.ok) { setMapError(normalized.error); return; }
     const next = { title: mapForm.title.trim(), embedUrl: normalized.embedUrl, openUrl: normalized.openUrl };
     if (currentUser?.role === 'MEDIA_HEAD') {
@@ -142,7 +142,7 @@ export default function ContactPage() {
       }
     } else {
       const saved = await savePublishedSiteTarget('contactMap', next);
-      if (!saved.ok) { setMapError(saved.error ?? 'تعذر حفظ الخريطة.'); return; }
+      if (!saved.ok) { setMapError(saved.error ?? t('contact.editMapModal.saveFailed', 'تعذر حفظ الخريطة.')); return; }
     }
     setMapModalOpen(false);
   };
@@ -283,7 +283,7 @@ export default function ContactPage() {
         <div className="relative mt-10 overflow-hidden rounded-3xl border border-gray-100 shadow-md">
           {isPresidentOrMedia && (
             <button type="button" onClick={openEditMap} className="absolute left-3 top-2 z-10 btn-ghost bg-white/95 text-xs">
-              <Edit3 className="h-3.5 w-3.5" /> تعديل الخريطة
+              <Edit3 className="h-3.5 w-3.5" /> {t('contact.editMap', 'تعديل الخريطة')}
             </button>
           )}
           <div className="flex items-center justify-between bg-navy-800 px-5 py-3">
@@ -301,7 +301,7 @@ export default function ContactPage() {
             </a>
           </div>
           <iframe
-            title="موقع الاتحاد - جامعة أتاتورك أرضروم"
+            title={t('contact.mapTitle', 'موقع الاتحاد - جامعة أتاتورك أرضروم')}
             src={contactMap.embedUrl}
             className="h-80 w-full"
             loading="lazy"
@@ -311,44 +311,44 @@ export default function ContactPage() {
       </section>
 
       {/* Card edit modal */}
-      <Modal open={cardModalOpen} onClose={() => setCardModalOpen(false)} title="تعديل بطاقة التواصل" maxWidth="max-w-sm">
+      <Modal open={cardModalOpen} onClose={() => setCardModalOpen(false)} title={t('contact.editCardModal.title', 'تعديل بطاقة التواصل')} maxWidth="max-w-sm">
         <form onSubmit={saveCard} className="space-y-4">
           <div>
-            <label htmlFor={fieldId('title')} className="label-field">العنوان <RequiredMark /></label>
+            <label htmlFor={fieldId('title')} className="label-field">{t('contact.editCardModal.titleLabel', 'العنوان')} <RequiredMark /></label>
             <input id={fieldId('title')} required className={`input-field ${isInvalid(invalid, 'title')}`} value={cardForm.title} onChange={(e) => { setCardForm({ ...cardForm, title: e.target.value }); clearInvalid(setInvalid, 'title'); }} />
           </div>
           <div>
-            <label htmlFor={fieldId('value')} className="label-field">القيمة <RequiredMark /></label>
+            <label htmlFor={fieldId('value')} className="label-field">{t('contact.editCardModal.valueLabel', 'القيمة')} <RequiredMark /></label>
             <input id={fieldId('value')} required className={`input-field ${isInvalid(invalid, 'value')}`} dir={editingCard?.ltr ? 'ltr' : undefined} value={cardForm.value} onChange={(e) => { setCardForm({ ...cardForm, value: e.target.value }); clearInvalid(setInvalid, 'value'); }} />
           </div>
           <div>
-            <label htmlFor={fieldId('sub')} className="label-field">الوصف الفرعي <RequiredMark /></label>
+            <label htmlFor={fieldId('sub')} className="label-field">{t('contact.editCardModal.subLabel', 'الوصف الفرعي')} <RequiredMark /></label>
             <input id={fieldId('sub')} required className={`input-field ${isInvalid(invalid, 'sub')}`} value={cardForm.sub} onChange={(e) => { setCardForm({ ...cardForm, sub: e.target.value }); clearInvalid(setInvalid, 'sub'); }} />
           </div>
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setCardModalOpen(false)} className="btn-ghost">إلغاء</button>
+            <button type="button" onClick={() => setCardModalOpen(false)} className="btn-ghost">{t('common.cancel', 'إلغاء')}</button>
             <button type="submit" className="btn-primary">
-              <Save className="h-4 w-4" /> حفظ
+              <Save className="h-4 w-4" /> {t('common.save', 'حفظ')}
             </button>
           </div>
         </form>
       </Modal>
 
-      <Modal open={mapModalOpen} onClose={() => setMapModalOpen(false)} title="تعديل خريطة الموقع" maxWidth="max-w-lg">
+      <Modal open={mapModalOpen} onClose={() => setMapModalOpen(false)} title={t('contact.editMapModal.title', 'تعديل خريطة الموقع')} maxWidth="max-w-lg">
         <form onSubmit={saveMap} className="space-y-4">
           <div>
-            <label className="label-field">عنوان الخريطة <RequiredMark /></label>
+            <label className="label-field">{t('contact.editMapModal.titleLabel', 'عنوان الخريطة')} <RequiredMark /></label>
             <input className="input-field" value={mapForm.title} onChange={(e) => { setMapForm({ ...mapForm, title: e.target.value }); setMapError(''); }} />
           </div>
           <div>
-            <label className="label-field">رابط Google Maps أو كود iframe <RequiredMark /></label>
+            <label className="label-field">{t('contact.editMapModal.sourceLabel', 'رابط Google Maps أو كود iframe')} <RequiredMark /></label>
             <textarea dir="ltr" rows={4} className="input-field resize-none" value={mapForm.source} onChange={(e) => { setMapForm({ ...mapForm, source: e.target.value }); setMapError(''); }} />
-            <p className="mt-1 text-xs text-gray-500">يمكن لصق رابط التضمين أو كود iframe من Google Maps.</p>
+            <p className="mt-1 text-xs text-gray-500">{t('contact.editMapModal.sourceHelp', 'يمكن لصق رابط التضمين أو كود iframe من Google Maps.')}</p>
           </div>
           {mapError && <p className="text-sm font-semibold text-red-600">{mapError}</p>}
           <div className="flex justify-end gap-2">
-            <button type="button" onClick={() => setMapModalOpen(false)} className="btn-ghost">إلغاء</button>
-            <button type="submit" className="btn-primary"><Save className="h-4 w-4" /> حفظ</button>
+            <button type="button" onClick={() => setMapModalOpen(false)} className="btn-ghost">{t('common.cancel', 'إلغاء')}</button>
+            <button type="submit" className="btn-primary"><Save className="h-4 w-4" /> {t('common.save', 'حفظ')}</button>
           </div>
         </form>
       </Modal>

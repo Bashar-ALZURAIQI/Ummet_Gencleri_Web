@@ -67,7 +67,7 @@ export default function ExecutiveEditDraftEditor({
           <div key={index} className="grid gap-2 rounded-xl border border-gray-200 p-3 sm:grid-cols-2">
             <input
               className="input-field"
-              aria-label={`قيمة الإحصائية ${index + 1}`}
+              aria-label={t('admin.profileEdits.draftEditor.statValueAria', { index: index + 1, defaultValue: `قيمة الإحصائية ${index + 1}` })}
               value={item.value}
               onChange={(event) => setStats((current) => current.map((row, rowIndex) => (
                 rowIndex === index ? { ...row, value: event.target.value } : row
@@ -76,7 +76,7 @@ export default function ExecutiveEditDraftEditor({
             />
             <input
               className="input-field"
-              aria-label={`مسمى الإحصائية ${index + 1}`}
+              aria-label={t('admin.profileEdits.draftEditor.statLabelAria', { index: index + 1, defaultValue: `مسمى الإحصائية ${index + 1}` })}
               value={item.label}
               onChange={(event) => setStats((current) => current.map((row, rowIndex) => (
                 rowIndex === index ? { ...row, label: event.target.value } : row
@@ -94,7 +94,7 @@ export default function ExecutiveEditDraftEditor({
           <div key={index} className="grid gap-2 rounded-xl border border-gray-200 p-3 sm:grid-cols-2">
             <input
               className="input-field"
-              aria-label={`اسم عضو اللجنة ${index + 1}`}
+              aria-label={t('admin.profileEdits.draftEditor.memberNameAria', { index: index + 1, defaultValue: `اسم عضو اللجنة ${index + 1}` })}
               value={item.name}
               onChange={(event) => setMembers((current) => current.map((row, rowIndex) => (
                 rowIndex === index ? { ...row, name: event.target.value } : row
@@ -103,7 +103,7 @@ export default function ExecutiveEditDraftEditor({
             />
             <input
               className="input-field"
-              aria-label={`مسؤولية عضو اللجنة ${index + 1}`}
+              aria-label={t('admin.profileEdits.draftEditor.memberPositionAria', { index: index + 1, defaultValue: `مسؤولية عضو اللجنة ${index + 1}` })}
               value={item.position}
               onChange={(event) => setMembers((current) => current.map((row, rowIndex) => (
                 rowIndex === index ? { ...row, position: event.target.value } : row

@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
+import i18next from 'i18next';
 
 interface Props { children: ReactNode; }
 interface State { hasError: boolean; message?: string; }
@@ -20,15 +21,15 @@ export default class ErrorBoundary extends Component<Props, State> {
       return (
         <div className="flex min-h-[40vh] flex-col items-center justify-center p-8 text-center">
           <AlertTriangle className="h-10 w-10 text-rose-500" />
-          <h2 className="mt-3 text-lg font-bold text-navy-900">حدث خطأ غير متوقع في هذه الجزئية</h2>
+          <h2 className="mt-3 text-lg font-bold text-navy-900">{i18next.t('common.unexpectedError', 'حدث خطأ غير متوقع في هذه الجزئية')}</h2>
           <p className="mt-1 max-w-md text-sm text-gray-500">
-            يمكنك تحديث الصفحة لمتابعة استخدام الموقع. إذا استمرت المشكلة، يرجى التواصل مع الإدارة.
+            {i18next.t('common.unexpectedErrorHelp', 'يمكنك تحديث الصفحة لمتابعة استخدام الموقع. إذا استمرت المشكلة، يرجى التواصل مع الإدارة.')}
           </p>
           <button
             onClick={() => this.setState({ hasError: false, message: undefined })}
             className="btn-primary mt-4"
           >
-            إعادة المحاولة
+            {i18next.t('common.retry', 'إعادة المحاولة')}
           </button>
         </div>
       );

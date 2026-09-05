@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 type DismissibleToastProps = {
   dismissKey: string;
@@ -10,6 +11,7 @@ type DismissibleToastProps = {
 };
 
 export default function DismissibleToast({ dismissKey, type = 'info', icon, children }: DismissibleToastProps) {
+  const { t } = useTranslation();
   const [dismissed, setDismissed] = useState(() => {
     try {
       return sessionStorage.getItem(dismissKey) === '1';
@@ -44,8 +46,8 @@ export default function DismissibleToast({ dismissKey, type = 'info', icon, chil
           type="button"
           onClick={close}
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-white/70"
-          title="إغلاق التنبيه"
-          aria-label="إغلاق التنبيه"
+          title={t('common.closeNotice', 'إغلاق التنبيه')}
+          aria-label={t('common.closeNotice', 'إغلاق التنبيه')}
         >
           <X className="h-4 w-4" />
         </button>

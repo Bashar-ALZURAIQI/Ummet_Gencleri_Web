@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { Pencil, Save, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import Modal from './Modal';
 import ManagedFileField from './ManagedFileField';
 import { useApp } from '../context/AppContext';
@@ -33,6 +34,7 @@ interface InlineAboutFieldUpdate {
   label?: string;
 }
 
+
 const InlineEditContext = createContext<InlineEditContextValue | null>(null);
 
 export function InlineEditProvider({ value, children }: { value: InlineEditContextValue; children: ReactNode }) {
@@ -65,6 +67,7 @@ export function EditableField({
   canEdit: boolean;
   children: ReactNode;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(currentValue);
   const [saving, setSaving] = useState(false);
@@ -90,18 +93,21 @@ export function EditableField({
         ? updateSiteField(config.path, val, config.label)
         : updateAboutField(config.path, String(val), config.label));
       if (!saved) {
-        setSaveError('تعذر حفظ التعديل. بقيت النافذة مفتوحة للمحاولة مرة أخرى.');
+        setSaveError(t('admin.siteEdits.saveFailed'));
         return;
       }
       setOpen(false);
     } catch {
-      setSaveError('تعذر الاتصال بالخادم أثناء الحفظ. لم تُغلق النافذة ولم يُؤكد التعديل.');
+      setSaveError(t('admin.siteEdits.networkError'));
     } finally {
       setSaving(false);
     }
   };
 
   if (!canEdit) return <>{children}</>;
+
+  const editTitle = t('common.editPrefix', { label: config.label, defaultValue: `تعديل: ${config.label}` });
+  const editAria = t('common.editField', { label: config.label, defaultValue: `تعديل ${config.label}` });
 
   return (
     <>
@@ -111,13 +117,13 @@ export function EditableField({
           type="button"
           onClick={openModal}
           className="absolute -top-1.5 -right-1.5 z-40 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white text-navy-700 opacity-0 shadow-md ring-1 ring-navy-200 transition-opacity hover:bg-navy-50 group-hover/edit:opacity-100 focus:opacity-100"
-          title={`تعديل: ${config.label}`}
-          aria-label={`تعديل ${config.label}`}
+          title={editTitle}
+          aria-label={editAria}
         >
           <Pencil className="h-3 w-3" />
         </button>
       </span>
-      <Modal open={open} onClose={() => { if (!saving) setOpen(false); }} title={`تعديل: ${config.label}`} maxWidth="max-w-md">
+      <Modal open={open} onClose={() => { if (!saving) setOpen(false); }} title={editTitle} maxWidth="max-w-md">
         <div className="space-y-4">
           {config.type === 'textarea' ? (
             <textarea
@@ -153,10 +159,10 @@ export function EditableField({
           )}
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setOpen(false)} disabled={saving} className="btn-ghost">
-              <X className="h-4 w-4" /> إلغاء
+              <X className="h-4 w-4" /> {t('common.cancel', 'إلغاء')}
             </button>
             <button type="button" onClick={() => void save()} disabled={saving} className="btn-primary">
-              <Save className="h-4 w-4" /> {saving ? 'جارٍ الحفظ...' : 'حفظ التغييرات'}
+              <Save className="h-4 w-4" /> {saving ? t('common.saving', 'جارٍ الحفظ...') : t('common.saveChanges', 'حفظ التغييرات')}
             </button>
           </div>
         </div>
@@ -185,6 +191,7 @@ export function EditableCard({
   children: ReactNode;
   className?: string;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Record<string, string>>(currentValues);
   const [saving, setSaving] = useState(false);
@@ -217,18 +224,21 @@ export function EditableCard({
             value: draft[field.path] ?? '',
           }))));
       if (!saved) {
-        setSaveError('تعذر حفظ البطاقة كاملة. بقيت النافذة مفتوحة ولم يُؤكد أي حفظ جزئي.');
+        setSaveError(t('admin.siteEdits.saveGroupFailed'));
         return;
       }
       setOpen(false);
     } catch {
-      setSaveError('تعذر الاتصال بالخادم أثناء الحفظ. توقفت العملية وبقيت النافذة مفتوحة.');
+      setSaveError(t('admin.siteEdits.networkError'));
     } finally {
       setSaving(false);
     }
   };
 
   if (!canEdit) return <>{children}</>;
+
+  const editCardTitle = t('common.editPrefix', { label: config.label, defaultValue: `تعديل: ${config.label}` });
+  const editCardAria = t('common.editField', { label: config.label, defaultValue: `تعديل ${config.label}` });
 
   return (
     <>
@@ -238,13 +248,13 @@ export function EditableCard({
           type="button"
           onClick={openModal}
           className="absolute -top-2 -right-2 z-40 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-navy-700 opacity-0 shadow-md ring-1 ring-navy-200 transition-opacity hover:bg-navy-50 group-hover/edit:opacity-100 focus:opacity-100"
-          title={`تعديل: ${config.label}`}
-          aria-label={`تعديل ${config.label}`}
+          title={editCardTitle}
+          aria-label={editCardAria}
         >
           <Pencil className="h-3.5 w-3.5" />
         </button>
       </div>
-      <Modal open={open} onClose={() => { if (!saving) setOpen(false); }} title={`تعديل: ${config.label}`} maxWidth="max-w-lg">
+      <Modal open={open} onClose={() => { if (!saving) setOpen(false); }} title={editCardTitle} maxWidth="max-w-lg">
         <div className="space-y-4">
           {config.fields.map((field) => (
             <div key={field.path}>
@@ -285,10 +295,10 @@ export function EditableCard({
           )}
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setOpen(false)} disabled={saving} className="btn-ghost">
-              <X className="h-4 w-4" /> إلغاء
+              <X className="h-4 w-4" /> {t('common.cancel', 'إلغاء')}
             </button>
             <button type="button" onClick={() => void save()} disabled={saving} className="btn-primary">
-              <Save className="h-4 w-4" /> {saving ? 'جارٍ الحفظ...' : 'حفظ التغييرات'}
+              <Save className="h-4 w-4" /> {saving ? t('common.saving', 'جارٍ الحفظ...') : t('common.saveChanges', 'حفظ التغييرات')}
             </button>
           </div>
         </div>

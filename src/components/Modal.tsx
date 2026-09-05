@@ -1,6 +1,7 @@
 import { X } from 'lucide-react';
 import { useEffect, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 
 export default function Modal({
   open,
@@ -15,6 +16,8 @@ export default function Modal({
   children: ReactNode;
   maxWidth?: string;
 }) {
+  const { t } = useTranslation();
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -42,7 +45,7 @@ export default function Modal({
           <button
             onClick={onClose}
             className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
-            aria-label="إغلاق"
+            aria-label={t('common.close', 'إغلاق')}
           >
             <X className="h-5 w-5" />
           </button>

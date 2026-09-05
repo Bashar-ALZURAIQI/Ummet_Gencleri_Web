@@ -127,7 +127,7 @@ export default function TaskManagementDashboard() {
   };
 
   return (
-    <section className="space-y-5" dir="rtl">
+    <section className="space-y-5">
       <TransientToast message={toast} onClose={() => setToast(null)} />
       <div className="card p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
