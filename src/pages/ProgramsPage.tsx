@@ -20,6 +20,10 @@ import {
   setOwnActivityDecision,
 } from '../services/internalEconomyService';
 import { canCreateExecutiveContent } from '../domain/phaseThreeEconomy.ts';
+import { CmsEntityTranslationTabs } from '../components/cmsLocalization/CmsEntityTranslationTabs';
+import { useCmsLocalizationRepository } from '../context/CmsLocalizationContext';
+import { computeSourceHash, type JsonValue } from '../domain/cmsLocalization';
+import { getEventCategoryLabel } from '../domain/eventCategoryPresentation';
 
 type Tab = 'upcoming' | 'past';
 
@@ -48,6 +52,11 @@ export default function ProgramsPage() {
   const [excuseActivity, setExcuseActivity] = useState<StudentActivityBoardItem | null>(null);
   const [excuseText, setExcuseText] = useState('');
   const [toast, setToast] = useState<ToastMessage | null>(null);
+  const repository = useCmsLocalizationRepository();
+  const [translations, setTranslations] = useState<Record<'tr' | 'en', Record<string, string>>>({
+    tr: { title: '', description: '', location: '' },
+    en: { title: '', description: '', location: '' },
+  });
   const [form, setForm] = useState({
     title: '', category: '' as EventCategory, date: '', time: '16:00',
     location: '', description: '', capacity: 50, registered: 0,
@@ -136,6 +145,10 @@ export default function ProgramsPage() {
     setEditId(null);
     setDraftEventId(crypto.randomUUID());
     setForm({ title: '', category: '' as EventCategory, date: '', time: '16:00', location: '', description: '', capacity: 50, registered: 0, status: '' as 'upcoming' | 'past', image: '', showOnHomepage: false, activityType: 'OPTIONAL', pointsValue: 0, registrationDeadline: '' });
+    setTranslations({
+      tr: { title: '', description: '', location: '' },
+      en: { title: '', description: '', location: '' },
+    });
     setModalOpen(true);
   };
 
@@ -149,6 +162,10 @@ export default function ProgramsPage() {
       activityType: e.activityType ?? 'OPTIONAL',
       pointsValue: e.pointsValue ?? 0,
       registrationDeadline: toDateTimeLocalValue(e.registrationDeadline ?? e.date),
+    });
+    setTranslations({
+      tr: { title: '', description: '', location: '' },
+      en: { title: '', description: '', location: '' },
     });
     setModalOpen(true);
   };
@@ -240,6 +257,31 @@ export default function ProgramsPage() {
       if (!saved.ok) {
         notify('error', saved.error ?? 'تعذر إنشاء الفعالية.');
         return;
+      }
+      // Bind drafted translations to authoritative event ID
+      for (const loc of ['tr', 'en'] as const) {
+        const trData = translations[loc];
+        if (trData.title?.trim() || trData.description?.trim() || trData.location?.trim()) {
+          try {
+            const latest = await repository.getDraft('events', loc);
+            const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
+              ? JSON.parse(JSON.stringify(latest.payload))
+              : [];
+            list.push({ id: publicEventId, ...trData });
+            const nextEvents = [newEvent, ...events];
+            await repository.saveDraft({
+              target: 'events',
+              locale: loc,
+              payload: list as unknown as JsonValue,
+              status: 'draft',
+              manualPaths: [`${publicEventId}.title`],
+              sourceHash: computeSourceHash(nextEvents),
+              updatedAt: new Date().toISOString(),
+            });
+          } catch {
+            // non-blocking
+          }
+        }
       }
     }
     setModalOpen(false);
@@ -475,10 +517,6 @@ export default function ProgramsPage() {
       {/* Add/Edit Event Modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editId ? 'تعديل فعالية' : 'إضافة فعالية جديدة'} maxWidth="max-w-xl">
         <form onSubmit={saveEvent} className="space-y-4">
-          <div>
-            <label className="label-field">عنوان الفعالية <RequiredMark /></label>
-            <input id={fieldId('title')} className={`${isInvalid(invalid, 'title') ? 'input-field-error' : 'input-field'}`} value={form.title} onChange={(e) => { setForm({ ...form, title: e.target.value }); clearInvalid(setInvalid, 'title'); }} />
-          </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="label-field">النوع <RequiredMark /></label>
@@ -493,7 +531,7 @@ export default function ProgramsPage() {
               <select id={fieldId('category')} className={`${isInvalid(invalid, 'category') ? 'input-field-error' : 'input-field'}`} value={form.category} onChange={(e) => { setForm({ ...form, category: e.target.value as EventCategory }); clearInvalid(setInvalid, 'category'); }}>
                 <option value="">اختر الفئة...</option>
                 {(Object.keys(categoryLabels) as EventCategory[]).map((c) => (
-                  <option key={c} value={c}>{categoryLabels[c]}</option>
+                  <option key={c} value={c}>{getEventCategoryLabel(c, t)}</option>
                 ))}
               </select>
             </div>
@@ -527,14 +565,6 @@ export default function ProgramsPage() {
               <input id={fieldId('time')} type="time" className={`${isInvalid(invalid, 'time') ? 'input-field-error' : 'input-field'}`} value={form.time} onChange={(e) => { setForm({ ...form, time: e.target.value }); clearInvalid(setInvalid, 'time'); }} />
             </div>
           </div>
-          <div>
-            <label className="label-field">المكان <RequiredMark /></label>
-            <input id={fieldId('location')} className={`${isInvalid(invalid, 'location') ? 'input-field-error' : 'input-field'}`} value={form.location} onChange={(e) => { setForm({ ...form, location: e.target.value }); clearInvalid(setInvalid, 'location'); }} />
-          </div>
-          <div>
-            <label className="label-field">الوصف <RequiredMark /></label>
-            <textarea id={fieldId('description')} rows={2} className={`${isInvalid(invalid, 'description') ? 'input-field-error' : 'input-field'} resize-none`} value={form.description} onChange={(e) => { setForm({ ...form, description: e.target.value }); clearInvalid(setInvalid, 'description'); }} />
-          </div>
           <ManagedFileField
             usage="event-image"
             label="صورة الفعالية"
@@ -561,6 +591,58 @@ export default function ProgramsPage() {
             <input type="checkbox" checked={form.showOnHomepage} onChange={(e) => setForm({ ...form, showOnHomepage: e.target.checked })} className="h-4 w-4 accent-navy-700" />
             <span className="text-sm font-semibold text-navy-900">عرض في الصفحة الرئيسية</span>
           </label>
+
+          <CmsEntityTranslationTabs
+            target="events"
+            recordId={editId}
+            canonicalPayload={editId ? events.map((ev) => (ev.id === editId ? { ...ev, title: form.title, description: form.description, location: form.location } : ev)) : events}
+            fields={[
+              {
+                name: 'title',
+                label: 'عنوان الفعالية',
+                kind: 'title',
+                canonicalValue: form.title,
+                placeholder: 'عنوان الفعالية',
+              },
+              {
+                name: 'location',
+                label: 'المكان',
+                kind: 'text',
+                canonicalValue: form.location,
+                placeholder: 'مكان الفعالية',
+                isLocation: true,
+              },
+              {
+                name: 'description',
+                label: 'الوصف',
+                kind: 'description',
+                canonicalValue: form.description,
+                placeholder: 'وصف الفعالية',
+              },
+            ]}
+            canEdit={canAddEvent && (!editId || isPresident)}
+            translations={translations}
+            onTranslationChange={(loc, name, val) => {
+              setTranslations((prev) => ({
+                ...prev,
+                [loc]: { ...prev[loc], [name]: val },
+              }));
+            }}
+          >
+            <div>
+              <label className="label-field">عنوان الفعالية <RequiredMark /></label>
+              <input id={fieldId('title')} className={`${isInvalid(invalid, 'title') ? 'input-field-error' : 'input-field'}`} value={form.title} onChange={(e) => { setForm({ ...form, title: e.target.value }); clearInvalid(setInvalid, 'title'); }} placeholder="عنوان الفعالية" />
+            </div>
+            <div>
+              <label className="label-field">المكان <RequiredMark /></label>
+              <input id={fieldId('location')} className={`${isInvalid(invalid, 'location') ? 'input-field-error' : 'input-field'}`} value={form.location} onChange={(e) => { setForm({ ...form, location: e.target.value }); clearInvalid(setInvalid, 'location'); }} placeholder="مكان الفعالية" />
+            </div>
+            <div>
+              <label className="label-field">الوصف <RequiredMark /></label>
+              <textarea id={fieldId('description')} rows={2} className={`${isInvalid(invalid, 'description') ? 'input-field-error' : 'input-field'} resize-none`} value={form.description} onChange={(e) => { setForm({ ...form, description: e.target.value }); clearInvalid(setInvalid, 'description'); }} placeholder="وصف الفعالية" />
+            </div>
+          </CmsEntityTranslationTabs>
+
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setModalOpen(false)} className="btn-ghost">إلغاء</button>
             <button type="submit" className="btn-primary">

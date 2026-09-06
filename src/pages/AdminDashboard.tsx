@@ -36,6 +36,9 @@ import { getAcademicYearPresentation } from '../domain/academicYearPresentation'
 import { formatStatisticNumber, formatStatisticMonth } from '../domain/numberPresentation';
 import { getEventCategoryLabel } from '../domain/eventCategoryPresentation';
 import { getExecutiveRoleLabel, getExecutiveSectionLabel } from '../domain/executivePresentation';
+import { CmsEntityTranslationTabs } from '../components/cmsLocalization/CmsEntityTranslationTabs';
+import { useCmsLocalizationRepository } from '../context/CmsLocalizationContext';
+import { computeSourceHash, type LocalizedCmsLocale, type JsonValue } from '../domain/cmsLocalization';
 import type { ManagedAssetReference } from '../services/managedAssetService';
 import type {
   ApplicationEmailEventType,
@@ -1815,6 +1818,12 @@ function EventsTab({ events, currentUser }: {
     pointsValue: 0, registrationDeadline: '',
   });
 
+  const repository = useCmsLocalizationRepository();
+  const [translations, setTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
+    tr: { title: '', description: '', location: '' },
+    en: { title: '', description: '', location: '' },
+  });
+
   // Scoped access: the president manages all events; every other executive
   // member sees, edits and deletes only the events their role created
   // (`createdByRole == currentUser.role`). Other committees' events stay
@@ -1829,6 +1838,10 @@ function EventsTab({ events, currentUser }: {
   const openAdd = () => {
     setEditId(null);
     setForm({ title: '', category: '' as EventCategory, date: '', time: '16:00', location: '', description: '', capacity: 50, status: '' as 'upcoming' | 'past', image: '', eventUrl: '', activityType: 'OPTIONAL', pointsValue: 0, registrationDeadline: '' });
+    setTranslations({
+      tr: { title: '', description: '', location: '' },
+      en: { title: '', description: '', location: '' },
+    });
     setModalOpen(true);
   };
 
@@ -1841,6 +1854,10 @@ function EventsTab({ events, currentUser }: {
       eventUrl: e.eventUrl ?? '',
       activityType: e.activityType ?? 'OPTIONAL', pointsValue: e.pointsValue ?? 0,
       registrationDeadline: toDateTimeLocalValue(e.registrationDeadline ?? e.date),
+    });
+    setTranslations({
+      tr: { title: '', description: '', location: '' },
+      en: { title: '', description: '', location: '' },
     });
     setModalOpen(true);
   };
@@ -1872,6 +1889,31 @@ function EventsTab({ events, currentUser }: {
       if (!saved.ok) {
         setToast({ id: Date.now(), type: 'error', text: saved.error ?? t('admin.events.createFailed', 'تعذر إنشاء الفعالية.') });
         return;
+      }
+      // Bind drafted translations to authoritative event ID
+      for (const loc of ['tr', 'en'] as const) {
+        const trData = translations[loc];
+        if (trData.title?.trim() || trData.description?.trim() || trData.location?.trim()) {
+          try {
+            const latest = await repository.getDraft('events', loc);
+            const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
+              ? JSON.parse(JSON.stringify(latest.payload))
+              : [];
+            list.push({ id: publicEventId, ...trData });
+            const nextEvents = [newEvent, ...events];
+            await repository.saveDraft({
+              target: 'events',
+              locale: loc,
+              payload: list as unknown as JsonValue,
+              status: 'draft',
+              manualPaths: [`${publicEventId}.title`],
+              sourceHash: computeSourceHash(nextEvents),
+              updatedAt: new Date().toISOString(),
+            });
+          } catch {
+            // non-blocking
+          }
+        }
       }
     }
     setModalOpen(false);
@@ -1966,10 +2008,6 @@ function EventsTab({ events, currentUser }: {
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editId ? t('admin.events.modal.editTitle', 'تعديل الفعالية') : t('admin.events.modal.addTitle', 'إضافة فعالية جديدة')} maxWidth="max-w-xl">
         <form onSubmit={save} className="space-y-4">
-          <div>
-            <label className="label-field">{t('admin.events.modal.titleLabel', 'عنوان الفعالية')} <RequiredMark /></label>
-            <input id={fieldId('title')} type="text" value={form.title} onChange={(e) => { setForm({ ...form, title: e.target.value }); clearInvalid(setInvalid, 'title'); }} className={`${isInvalid(invalid, 'title') ? 'input-field-error' : 'input-field'}`} placeholder={t('admin.events.modal.titlePlaceholder', 'عنوان الفعالية')} />
-          </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="label-field">{t('admin.events.modal.categoryLabel', 'التصنيف')} <RequiredMark /></label>
@@ -2011,14 +2049,6 @@ function EventsTab({ events, currentUser }: {
               <input id={fieldId('time')} type="time" value={form.time} onChange={(e) => { setForm({ ...form, time: e.target.value }); clearInvalid(setInvalid, 'time'); }} className={`${isInvalid(invalid, 'time') ? 'input-field-error' : 'input-field'}`} />
             </div>
           </div>
-          <div>
-            <label className="label-field">{t('admin.events.modal.locationLabel', 'الموقع')} <RequiredMark /></label>
-            <input id={fieldId('location')} type="text" value={form.location} onChange={(e) => { setForm({ ...form, location: e.target.value }); clearInvalid(setInvalid, 'location'); }} className={`${isInvalid(invalid, 'location') ? 'input-field-error' : 'input-field'}`} placeholder={t('admin.events.modal.locationPlaceholder', 'مكان الفعالية')} />
-          </div>
-          <div>
-            <label className="label-field">{t('admin.events.modal.descriptionLabel', 'الوصف')} <RequiredMark /></label>
-            <textarea id={fieldId('description')} rows={3} value={form.description} onChange={(e) => { setForm({ ...form, description: e.target.value }); clearInvalid(setInvalid, 'description'); }} className={`${isInvalid(invalid, 'description') ? 'input-field-error' : 'input-field'} resize-none`} placeholder={t('admin.events.modal.descriptionPlaceholder', 'وصف الفعالية')} />
-          </div>
           <ManagedFileField
             usage="event-image"
             label={t('admin.events.modal.imageLabel', 'صورة الفعالية')}
@@ -2047,6 +2077,58 @@ function EventsTab({ events, currentUser }: {
               <option value="past">{t('admin.events.status.past', 'منتهية')}</option>
             </select>
           </div>
+
+          <CmsEntityTranslationTabs
+            target="events"
+            recordId={editId}
+            canonicalPayload={editId ? events.map((ev) => (ev.id === editId ? { ...ev, title: form.title, description: form.description, location: form.location } : ev)) : events}
+            fields={[
+              {
+                name: 'title',
+                label: t('admin.events.modal.titleLabel', 'عنوان الفعالية'),
+                kind: 'title',
+                canonicalValue: form.title,
+                placeholder: t('admin.events.modal.titlePlaceholder', 'عنوان الفعالية'),
+              },
+              {
+                name: 'location',
+                label: t('admin.events.modal.locationLabel', 'الموقع'),
+                kind: 'text',
+                canonicalValue: form.location,
+                placeholder: t('admin.events.modal.locationPlaceholder', 'مكان الفعالية'),
+                isLocation: true,
+              },
+              {
+                name: 'description',
+                label: t('admin.events.modal.descriptionLabel', 'الوصف'),
+                kind: 'description',
+                canonicalValue: form.description,
+                placeholder: t('admin.events.modal.descriptionPlaceholder', 'وصف الفعالية'),
+              },
+            ]}
+            canEdit={canCreate && (!editId || isPresident)}
+            translations={translations}
+            onTranslationChange={(loc, name, val) => {
+              setTranslations((prev) => ({
+                ...prev,
+                [loc]: { ...prev[loc], [name]: val },
+              }));
+            }}
+          >
+            <div>
+              <label className="label-field">{t('admin.events.modal.titleLabel', 'عنوان الفعالية')} <RequiredMark /></label>
+              <input id={fieldId('title')} type="text" value={form.title} onChange={(e) => { setForm({ ...form, title: e.target.value }); clearInvalid(setInvalid, 'title'); }} className={`${isInvalid(invalid, 'title') ? 'input-field-error' : 'input-field'}`} placeholder={t('admin.events.modal.titlePlaceholder', 'عنوان الفعالية')} />
+            </div>
+            <div>
+              <label className="label-field">{t('admin.events.modal.locationLabel', 'الموقع')} <RequiredMark /></label>
+              <input id={fieldId('location')} type="text" value={form.location} onChange={(e) => { setForm({ ...form, location: e.target.value }); clearInvalid(setInvalid, 'location'); }} className={`${isInvalid(invalid, 'location') ? 'input-field-error' : 'input-field'}`} placeholder={t('admin.events.modal.locationPlaceholder', 'مكان الفعالية')} />
+            </div>
+            <div>
+              <label className="label-field">{t('admin.events.modal.descriptionLabel', 'الوصف')} <RequiredMark /></label>
+              <textarea id={fieldId('description')} rows={3} value={form.description} onChange={(e) => { setForm({ ...form, description: e.target.value }); clearInvalid(setInvalid, 'description'); }} className={`${isInvalid(invalid, 'description') ? 'input-field-error' : 'input-field'} resize-none`} placeholder={t('admin.events.modal.descriptionPlaceholder', 'وصف الفعالية')} />
+            </div>
+          </CmsEntityTranslationTabs>
+
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setModalOpen(false)} className="btn-ghost">{t('common.cancel', 'إلغاء')}</button>
             <button type="submit" className="btn-primary"><CheckCircle2 className="h-4 w-4" /> {editId ? t('admin.events.modal.saveChanges', 'حفظ التعديلات') : t('common.add', 'إضافة')}</button>
@@ -2065,10 +2147,15 @@ function NewsTab({ news, currentUser, submitSiteEdit }: {
   submitSiteEdit: ReturnType<typeof useApp>['submitSiteEdit'];
 }) {
   const { t } = useTranslation();
+  const repository = useCmsLocalizationRepository();
   const { uploadManagedFile, savePublishedSiteTarget } = useApp();
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [invalid, setInvalid] = useState<string[]>([]);
+  const [translations, setTranslations] = useState<Record<'tr' | 'en', Record<string, string>>>({
+    tr: { title: '', excerpt: '', fullContent: '' },
+    en: { title: '', excerpt: '', fullContent: '' },
+  });
   const [form, setForm] = useState({
     title: '', category: '', date: new Date().toISOString().slice(0, 10),
     excerpt: '', fullContent: '', image: '', externalUrl: '', pinnedOnHomepage: true,
@@ -2108,6 +2195,10 @@ function NewsTab({ news, currentUser, submitSiteEdit }: {
   const openAdd = () => {
     setEditId(null);
     setForm({ title: '', category: '', date: new Date().toISOString().slice(0, 10), excerpt: '', fullContent: '', image: '', externalUrl: '', pinnedOnHomepage: true });
+    setTranslations({
+      tr: { title: '', excerpt: '', fullContent: '' },
+      en: { title: '', excerpt: '', fullContent: '' },
+    });
     setModalOpen(true);
   };
 
@@ -2117,6 +2208,10 @@ function NewsTab({ news, currentUser, submitSiteEdit }: {
       title: n.title, category: n.category, date: n.date, excerpt: n.excerpt,
       fullContent: n.fullContent || '', image: n.image, externalUrl: n.externalUrl ?? '',
       pinnedOnHomepage: n.pinnedOnHomepage ?? false,
+    });
+    setTranslations({
+      tr: { title: '', excerpt: '', fullContent: '' },
+      en: { title: '', excerpt: '', fullContent: '' },
     });
     setModalOpen(true);
   };
@@ -2149,8 +2244,9 @@ function NewsTab({ news, currentUser, submitSiteEdit }: {
       const saved = await savePublishedSiteTarget('news', news.map((n) => n.id === editId ? next : n));
       if (!saved.ok) return;
     } else {
+      const newNewsId = 'n' + Date.now();
       const newNews: NewsItem = {
-        id: 'n' + Date.now(), title: form.title, category: form.category, date: form.date,
+        id: newNewsId, title: form.title, category: form.category, date: form.date,
         excerpt: form.excerpt, fullContent: form.fullContent, image, externalUrl,
         pinnedOnHomepage: form.pinnedOnHomepage,
       };
@@ -2169,6 +2265,32 @@ function NewsTab({ news, currentUser, submitSiteEdit }: {
       }
       const saved = await savePublishedSiteTarget('news', [newNews, ...news]);
       if (!saved.ok) return;
+
+      // Bind drafted translations to authoritative news ID
+      for (const loc of ['tr', 'en'] as const) {
+        const trData = translations[loc];
+        if (trData.title?.trim() || trData.excerpt?.trim() || trData.fullContent?.trim()) {
+          try {
+            const latest = await repository.getDraft('news', loc);
+            const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
+              ? JSON.parse(JSON.stringify(latest.payload))
+              : [];
+            list.push({ id: newNewsId, ...trData });
+            const nextNewsList = [newNews, ...news];
+            await repository.saveDraft({
+              target: 'news',
+              locale: loc,
+              payload: list as unknown as JsonValue,
+              status: 'draft',
+              manualPaths: [`${newNewsId}.title`],
+              sourceHash: computeSourceHash(nextNewsList),
+              updatedAt: new Date().toISOString(),
+            });
+          } catch {
+            // non-blocking
+          }
+        }
+      }
     }
     setModalOpen(false);
   };
@@ -2249,10 +2371,6 @@ function NewsTab({ news, currentUser, submitSiteEdit }: {
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editId ? t('admin.news.modal.editTitle', 'تعديل الخبر') : t('admin.news.modal.addTitle', 'إضافة خبر جديد')} maxWidth="max-w-xl">
         <form onSubmit={save} className="space-y-4">
-          <div>
-            <label className="label-field">{t('admin.news.modal.titleLabel', 'عنوان الخبر')} <RequiredMark /></label>
-            <input id={fieldId('title')} type="text" value={form.title} onChange={(e) => { setForm({ ...form, title: e.target.value }); clearInvalid(setInvalid, 'title'); }} className={`${isInvalid(invalid, 'title') ? 'input-field-error' : 'input-field'}`} placeholder={t('admin.news.modal.titlePlaceholder', 'عنوان الخبر')} />
-          </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="label-field">{t('admin.news.modal.categoryLabel', 'التصنيف')} <RequiredMark /></label>
@@ -2263,14 +2381,7 @@ function NewsTab({ news, currentUser, submitSiteEdit }: {
               <input id={fieldId('date')} type="date" value={form.date} onChange={(e) => { setForm({ ...form, date: e.target.value }); clearInvalid(setInvalid, 'date'); }} className={`${isInvalid(invalid, 'date') ? 'input-field-error' : 'input-field'}`} />
             </div>
           </div>
-          <div>
-            <label className="label-field">{t('admin.news.modal.excerptLabel', 'الملخص للصفحة الرئيسية')} <RequiredMark /></label>
-            <textarea id={fieldId('excerpt')} rows={2} value={form.excerpt} onChange={(e) => { setForm({ ...form, excerpt: e.target.value }); clearInvalid(setInvalid, 'excerpt'); }} className={`${isInvalid(invalid, 'excerpt') ? 'input-field-error' : 'input-field'} resize-none`} placeholder={t('admin.news.modal.excerptPlaceholder', 'ملخص قصير يظهر على بطاقة الخبر')} />
-          </div>
-          <div>
-            <label className="label-field">{t('admin.news.modal.fullContentLabel', 'النص الكامل')} <RequiredMark /></label>
-            <textarea id={fieldId('fullContent')} rows={5} value={form.fullContent} onChange={(e) => { setForm({ ...form, fullContent: e.target.value }); clearInvalid(setInvalid, 'fullContent'); }} className={`${isInvalid(invalid, 'fullContent') ? 'input-field-error' : 'input-field'} resize-none`} placeholder={t('admin.news.modal.fullContentPlaceholder', 'المحتوى الكامل للخبر')} />
-          </div>
+
           <ManagedFileField
             usage="news-image"
             label={t('admin.news.modal.imageLabel', 'صورة الخبر')}
@@ -2295,6 +2406,57 @@ function NewsTab({ news, currentUser, submitSiteEdit }: {
             <input type="checkbox" checked={form.pinnedOnHomepage} onChange={(e) => setForm({ ...form, pinnedOnHomepage: e.target.checked })} className="h-4 w-4 accent-navy-700" />
             <span className="text-sm font-semibold text-navy-900">{t('admin.news.modal.pinCheckbox', 'تثبيت في الصفحة الرئيسية')}</span>
           </label>
+
+          <CmsEntityTranslationTabs
+            target="news"
+            recordId={editId}
+            canonicalPayload={editId ? news.map((n) => (n.id === editId ? { ...n, title: form.title, excerpt: form.excerpt, fullContent: form.fullContent } : n)) : news}
+            fields={[
+              {
+                name: 'title',
+                label: t('admin.news.modal.titleLabel', 'عنوان الخبر'),
+                kind: 'title',
+                canonicalValue: form.title,
+                placeholder: t('admin.news.modal.titlePlaceholder', 'عنوان الخبر'),
+              },
+              {
+                name: 'excerpt',
+                label: t('admin.news.modal.excerptLabel', 'الملخص للصفحة الرئيسية'),
+                kind: 'description',
+                canonicalValue: form.excerpt,
+                placeholder: t('admin.news.modal.excerptPlaceholder', 'ملخص قصير يظهر على بطاقة الخبر'),
+              },
+              {
+                name: 'fullContent',
+                label: t('admin.news.modal.fullContentLabel', 'النص الكامل'),
+                kind: 'description',
+                canonicalValue: form.fullContent,
+                placeholder: t('admin.news.modal.fullContentPlaceholder', 'المحتوى الكامل للخبر'),
+              },
+            ]}
+            canEdit={true}
+            translations={translations}
+            onTranslationChange={(loc, name, val) => {
+              setTranslations((prev) => ({
+                ...prev,
+                [loc]: { ...prev[loc], [name]: val },
+              }));
+            }}
+          >
+            <div>
+              <label className="label-field">{t('admin.news.modal.titleLabel', 'عنوان الخبر')} <RequiredMark /></label>
+              <input id={fieldId('title')} type="text" value={form.title} onChange={(e) => { setForm({ ...form, title: e.target.value }); clearInvalid(setInvalid, 'title'); }} className={`${isInvalid(invalid, 'title') ? 'input-field-error' : 'input-field'}`} placeholder={t('admin.news.modal.titlePlaceholder', 'عنوان الخبر')} />
+            </div>
+            <div>
+              <label className="label-field">{t('admin.news.modal.excerptLabel', 'الملخص للصفحة الرئيسية')} <RequiredMark /></label>
+              <textarea id={fieldId('excerpt')} rows={2} value={form.excerpt} onChange={(e) => { setForm({ ...form, excerpt: e.target.value }); clearInvalid(setInvalid, 'excerpt'); }} className={`${isInvalid(invalid, 'excerpt') ? 'input-field-error' : 'input-field'} resize-none`} placeholder={t('admin.news.modal.excerptPlaceholder', 'ملخص قصير يظهر على بطاقة الخبر')} />
+            </div>
+            <div>
+              <label className="label-field">{t('admin.news.modal.fullContentLabel', 'النص الكامل')} <RequiredMark /></label>
+              <textarea id={fieldId('fullContent')} rows={5} value={form.fullContent} onChange={(e) => { setForm({ ...form, fullContent: e.target.value }); clearInvalid(setInvalid, 'fullContent'); }} className={`${isInvalid(invalid, 'fullContent') ? 'input-field-error' : 'input-field'} resize-none`} placeholder={t('admin.news.modal.fullContentPlaceholder', 'المحتوى الكامل للخبر')} />
+            </div>
+          </CmsEntityTranslationTabs>
+
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setModalOpen(false)} className="btn-ghost">{t('common.cancel', 'إلغاء')}</button>
             <button type="submit" className="btn-primary"><CheckCircle2 className="h-4 w-4" /> {editId ? t('admin.news.modal.saveChanges', 'حفظ التعديلات') : t('admin.news.modal.add', 'إضافة')}</button>
