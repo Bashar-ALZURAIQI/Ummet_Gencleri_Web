@@ -11,6 +11,9 @@ import RequiredMark from '../components/RequiredMark';
 import { validateRequired, clearInvalid, isInvalid, fieldId } from '../utils/formValidation';
 import { normalizeGoogleMapsInput } from '../domain/contactMap';
 import type { ContactCardData } from '../data/mockData';
+import { CmsEntityTranslationTabs } from '../components/cmsLocalization/CmsEntityTranslationTabs';
+import { isTranslatableLocationValue } from '../domain/cmsLocalizationEditor';
+import type { LocalizedCmsLocale } from '../domain/cmsLocalization';
 
 const iconMap: Record<string, typeof Mail> = {
   Mail, Phone, MapPin, Clock,
@@ -31,8 +34,16 @@ export default function ContactPage() {
   const [cardModalOpen, setCardModalOpen] = useState(false);
   const [editingCard, setEditingCard] = useState<ContactCardData | null>(null);
   const [cardForm, setCardForm] = useState({ title: '', value: '', sub: '' });
+  const [cardTranslations, setCardTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
+    tr: {},
+    en: {},
+  });
   const [mapModalOpen, setMapModalOpen] = useState(false);
   const [mapForm, setMapForm] = useState({ title: contactMap.title, source: contactMap.embedUrl });
+  const [mapTranslations, setMapTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
+    tr: {},
+    en: {},
+  });
   const [mapError, setMapError] = useState('');
 
   const isPresidentOrMedia =
@@ -72,6 +83,7 @@ export default function ContactPage() {
   const openEditCard = (card: ContactCardData) => {
     setEditingCard(card);
     setCardForm({ title: card.title, value: card.value, sub: card.sub });
+    setCardTranslations({ tr: {}, en: {} });
     setCardModalOpen(true);
   };
 
@@ -114,6 +126,7 @@ export default function ContactPage() {
 
   const openEditMap = () => {
     setMapForm({ title: contactMap.title, source: contactMap.embedUrl });
+    setMapTranslations({ tr: {}, en: {} });
     setMapError('');
     setMapModalOpen(true);
   };
@@ -311,20 +324,63 @@ export default function ContactPage() {
       </section>
 
       {/* Card edit modal */}
-      <Modal open={cardModalOpen} onClose={() => setCardModalOpen(false)} title={t('contact.editCardModal.title', 'تعديل بطاقة التواصل')} maxWidth="max-w-sm">
+      <Modal open={cardModalOpen} onClose={() => setCardModalOpen(false)} title={t('contact.editCardModal.title', 'تعديل بطاقة التواصل')} maxWidth="max-w-lg">
         <form onSubmit={saveCard} className="space-y-4">
-          <div>
-            <label htmlFor={fieldId('title')} className="label-field">{t('contact.editCardModal.titleLabel', 'العنوان')} <RequiredMark /></label>
-            <input id={fieldId('title')} required className={`input-field ${isInvalid(invalid, 'title')}`} value={cardForm.title} onChange={(e) => { setCardForm({ ...cardForm, title: e.target.value }); clearInvalid(setInvalid, 'title'); }} />
-          </div>
-          <div>
-            <label htmlFor={fieldId('value')} className="label-field">{t('contact.editCardModal.valueLabel', 'القيمة')} <RequiredMark /></label>
-            <input id={fieldId('value')} required className={`input-field ${isInvalid(invalid, 'value')}`} dir={editingCard?.ltr ? 'ltr' : undefined} value={cardForm.value} onChange={(e) => { setCardForm({ ...cardForm, value: e.target.value }); clearInvalid(setInvalid, 'value'); }} />
-          </div>
-          <div>
-            <label htmlFor={fieldId('sub')} className="label-field">{t('contact.editCardModal.subLabel', 'الوصف الفرعي')} <RequiredMark /></label>
-            <input id={fieldId('sub')} required className={`input-field ${isInvalid(invalid, 'sub')}`} value={cardForm.sub} onChange={(e) => { setCardForm({ ...cardForm, sub: e.target.value }); clearInvalid(setInvalid, 'sub'); }} />
-          </div>
+          <CmsEntityTranslationTabs
+            target="contactCards"
+            recordId={editingCard?.id ?? null}
+            canonicalPayload={editingCard ? contactCards.map((c) => c.id === editingCard.id ? { ...c, ...cardForm } : c) : contactCards}
+            fields={[
+              {
+                name: 'title',
+                label: t('contact.editCardModal.titleLabel', 'العنوان'),
+                kind: 'title',
+                canonicalValue: cardForm.title,
+                placeholder: t('contact.editCardModal.titleLabel', 'العنوان'),
+              },
+              ...(editingCard && (editingCard.id === 'address' || isTranslatableLocationValue(editingCard.value))
+                ? [{
+                    name: 'value',
+                    label: t('contact.editCardModal.valueLabel', 'القيمة'),
+                    kind: 'text' as const,
+                    canonicalValue: cardForm.value,
+                    placeholder: t('contact.editCardModal.valueLabel', 'القيمة'),
+                    isLocation: true,
+                  }]
+                : []),
+              {
+                name: 'sub',
+                label: t('contact.editCardModal.subLabel', 'الوصف الفرعي'),
+                kind: 'description',
+                canonicalValue: cardForm.sub,
+                placeholder: t('contact.editCardModal.subLabel', 'الوصف الفرعي'),
+              },
+            ]}
+            canEdit={Boolean(isPresidentOrMedia)}
+            translations={cardTranslations}
+            onTranslationChange={(loc, name, val) => {
+              setCardTranslations((prev) => ({
+                ...prev,
+                [loc]: { ...prev[loc], [name]: val },
+              }));
+            }}
+          >
+            <div>
+              <label htmlFor={fieldId('title')} className="label-field">{t('contact.editCardModal.titleLabel', 'العنوان')} <RequiredMark /></label>
+              <input id={fieldId('title')} required className={`input-field ${isInvalid(invalid, 'title')}`} value={cardForm.title} onChange={(e) => { setCardForm({ ...cardForm, title: e.target.value }); clearInvalid(setInvalid, 'title'); }} />
+            </div>
+            <div>
+              <label htmlFor={fieldId('value')} className="label-field">{t('contact.editCardModal.valueLabel', 'القيمة')} <RequiredMark /></label>
+              <input id={fieldId('value')} required className={`input-field ${isInvalid(invalid, 'value')}`} dir={editingCard?.ltr ? 'ltr' : undefined} value={cardForm.value} onChange={(e) => { setCardForm({ ...cardForm, value: e.target.value }); clearInvalid(setInvalid, 'value'); }} />
+              {editingCard && (editingCard.id === 'phone' || editingCard.id === 'email') && (
+                <p className="mt-1 text-xs text-gray-500">{t('contact.technicalValueNotice', 'هذه القيمة تقنية وثابتة عبر جميع اللغات.')}</p>
+              )}
+            </div>
+            <div>
+              <label htmlFor={fieldId('sub')} className="label-field">{t('contact.editCardModal.subLabel', 'الوصف الفرعي')} <RequiredMark /></label>
+              <input id={fieldId('sub')} required className={`input-field ${isInvalid(invalid, 'sub')}`} value={cardForm.sub} onChange={(e) => { setCardForm({ ...cardForm, sub: e.target.value }); clearInvalid(setInvalid, 'sub'); }} />
+            </div>
+          </CmsEntityTranslationTabs>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setCardModalOpen(false)} className="btn-ghost">{t('common.cancel', 'إلغاء')}</button>
             <button type="submit" className="btn-primary">
@@ -336,10 +392,33 @@ export default function ContactPage() {
 
       <Modal open={mapModalOpen} onClose={() => setMapModalOpen(false)} title={t('contact.editMapModal.title', 'تعديل خريطة الموقع')} maxWidth="max-w-lg">
         <form onSubmit={saveMap} className="space-y-4">
-          <div>
-            <label className="label-field">{t('contact.editMapModal.titleLabel', 'عنوان الخريطة')} <RequiredMark /></label>
-            <input className="input-field" value={mapForm.title} onChange={(e) => { setMapForm({ ...mapForm, title: e.target.value }); setMapError(''); }} />
-          </div>
+          <CmsEntityTranslationTabs
+            target="contactMap"
+            recordId="map"
+            canonicalPayload={{ ...contactMap, title: mapForm.title }}
+            fields={[
+              {
+                name: 'title',
+                label: t('contact.editMapModal.titleLabel', 'عنوان الخريطة'),
+                kind: 'title',
+                canonicalValue: mapForm.title,
+                placeholder: t('contact.editMapModal.titleLabel', 'عنوان الخريطة'),
+              },
+            ]}
+            canEdit={Boolean(isPresidentOrMedia)}
+            translations={mapTranslations}
+            onTranslationChange={(loc, name, val) => {
+              setMapTranslations((prev) => ({
+                ...prev,
+                [loc]: { ...prev[loc], [name]: val },
+              }));
+            }}
+          >
+            <div>
+              <label className="label-field">{t('contact.editMapModal.titleLabel', 'عنوان الخريطة')} <RequiredMark /></label>
+              <input className="input-field" value={mapForm.title} onChange={(e) => { setMapForm({ ...mapForm, title: e.target.value }); setMapError(''); }} />
+            </div>
+          </CmsEntityTranslationTabs>
           <div>
             <label className="label-field">{t('contact.editMapModal.sourceLabel', 'رابط Google Maps أو كود iframe')} <RequiredMark /></label>
             <textarea dir="ltr" rows={4} className="input-field resize-none" value={mapForm.source} onChange={(e) => { setMapForm({ ...mapForm, source: e.target.value }); setMapError(''); }} />

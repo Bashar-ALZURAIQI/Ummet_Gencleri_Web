@@ -50,6 +50,16 @@ export function isTranslatableLocationValue(value: unknown): boolean {
     return false;
   }
 
+  // Exclude raw email addresses
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+    return false;
+  }
+
+  // Exclude phone numbers (e.g. "+90 555 123 4567", "+905551234567")
+  if (/^\+?[\d\s\-().]{7,}$/.test(trimmed) && (trimmed.startsWith('+') || /^\d/.test(trimmed))) {
+    return false;
+  }
+
   // Exclude raw numeric coordinate pairs (e.g. "41.0082, 28.9784" or "-41.2, 28.9")
   if (/^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/.test(trimmed)) {
     return false;

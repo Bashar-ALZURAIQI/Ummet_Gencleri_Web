@@ -199,7 +199,8 @@ test('17. News editorial fields included, technical metadata excluded', () => {
   assert.equal(isCmsPathTranslatable('news', 'image'), false);
   assert.equal(isCmsPathTranslatable('news', 'externalUrl'), false);
   assert.equal(isCmsPathTranslatable('news', 'date'), false);
-  assert.equal(isCmsPathTranslatable('news', 'category'), false);
+  assert.equal(isCmsPathTranslatable('news', 'category'), true);
+  assert.equal(isCmsPathTranslatable('news', '0.category'), true);
 });
 
 test('18. FAQ question/answer included, technical category fields excluded', () => {

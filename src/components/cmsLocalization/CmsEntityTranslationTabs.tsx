@@ -57,6 +57,69 @@ const createInitialStatusState = (): LocaleStatusState => ({
   saveError: null,
 });
 
+function getFieldOrNestedValue(obj: Record<string, unknown>, path: string): string | undefined {
+  if (path in obj && typeof obj[path] === 'string') {
+    return obj[path] as string;
+  }
+  if (!path.includes('.')) {
+    return undefined;
+  }
+  const parts = path.split('.');
+  let curr: unknown = obj;
+  for (const part of parts) {
+    if (curr === null || curr === undefined) return undefined;
+    if (Array.isArray(curr)) {
+      const idx = parseInt(part, 10);
+      if (isNaN(idx)) return undefined;
+      curr = curr[idx];
+    } else if (typeof curr === 'object') {
+      curr = (curr as Record<string, unknown>)[part];
+    } else {
+      return undefined;
+    }
+  }
+  return typeof curr === 'string' ? curr : undefined;
+}
+
+function applyFieldTranslations(
+  targetObj: Record<string, unknown>,
+  translations: Record<string, string>,
+) {
+  for (const [key, val] of Object.entries(translations)) {
+    if (key.includes('.')) {
+      const parts = key.split('.');
+      let curr: Record<string, unknown> | unknown[] = targetObj;
+      for (let i = 0; i < parts.length - 1; i++) {
+        const p = parts[i];
+        const nextP = parts[i + 1];
+        const isNextIndex = /^\d+$/.test(nextP);
+        if (Array.isArray(curr)) {
+          const idx = parseInt(p, 10);
+          if (!curr[idx] || typeof curr[idx] !== 'object') {
+            curr[idx] = isNextIndex ? [] : {};
+          }
+          curr = curr[idx] as Record<string, unknown> | unknown[];
+        } else {
+          const obj = curr as Record<string, unknown>;
+          if (obj[p] === undefined || obj[p] === null || typeof obj[p] !== 'object') {
+            obj[p] = isNextIndex ? [] : {};
+          }
+          curr = obj[p] as Record<string, unknown> | unknown[];
+        }
+      }
+      const last = parts[parts.length - 1];
+      if (Array.isArray(curr)) {
+        const idx = parseInt(last, 10);
+        curr[idx] = val;
+      } else {
+        (curr as Record<string, unknown>)[last] = val;
+      }
+    } else {
+      targetObj[key] = val;
+    }
+  }
+}
+
 export function CmsEntityTranslationTabs({
   target,
   recordId,
@@ -101,19 +164,59 @@ export function CmsEntityTranslationTabs({
             (activeRecord.payload.find(
               (el) => el && typeof el === 'object' && (el as Record<string, unknown>).id === recordId,
             ) as Record<string, unknown>) ?? null;
+          if (!item) {
+            for (const el of activeRecord.payload) {
+              if (el && typeof el === 'object') {
+                const candidate = el as Record<string, unknown>;
+                for (const key of ['items', 'members', 'media'] as const) {
+                  if (Array.isArray(candidate[key])) {
+                    const nested = (candidate[key] as Record<string, unknown>[]).find(
+                      (n) => n && typeof n === 'object' && n.id === recordId,
+                    );
+                    if (nested) {
+                      item = nested;
+                      break;
+                    }
+                  }
+                }
+                if (item) break;
+              }
+            }
+          }
         } else if (
           activeRecord.payload &&
-          typeof activeRecord.payload === 'object' &&
-          (activeRecord.payload as Record<string, unknown>).id === recordId
+          typeof activeRecord.payload === 'object'
         ) {
-          item = activeRecord.payload as Record<string, unknown>;
+          const payloadObj = activeRecord.payload as Record<string, unknown>;
+          if (
+            payloadObj.id === recordId ||
+            (!payloadObj.id && (!recordId || recordId === 'map' || recordId === 'contactMap'))
+          ) {
+            item = payloadObj;
+          } else {
+            for (const key of ['items', 'members', 'media'] as const) {
+              if (Array.isArray(payloadObj[key])) {
+                const nested = (payloadObj[key] as Record<string, unknown>[]).find(
+                  (n) => n && typeof n === 'object' && n.id === recordId,
+                );
+                if (nested) {
+                  item = nested;
+                  break;
+                }
+              }
+            }
+            if (!item && recordId && payloadObj[recordId] && typeof payloadObj[recordId] === 'object') {
+              item = payloadObj[recordId] as Record<string, unknown>;
+            }
+          }
         }
 
         const loadedFields: Record<string, string> = {};
         if (item) {
           for (const f of fields) {
-            if (typeof item[f.name] === 'string') {
-              loadedFields[f.name] = item[f.name] as string;
+            const val = getFieldOrNestedValue(item, f.name);
+            if (typeof val === 'string') {
+              loadedFields[f.name] = val;
             }
           }
         }
@@ -171,7 +274,7 @@ export function CmsEntityTranslationTabs({
   }, [target, recordId, repository]);
 
   const handleSaveDraft = async (locale: LocalizedCmsLocale) => {
-    if (!canEdit || !recordId) return;
+    if (!canEdit || (!recordId && target !== 'contactMap' && target !== 'site')) return;
     const updater = locale === 'tr' ? setTrStatus : setEnStatus;
     const localeTranslations = translations[locale];
 
@@ -188,15 +291,34 @@ export function CmsEntityTranslationTabs({
 
       if (Array.isArray(baseCandidate)) {
         const list: Record<string, unknown>[] = JSON.parse(JSON.stringify(baseCandidate));
+        let found = false;
         const idx = list.findIndex((el) => el && el.id === recordId);
-        const itemToSave = {
-          ...(idx >= 0 ? list[idx] : { id: recordId }),
-          ...localeTranslations,
-        };
         if (idx >= 0) {
-          list[idx] = itemToSave;
+          applyFieldTranslations(list[idx], localeTranslations);
+          found = true;
         } else {
-          list.push(itemToSave);
+          // Check nested in items, members, or media
+          for (const el of list) {
+            if (el && typeof el === 'object') {
+              for (const key of ['items', 'members', 'media'] as const) {
+                if (Array.isArray(el[key])) {
+                  const nestedList = el[key] as Record<string, unknown>[];
+                  const nIdx = nestedList.findIndex((n) => n && n.id === recordId);
+                  if (nIdx >= 0) {
+                    applyFieldTranslations(nestedList[nIdx], localeTranslations);
+                    found = true;
+                    break;
+                  }
+                }
+              }
+              if (found) break;
+            }
+          }
+        }
+        if (!found && recordId) {
+          const newItem: Record<string, unknown> = { id: recordId };
+          applyFieldTranslations(newItem, localeTranslations);
+          list.push(newItem);
         }
         nextPayload = list as unknown as JsonValue;
       } else {
@@ -204,10 +326,31 @@ export function CmsEntityTranslationTabs({
           baseCandidate && typeof baseCandidate === 'object'
             ? JSON.parse(JSON.stringify(baseCandidate))
             : {};
-        obj[recordId] = {
-          ...((obj[recordId] as Record<string, unknown>) ?? {}),
-          ...localeTranslations,
-        };
+        let found = false;
+        if (
+          obj.id === recordId ||
+          (!obj.id && (!recordId || recordId === 'map' || recordId === 'contactMap'))
+        ) {
+          applyFieldTranslations(obj, localeTranslations);
+          found = true;
+        } else {
+          for (const key of ['items', 'members', 'media'] as const) {
+            if (Array.isArray(obj[key])) {
+              const nestedList = obj[key] as Record<string, unknown>[];
+              const nIdx = nestedList.findIndex((n) => n && n.id === recordId);
+              if (nIdx >= 0) {
+                applyFieldTranslations(nestedList[nIdx], localeTranslations);
+                found = true;
+                break;
+              }
+            }
+          }
+        }
+        if (!found && recordId) {
+          const targetNested = ((obj[recordId] as Record<string, unknown>) ?? {});
+          applyFieldTranslations(targetNested, localeTranslations);
+          obj[recordId] = targetNested;
+        }
         nextPayload = obj as unknown as JsonValue;
       }
 
@@ -215,7 +358,8 @@ export function CmsEntityTranslationTabs({
       let updatedManual = activeRecord?.manualPaths ? [...activeRecord.manualPaths] : [];
       for (const f of fields) {
         if (localeTranslations[f.name]?.trim()) {
-          updatedManual = recordManualPath(updatedManual, `${recordId}.${f.name}`);
+          const pathToAdd = recordId ? `${recordId}.${f.name}` : f.name;
+          updatedManual = recordManualPath(updatedManual, pathToAdd);
         }
       }
 

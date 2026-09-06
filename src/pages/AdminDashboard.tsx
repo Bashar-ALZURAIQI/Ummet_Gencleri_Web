@@ -974,12 +974,17 @@ function BoardTab({ committees, setCommittees, students, currentUser, updateBoar
 }) {
   const { t } = useTranslation();
   const { uploadManagedFile, replaceManagedMemberAvatar, members: accountMembers } = useApp();
+  const repository = useCmsLocalizationRepository();
   const [memberModal, setMemberModal] = useState(false);
   const [editMember, setEditMember] = useState<{ committeeId: CommitteeId; member: CommitteeMember | null } | null>(null);
   const [memberForm, setMemberForm] = useState({ studentId: '', position: '', photo: '' });
   const [memberAvatarAsset, setMemberAvatarAsset] = useState<ManagedAssetReference | null>(null);
   const [studentSearch, setStudentSearch] = useState('');
   const [studentDropdownOpen, setStudentDropdownOpen] = useState(false);
+  const [memberTranslations, setMemberTranslations] = useState<Record<LocalizedCmsLocale, { position?: string }>>({
+    tr: { position: '' },
+    en: { position: '' },
+  });
 
   const [headModal, setHeadModal] = useState(false);
   const [headCommittee, setHeadCommittee] = useState<CommitteeId | null>(null);
@@ -997,6 +1002,10 @@ function BoardTab({ committees, setCommittees, students, currentUser, updateBoar
     setMemberAvatarAsset(null);
     setStudentSearch('');
     setStudentDropdownOpen(false);
+    setMemberTranslations({
+      tr: { position: '' },
+      en: { position: '' },
+    });
     setMemberModal(true);
   };
   const openEditMember = (committeeId: CommitteeId, m: CommitteeMember) => {
@@ -1005,6 +1014,10 @@ function BoardTab({ committees, setCommittees, students, currentUser, updateBoar
     setMemberAvatarAsset(null);
     setStudentSearch(m.name);
     setStudentDropdownOpen(false);
+    setMemberTranslations({
+      tr: { position: '' },
+      en: { position: '' },
+    });
     setMemberModal(true);
   };
   const resolveTargetUserId = () => {
@@ -1047,11 +1060,35 @@ function BoardTab({ committees, setCommittees, students, currentUser, updateBoar
         const student = students.find((s) => s.id === memberForm.studentId);
         if (!student) return;
         const photo = memberForm.photo;
+        const newMemberId = 'cm' + Date.now();
         setCommittees((prev) => prev.map((c) => {
           if (c.id !== committeeId) return c;
           const members = Array.isArray(c.members) ? c.members : [];
-          return { ...c, members: [...members, { id: 'cm' + Date.now(), name: student.name, position: memberForm.position || t('admin.board.defaultMemberPosition', 'عضو'), photo }] };
+          return { ...c, members: [...members, { id: newMemberId, name: student.name, position: memberForm.position || t('admin.board.defaultMemberPosition', 'عضو'), photo }] };
         }));
+        for (const loc of ['tr', 'en'] as const) {
+          const trData = memberTranslations[loc];
+          if (trData.position?.trim()) {
+            try {
+              const latest = await repository.getDraft('committees', loc);
+              const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
+                ? JSON.parse(JSON.stringify(latest.payload))
+                : [];
+              list.push({ id: newMemberId, ...trData });
+              await repository.saveDraft({
+                target: 'committees',
+                locale: loc,
+                payload: list as unknown as JsonValue,
+                status: 'draft',
+                manualPaths: [`${newMemberId}.position`],
+                sourceHash: computeSourceHash(committees),
+                updatedAt: new Date().toISOString(),
+              });
+            } catch {
+              // non-blocking
+            }
+          }
+        }
         setMembers((prev) => {
           const list = Array.isArray(prev) ? prev : [];
           if (list.some((m) => (m.email ?? '').toLowerCase() === student.email.toLowerCase())) {
@@ -1301,10 +1338,33 @@ function BoardTab({ committees, setCommittees, students, currentUser, updateBoar
               </div>
             )}
           </div>
-          <div>
-            <label className="label-field">{t('admin.board.memberModal.positionLabel', 'المسمى الوظيفي')} <RequiredMark /></label>
-            <input id={fieldId('position')} type="text" value={memberForm.position} onChange={(e) => { setMemberForm({ ...memberForm, position: e.target.value }); clearInvalid(setInvalid, 'position'); }} className={`${isInvalid(invalid, 'position') ? 'input-field-error' : 'input-field'}`} placeholder={t('admin.board.memberModal.positionPlaceholder', 'مثال: منسق، مستشار...')} />
-          </div>
+          <CmsEntityTranslationTabs
+            target="committees"
+            recordId={editMember?.member?.id ?? null}
+            canonicalPayload={committees}
+            fields={[
+              {
+                name: 'position',
+                label: t('admin.board.memberModal.positionLabel', 'المسمى الوظيفي'),
+                kind: 'text',
+                canonicalValue: memberForm.position,
+                placeholder: t('admin.board.memberModal.positionPlaceholder', 'مثال: منسق، مستشار...'),
+              },
+            ]}
+            canEdit={true}
+            translations={memberTranslations}
+            onTranslationChange={(loc, name, val) => {
+              setMemberTranslations((prev) => ({
+                ...prev,
+                [loc]: { ...prev[loc], [name]: val },
+              }));
+            }}
+          >
+            <div>
+              <label className="label-field">{t('admin.board.memberModal.positionLabel', 'المسمى الوظيفي')} <RequiredMark /></label>
+              <input id={fieldId('position')} type="text" value={memberForm.position} onChange={(e) => { setMemberForm({ ...memberForm, position: e.target.value }); clearInvalid(setInvalid, 'position'); }} className={`${isInvalid(invalid, 'position') ? 'input-field-error' : 'input-field'}`} placeholder={t('admin.board.memberModal.positionPlaceholder', 'مثال: منسق، مستشار...')} />
+            </div>
+          </CmsEntityTranslationTabs>
           <ManagedFileField
             usage="avatar"
             label={t('admin.board.memberModal.photoLabel', 'الصورة الشخصية')}
@@ -1417,8 +1477,9 @@ function GalleryTab({ galleryAlbums, setGalleryAlbums, galleryCategories, curren
   galleryCategories: GalleryCategory[];
   currentUser: ReturnType<typeof useApp>['currentUser'];
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { uploadManagedFile, savePublishedSiteTarget } = useApp();
+  const repository = useCmsLocalizationRepository();
   // Scoped access: the president manages all albums; every other executive
   // member sees, adds, edits and deletes only the albums their role created
   // (`createdByRole == currentUser.role`).
@@ -1434,6 +1495,10 @@ function GalleryTab({ galleryAlbums, setGalleryAlbums, galleryCategories, curren
     title: '', categoryId: '', date: new Date().toISOString().slice(0, 10),
     location: '', coverImage: '', description: '',
   });
+  const [translations, setTranslations] = useState<Record<LocalizedCmsLocale, { title?: string; location?: string; description?: string }>>({
+    tr: { title: '', location: '', description: '' },
+    en: { title: '', location: '', description: '' },
+  });
 
   const [mediaAlbum, setMediaAlbum] = useState<GalleryAlbum | null>(null);
   const [mediaModalOpen, setMediaModalOpen] = useState(false);
@@ -1443,13 +1508,42 @@ function GalleryTab({ galleryAlbums, setGalleryAlbums, galleryCategories, curren
   });
 
   const [invalid, setInvalid] = useState<string[]>([]);
-  const catLabel = (id: string) => galleryCategories.find((c) => c.id === id)?.label ?? id;
+  const localizationRepo = useCmsLocalizationRepository();
+  const [localizedCategories, setLocalizedCategories] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (i18n.language === 'ar') {
+      setLocalizedCategories({});
+      return;
+    }
+    const loc = (i18n.language === 'tr' ? 'tr' : 'en') as LocalizedCmsLocale;
+    void Promise.all([
+      localizationRepo.getDraft('galleryCategories', loc),
+      localizationRepo.getPublished('galleryCategories', loc),
+    ]).then(([draft, pub]) => {
+      const rec = draft ?? pub;
+      if (rec && Array.isArray(rec.payload)) {
+        const map: Record<string, string> = {};
+        for (const item of rec.payload as Record<string, unknown>[]) {
+          if (item && typeof item.id === 'string' && typeof item.label === 'string' && item.label.trim()) {
+            map[item.id] = item.label;
+          }
+        }
+        setLocalizedCategories(map);
+      }
+    });
+  }, [i18n.language, localizationRepo, galleryCategories]);
+
+  const catLabel = (id: string) => (localizedCategories[id] || galleryCategories.find((c) => c.id === id)?.label) ?? id;
 
   const openAddAlbum = () => {
     setEditingAlbum(null);
     setAlbumForm({
       title: '', categoryId: galleryCategories[0]?.id ?? '', date: new Date().toISOString().slice(0, 10),
       location: '', coverImage: '', description: '',
+    });
+    setTranslations({
+      tr: { title: '', location: '', description: '' },
+      en: { title: '', location: '', description: '' },
     });
     setAlbumModalOpen(true);
   };
@@ -1459,6 +1553,10 @@ function GalleryTab({ galleryAlbums, setGalleryAlbums, galleryCategories, curren
     setAlbumForm({
       title: album.title, categoryId: album.categoryId, date: album.date,
       location: album.location, coverImage: album.coverImage, description: album.description,
+    });
+    setTranslations({
+      tr: { title: '', location: '', description: '' },
+      en: { title: '', location: '', description: '' },
     });
     setAlbumModalOpen(true);
   };
@@ -1473,8 +1571,9 @@ function GalleryTab({ galleryAlbums, setGalleryAlbums, galleryCategories, curren
         if (!saved.ok) return;
       } else setGalleryAlbums(next);
     } else {
+      const newAlbumId = 'album' + Date.now();
       const newAlbum: GalleryAlbum = {
-        id: 'album' + Date.now(), ...albumForm, photoCount: 0, videoCount: 0,
+        id: newAlbumId, ...albumForm, photoCount: 0, videoCount: 0,
         createdByRole: currentUser?.role, media: [],
       };
       const next = [newAlbum, ...galleryAlbums];
@@ -1482,6 +1581,31 @@ function GalleryTab({ galleryAlbums, setGalleryAlbums, galleryCategories, curren
         const saved = await savePublishedSiteTarget('galleryAlbums', next);
         if (!saved.ok) return;
       } else setGalleryAlbums(next);
+
+      // Bind drafted translations to authoritative album ID
+      for (const loc of ['tr', 'en'] as const) {
+        const trData = translations[loc];
+        if (trData.title?.trim() || trData.location?.trim() || trData.description?.trim()) {
+          try {
+            const latest = await repository.getDraft('galleryAlbums', loc);
+            const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
+              ? JSON.parse(JSON.stringify(latest.payload))
+              : [];
+            list.push({ id: newAlbumId, ...trData });
+            await repository.saveDraft({
+              target: 'galleryAlbums',
+              locale: loc,
+              payload: list as unknown as JsonValue,
+              status: 'draft',
+              manualPaths: [`${newAlbumId}.title`],
+              sourceHash: computeSourceHash(next),
+              updatedAt: new Date().toISOString(),
+            });
+          } catch {
+            // non-blocking
+          }
+        }
+      }
     }
     setAlbumModalOpen(false);
   };
@@ -1634,26 +1758,18 @@ function GalleryTab({ galleryAlbums, setGalleryAlbums, galleryCategories, curren
       {/* Album modal */}
       <Modal open={albumModalOpen} onClose={() => setAlbumModalOpen(false)} title={editingAlbum ? t('admin.gallery.albumModal.editTitle', 'تعديل الألبوم') : t('admin.gallery.albumModal.addTitle', 'إضافة ألبوم جديد')} maxWidth="max-w-lg">
         <form onSubmit={saveAlbum} className="space-y-4">
-          <div>
-            <label className="label-field">{t('admin.gallery.albumModal.titleLabel', 'عنوان الألبوم')} <RequiredMark /></label>
-            <input id={fieldId('title')} type="text" value={albumForm.title} onChange={(e) => { setAlbumForm({ ...albumForm, title: e.target.value }); clearInvalid(setInvalid, 'title'); }} className={`${isInvalid(invalid, 'title') ? 'input-field-error' : 'input-field'}`} />
-          </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="label-field">{t('admin.gallery.albumModal.categoryLabel', 'التصنيف')} <RequiredMark /></label>
               <select id={fieldId('categoryId')} value={albumForm.categoryId} onChange={(e) => { setAlbumForm({ ...albumForm, categoryId: e.target.value }); clearInvalid(setInvalid, 'categoryId'); }} className={`${isInvalid(invalid, 'categoryId') ? 'input-field-error' : 'input-field'}`}>
                 <option value="">{t('admin.gallery.albumModal.categorySelectPlaceholder', 'اختر تصنيفًا...')}</option>
-                {galleryCategories.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+                {galleryCategories.map((c) => <option key={c.id} value={c.id}>{localizedCategories[c.id] || c.label}</option>)}
               </select>
             </div>
             <div>
               <label className="label-field">{t('admin.gallery.albumModal.dateLabel', 'التاريخ')} <RequiredMark /></label>
               <input id={fieldId('date')} type="date" value={albumForm.date} onChange={(e) => { setAlbumForm({ ...albumForm, date: e.target.value }); clearInvalid(setInvalid, 'date'); }} className={`${isInvalid(invalid, 'date') ? 'input-field-error' : 'input-field'}`} />
             </div>
-          </div>
-          <div>
-            <label className="label-field">{t('admin.gallery.albumModal.locationLabel', 'المكان')} <RequiredMark /></label>
-            <input id={fieldId('location')} type="text" value={albumForm.location} onChange={(e) => { setAlbumForm({ ...albumForm, location: e.target.value }); clearInvalid(setInvalid, 'location'); }} className={`${isInvalid(invalid, 'location') ? 'input-field-error' : 'input-field'}`} />
           </div>
           <ManagedFileField
             usage="gallery-image"
@@ -1667,10 +1783,57 @@ function GalleryTab({ galleryAlbums, setGalleryAlbums, galleryCategories, curren
               clearInvalid(setInvalid, 'coverImage');
             }}
           />
-          <div>
-            <label className="label-field">{t('admin.gallery.albumModal.descriptionLabel', 'الوصف')} <RequiredMark /></label>
-            <textarea id={fieldId('description')} rows={2} value={albumForm.description} onChange={(e) => { setAlbumForm({ ...albumForm, description: e.target.value }); clearInvalid(setInvalid, 'description'); }} className={`${isInvalid(invalid, 'description') ? 'input-field-error' : 'input-field'} resize-none`} />
-          </div>
+
+          <CmsEntityTranslationTabs
+            target="galleryAlbums"
+            recordId={editingAlbum?.id ?? null}
+            canonicalPayload={editingAlbum ? galleryAlbums.map((a) => a.id === editingAlbum.id ? { ...a, ...albumForm } : a) : galleryAlbums}
+            fields={[
+              {
+                name: 'title',
+                label: t('admin.gallery.albumModal.titleLabel', 'عنوان الألبوم'),
+                kind: 'title',
+                canonicalValue: albumForm.title,
+                placeholder: t('admin.gallery.albumModal.titleLabel', 'عنوان الألبوم'),
+              },
+              {
+                name: 'location',
+                label: t('admin.gallery.albumModal.locationLabel', 'المكان'),
+                kind: 'text',
+                canonicalValue: albumForm.location,
+                placeholder: t('admin.gallery.albumModal.locationLabel', 'المكان'),
+                isLocation: true,
+              },
+              {
+                name: 'description',
+                label: t('admin.gallery.albumModal.descriptionLabel', 'الوصف'),
+                kind: 'description',
+                canonicalValue: albumForm.description,
+                placeholder: t('admin.gallery.albumModal.descriptionLabel', 'الوصف'),
+              },
+            ]}
+            canEdit={isPresident || !editingAlbum || editingAlbum.createdByRole === currentUser?.role}
+            translations={translations}
+            onTranslationChange={(loc, name, val) => {
+              setTranslations((prev) => ({
+                ...prev,
+                [loc]: { ...prev[loc], [name]: val },
+              }));
+            }}
+          >
+            <div>
+              <label className="label-field">{t('admin.gallery.albumModal.titleLabel', 'عنوان الألبوم')} <RequiredMark /></label>
+              <input id={fieldId('title')} type="text" value={albumForm.title} onChange={(e) => { setAlbumForm({ ...albumForm, title: e.target.value }); clearInvalid(setInvalid, 'title'); }} className={`${isInvalid(invalid, 'title') ? 'input-field-error' : 'input-field'}`} />
+            </div>
+            <div>
+              <label className="label-field">{t('admin.gallery.albumModal.locationLabel', 'المكان')} <RequiredMark /></label>
+              <input id={fieldId('location')} type="text" value={albumForm.location} onChange={(e) => { setAlbumForm({ ...albumForm, location: e.target.value }); clearInvalid(setInvalid, 'location'); }} className={`${isInvalid(invalid, 'location') ? 'input-field-error' : 'input-field'}`} />
+            </div>
+            <div>
+              <label className="label-field">{t('admin.gallery.albumModal.descriptionLabel', 'الوصف')} <RequiredMark /></label>
+              <textarea id={fieldId('description')} rows={2} value={albumForm.description} onChange={(e) => { setAlbumForm({ ...albumForm, description: e.target.value }); clearInvalid(setInvalid, 'description'); }} className={`${isInvalid(invalid, 'description') ? 'input-field-error' : 'input-field'} resize-none`} />
+            </div>
+          </CmsEntityTranslationTabs>
           {albumForm.coverImage && (
             <div className="overflow-hidden rounded-xl">
               <img src={albumForm.coverImage} alt={t('admin.gallery.albumModal.coverPreviewAlt', 'معاينة الغلاف')} className="aspect-video w-full object-cover" />
@@ -2371,15 +2534,9 @@ function NewsTab({ news, currentUser, submitSiteEdit }: {
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editId ? t('admin.news.modal.editTitle', 'تعديل الخبر') : t('admin.news.modal.addTitle', 'إضافة خبر جديد')} maxWidth="max-w-xl">
         <form onSubmit={save} className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="label-field">{t('admin.news.modal.categoryLabel', 'التصنيف')} <RequiredMark /></label>
-              <input id={fieldId('category')} type="text" value={form.category} onChange={(e) => { setForm({ ...form, category: e.target.value }); clearInvalid(setInvalid, 'category'); }} className={`${isInvalid(invalid, 'category') ? 'input-field-error' : 'input-field'}`} placeholder={t('admin.news.modal.categoryPlaceholder', 'مثال: شراكات / إنجازات')} />
-            </div>
-            <div>
-              <label className="label-field">{t('admin.news.modal.dateLabel', 'التاريخ')} <RequiredMark /></label>
-              <input id={fieldId('date')} type="date" value={form.date} onChange={(e) => { setForm({ ...form, date: e.target.value }); clearInvalid(setInvalid, 'date'); }} className={`${isInvalid(invalid, 'date') ? 'input-field-error' : 'input-field'}`} />
-            </div>
+          <div>
+            <label className="label-field">{t('admin.news.modal.dateLabel', 'التاريخ')} <RequiredMark /></label>
+            <input id={fieldId('date')} type="date" value={form.date} onChange={(e) => { setForm({ ...form, date: e.target.value }); clearInvalid(setInvalid, 'date'); }} className={`${isInvalid(invalid, 'date') ? 'input-field-error' : 'input-field'}`} />
           </div>
 
           <ManagedFileField
@@ -2410,7 +2567,7 @@ function NewsTab({ news, currentUser, submitSiteEdit }: {
           <CmsEntityTranslationTabs
             target="news"
             recordId={editId}
-            canonicalPayload={editId ? news.map((n) => (n.id === editId ? { ...n, title: form.title, excerpt: form.excerpt, fullContent: form.fullContent } : n)) : news}
+            canonicalPayload={editId ? news.map((n) => (n.id === editId ? { ...n, title: form.title, category: form.category, excerpt: form.excerpt, fullContent: form.fullContent } : n)) : news}
             fields={[
               {
                 name: 'title',
@@ -2418,6 +2575,13 @@ function NewsTab({ news, currentUser, submitSiteEdit }: {
                 kind: 'title',
                 canonicalValue: form.title,
                 placeholder: t('admin.news.modal.titlePlaceholder', 'عنوان الخبر'),
+              },
+              {
+                name: 'category',
+                label: t('admin.news.modal.categoryLabel', 'التصنيف'),
+                kind: 'title',
+                canonicalValue: form.category,
+                placeholder: t('admin.news.modal.categoryPlaceholder', 'مثال: شراكات / إنجازات'),
               },
               {
                 name: 'excerpt',
@@ -2446,6 +2610,10 @@ function NewsTab({ news, currentUser, submitSiteEdit }: {
             <div>
               <label className="label-field">{t('admin.news.modal.titleLabel', 'عنوان الخبر')} <RequiredMark /></label>
               <input id={fieldId('title')} type="text" value={form.title} onChange={(e) => { setForm({ ...form, title: e.target.value }); clearInvalid(setInvalid, 'title'); }} className={`${isInvalid(invalid, 'title') ? 'input-field-error' : 'input-field'}`} placeholder={t('admin.news.modal.titlePlaceholder', 'عنوان الخبر')} />
+            </div>
+            <div>
+              <label className="label-field">{t('admin.news.modal.categoryLabel', 'التصنيف')} <RequiredMark /></label>
+              <input id={fieldId('category')} type="text" value={form.category} onChange={(e) => { setForm({ ...form, category: e.target.value }); clearInvalid(setInvalid, 'category'); }} className={`${isInvalid(invalid, 'category') ? 'input-field-error' : 'input-field'}`} placeholder={t('admin.news.modal.categoryPlaceholder', 'مثال: شراكات / إنجازات')} />
             </div>
             <div>
               <label className="label-field">{t('admin.news.modal.excerptLabel', 'الملخص للصفحة الرئيسية')} <RequiredMark /></label>
@@ -2492,16 +2660,7 @@ function MembersTab({ members, currentUser, transferMemberRole, revokeExecutiveA
   const [feedback, setFeedback] = useState<{ kind: 'success' | 'warning' | 'error'; text: string } | null>(null);
 
   const getRolePresentation = (role: UserRole) => {
-    switch (role) {
-      case 'PRESIDENT':
-        return t('roles.unionPresident', 'رئيس الاتحاد');
-      case 'VICE_PRESIDENT':
-        return t('roles.vicePresident', 'نائب الرئيس');
-      case 'STUDENT':
-        return t('admin.members.roleModal.regularStudent', 'طالب عادي');
-      default:
-        return ROLE_LABEL[role] ?? role;
-    }
+    return (getExecutiveRoleLabel(role, t) || ROLE_LABEL[role]) ?? role;
   };
 
   const filtered = members.filter((member) =>
@@ -3248,6 +3407,7 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
 }) {
   const { t } = useTranslation();
   const { uploadManagedFile, savePublishedSiteTarget } = useApp();
+  const repository = useCmsLocalizationRepository();
   const isPresident = currentUser?.role === 'PRESIDENT';
 
   const myCommittee = currentUser?.committee;
@@ -3275,15 +3435,27 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
   const [editPlanId, setEditPlanId] = useState<string | null>(null);
   const [invalid, setInvalid] = useState<string[]>([]);
   const [planForm, setPlanForm] = useState({ title: '', description: '', quarter: '', owner: '', status: 'planned' as 'planned' | 'in-progress' | 'completed', progress: 0, committee: (myCommittee ?? 'presidency') as CommitteeId, pdfUrl: '' });
+  const [planTranslations, setPlanTranslations] = useState<Record<LocalizedCmsLocale, { title?: string; description?: string }>>({
+    tr: { title: '', description: '' },
+    en: { title: '', description: '' },
+  });
 
   const openAddPlan = () => {
     setEditPlanId(null);
     setPlanForm({ title: '', description: '', quarter: '', owner: currentUser?.name ?? '', status: 'planned', progress: 0, committee: (myCommittee ?? 'presidency') as CommitteeId, pdfUrl: '' });
+    setPlanTranslations({
+      tr: { title: '', description: '' },
+      en: { title: '', description: '' },
+    });
     setPlanModal(true);
   };
   const openEditPlan = (p: ReturnType<typeof useApp>['plans'][0]) => {
     setEditPlanId(p.id);
     setPlanForm({ title: p.title, description: p.description, quarter: p.quarter, owner: p.owner, status: p.status, progress: p.progress, committee: (p.committee ?? 'presidency') as CommitteeId, pdfUrl: p.pdfUrl ?? '' });
+    setPlanTranslations({
+      tr: { title: '', description: '' },
+      en: { title: '', description: '' },
+    });
     setPlanModal(true);
   };
   const savePlan = async (e: React.FormEvent) => {
@@ -3297,11 +3469,37 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
         if (!saved.ok) return;
       } else setPlans(next);
     } else {
-      const next = [{ id: 'p' + Date.now(), ...payload }, ...plans];
+      const newPlanId = 'p' + Date.now();
+      const next = [{ id: newPlanId, ...payload }, ...plans];
       if (isPresident) {
         const saved = await savePublishedSiteTarget('plans', next);
         if (!saved.ok) return;
       } else setPlans(next);
+
+      // Bind drafted translations to authoritative plan ID
+      for (const loc of ['tr', 'en'] as const) {
+        const trData = planTranslations[loc];
+        if (trData.title?.trim() || trData.description?.trim()) {
+          try {
+            const latest = await repository.getDraft('plans', loc);
+            const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
+              ? JSON.parse(JSON.stringify(latest.payload))
+              : [];
+            list.push({ id: newPlanId, ...trData });
+            await repository.saveDraft({
+              target: 'plans',
+              locale: loc,
+              payload: list as unknown as JsonValue,
+              status: 'draft',
+              manualPaths: [`${newPlanId}.title`],
+              sourceHash: computeSourceHash(next),
+              updatedAt: new Date().toISOString(),
+            });
+          } catch {
+            // non-blocking
+          }
+        }
+      }
     }
     setPlanModal(false);
   };
@@ -3315,15 +3513,27 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
   const [reportModal, setReportModal] = useState(false);
   const [editReportId, setEditReportId] = useState<string | null>(null);
   const [reportForm, setReportForm] = useState({ title: '', type: 'تقرير لجنة', period: '', date: '', summary: '', committee: (myCommittee ?? 'presidency') as CommitteeId, pdfUrl: '', isGeneral: false });
+  const [reportTranslations, setReportTranslations] = useState<Record<LocalizedCmsLocale, { title?: string; summary?: string; period?: string }>>({
+    tr: { title: '', summary: '', period: '' },
+    en: { title: '', summary: '', period: '' },
+  });
 
   const openAddReport = () => {
     setEditReportId(null);
     setReportForm({ title: '', type: 'تقرير لجنة', period: '', date: new Date().toISOString().slice(0, 10), summary: '', committee: (myCommittee ?? 'presidency') as CommitteeId, pdfUrl: '', isGeneral: false });
+    setReportTranslations({
+      tr: { title: '', summary: '', period: '' },
+      en: { title: '', summary: '', period: '' },
+    });
     setReportModal(true);
   };
   const openEditReport = (r: ReturnType<typeof useApp>['reports'][0]) => {
     setEditReportId(r.id);
     setReportForm({ title: r.title, type: r.type, period: r.period, date: r.date, summary: r.summary, committee: (r.committee ?? 'presidency') as CommitteeId, pdfUrl: r.pdfUrl ?? '', isGeneral: r.isGeneral ?? false });
+    setReportTranslations({
+      tr: { title: '', summary: '', period: '' },
+      en: { title: '', summary: '', period: '' },
+    });
     setReportModal(true);
   };
   const saveReport = async (e: React.FormEvent) => {
@@ -3337,11 +3547,37 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
         if (!saved.ok) return;
       } else setReports(next);
     } else {
-      const next = [{ id: 'r' + Date.now(), ...payload }, ...reports];
+      const newReportId = 'r' + Date.now();
+      const next = [{ id: newReportId, ...payload }, ...reports];
       if (isPresident) {
         const saved = await savePublishedSiteTarget('reports', next);
         if (!saved.ok) return;
       } else setReports(next);
+
+      // Bind drafted translations to authoritative report ID
+      for (const loc of ['tr', 'en'] as const) {
+        const trData = reportTranslations[loc];
+        if (trData.title?.trim() || trData.summary?.trim() || trData.period?.trim()) {
+          try {
+            const latest = await repository.getDraft('reports', loc);
+            const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
+              ? JSON.parse(JSON.stringify(latest.payload))
+              : [];
+            list.push({ id: newReportId, ...trData });
+            await repository.saveDraft({
+              target: 'reports',
+              locale: loc,
+              payload: list as unknown as JsonValue,
+              status: 'draft',
+              manualPaths: [`${newReportId}.title`],
+              sourceHash: computeSourceHash(next),
+              updatedAt: new Date().toISOString(),
+            });
+          } catch {
+            // non-blocking
+          }
+        }
+      }
     }
     setReportModal(false);
   };
@@ -3455,18 +3691,10 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
       <Modal open={planModal} onClose={() => setPlanModal(false)} title={editPlanId ? t('admin.plans.planModal.editTitle', 'تعديل الخطة') : t('admin.plans.planModal.addTitle', 'إضافة خطة إدارية')} maxWidth="max-w-lg">
         <form onSubmit={savePlan} className="space-y-4">
           <div>
-            <label className="label-field">{t('admin.plans.planModal.titleLabel', 'عنوان الخطة')} <RequiredMark /></label>
-            <input id={fieldId('title')} type="text" value={planForm.title} onChange={(e) => { setPlanForm({ ...planForm, title: e.target.value }); clearInvalid(setInvalid, 'title'); }} className={`${isInvalid(invalid, 'title') ? 'input-field-error' : 'input-field'}`} />
-          </div>
-          <div>
             <label className="label-field">{t('admin.plans.planModal.committeeLabel', 'اللجنة / المكتب التابع')} <RequiredMark /></label>
             <select id={fieldId('committee')} value={planForm.committee} onChange={(e) => { setPlanForm({ ...planForm, committee: e.target.value as CommitteeId }); clearInvalid(setInvalid, 'committee'); }} className={`${isInvalid(invalid, 'committee') ? 'input-field-error' : 'input-field'}`} disabled={!isPresident}>
-              {Object.entries(COMMITTEE_LABELS).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+              {Object.entries(COMMITTEE_LABELS).map(([id, label]) => <option key={id} value={id}>{getExecutiveSectionLabel(id, t) || label}</option>)}
             </select>
-          </div>
-          <div>
-            <label className="label-field">{t('admin.plans.planModal.descriptionLabel', 'الوصف التفصيلي')} <RequiredMark /></label>
-            <textarea id={fieldId('description')} rows={3} value={planForm.description} onChange={(e) => { setPlanForm({ ...planForm, description: e.target.value }); clearInvalid(setInvalid, 'description'); }} className={`${isInvalid(invalid, 'description') ? 'input-field-error' : 'input-field'} resize-none`} />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
@@ -3515,6 +3743,45 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
               clearInvalid(setInvalid, 'pdfUrl');
             }}
           />
+
+          <CmsEntityTranslationTabs
+            target="plans"
+            recordId={editPlanId}
+            canonicalPayload={editPlanId ? plans.map((p) => p.id === editPlanId ? { ...p, title: planForm.title, description: planForm.description } : p) : plans}
+            fields={[
+              {
+                name: 'title',
+                label: t('admin.plans.planModal.titleLabel', 'عنوان الخطة'),
+                kind: 'title',
+                canonicalValue: planForm.title,
+                placeholder: t('admin.plans.planModal.titleLabel', 'عنوان الخطة'),
+              },
+              {
+                name: 'description',
+                label: t('admin.plans.planModal.descriptionLabel', 'الوصف التفصيلي'),
+                kind: 'description',
+                canonicalValue: planForm.description,
+                placeholder: t('admin.plans.planModal.descriptionLabel', 'الوصف التفصيلي'),
+              },
+            ]}
+            canEdit={isPresident || !editPlanId || plans.find((p) => p.id === editPlanId)?.authorId === currentUser?.email}
+            translations={planTranslations}
+            onTranslationChange={(loc, name, val) => {
+              setPlanTranslations((prev) => ({
+                ...prev,
+                [loc]: { ...prev[loc], [name]: val },
+              }));
+            }}
+          >
+            <div>
+              <label className="label-field">{t('admin.plans.planModal.titleLabel', 'عنوان الخطة')} <RequiredMark /></label>
+              <input id={fieldId('title')} type="text" value={planForm.title} onChange={(e) => { setPlanForm({ ...planForm, title: e.target.value }); clearInvalid(setInvalid, 'title'); }} className={`${isInvalid(invalid, 'title') ? 'input-field-error' : 'input-field'}`} />
+            </div>
+            <div>
+              <label className="label-field">{t('admin.plans.planModal.descriptionLabel', 'الوصف التفصيلي')} <RequiredMark /></label>
+              <textarea id={fieldId('description')} rows={3} value={planForm.description} onChange={(e) => { setPlanForm({ ...planForm, description: e.target.value }); clearInvalid(setInvalid, 'description'); }} className={`${isInvalid(invalid, 'description') ? 'input-field-error' : 'input-field'} resize-none`} />
+            </div>
+          </CmsEntityTranslationTabs>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setPlanModal(false)} className="btn-ghost">{t('common.cancel', 'إلغاء')}</button>
             <button type="submit" className="btn-primary"><CheckCircle2 className="h-4 w-4" /> {editPlanId ? t('admin.plans.planModal.saveChanges', 'حفظ التعديلات') : t('admin.plans.planModal.add', 'إضافة')}</button>
@@ -3525,10 +3792,6 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
       {/* Report Modal */}
       <Modal open={reportModal} onClose={() => setReportModal(false)} title={editReportId ? t('admin.plans.reportModal.editTitle', 'تعديل التقرير') : t('admin.plans.reportModal.addTitle', 'إضافة تقرير')} maxWidth="max-w-lg">
         <form onSubmit={saveReport} className="space-y-4">
-          <div>
-            <label className="label-field">{t('admin.plans.reportModal.titleLabel', 'عنوان التقرير')} <RequiredMark /></label>
-            <input id={fieldId('title')} type="text" value={reportForm.title} onChange={(e) => { setReportForm({ ...reportForm, title: e.target.value }); clearInvalid(setInvalid, 'title'); }} className={`${isInvalid(invalid, 'title') ? 'input-field-error' : 'input-field'}`} />
-          </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="label-field">{t('admin.plans.reportModal.typeLabel', 'نوع التقرير')} <RequiredMark /></label>
@@ -3544,23 +3807,13 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
             <div>
               <label className="label-field">{t('admin.plans.reportModal.committeeLabel', 'اللجنة التابعة')} <RequiredMark /></label>
               <select id={fieldId('committee')} value={reportForm.committee} onChange={(e) => { setReportForm({ ...reportForm, committee: e.target.value as CommitteeId }); clearInvalid(setInvalid, 'committee'); }} className={`${isInvalid(invalid, 'committee') ? 'input-field-error' : 'input-field'}`} disabled={!isPresident}>
-                {Object.entries(COMMITTEE_LABELS).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+                {Object.entries(COMMITTEE_LABELS).map(([id, label]) => <option key={id} value={id}>{getExecutiveSectionLabel(id, t) || label}</option>)}
               </select>
             </div>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="label-field">{t('admin.plans.reportModal.dateLabel', 'تاريخ الصدور')} <RequiredMark /></label>
-              <input id={fieldId('date')} type="date" value={reportForm.date} onChange={(e) => { setReportForm({ ...reportForm, date: e.target.value }); clearInvalid(setInvalid, 'date'); }} className={`${isInvalid(invalid, 'date') ? 'input-field-error' : 'input-field'}`} />
-            </div>
-            <div>
-              <label className="label-field">{t('admin.plans.reportModal.periodLabel', 'الفترة')} <RequiredMark /></label>
-              <input id={fieldId('period')} type="text" value={reportForm.period} onChange={(e) => { setReportForm({ ...reportForm, period: e.target.value }); clearInvalid(setInvalid, 'period'); }} className={`${isInvalid(invalid, 'period') ? 'input-field-error' : 'input-field'}`} placeholder={t('admin.plans.reportModal.periodPlaceholder', 'مثال: سنوي / ربع سنوي')} />
-            </div>
-          </div>
           <div>
-            <label className="label-field">{t('admin.plans.reportModal.summaryLabel', 'ملخص التقرير')} <RequiredMark /></label>
-            <textarea id={fieldId('summary')} rows={3} value={reportForm.summary} onChange={(e) => { setReportForm({ ...reportForm, summary: e.target.value }); clearInvalid(setInvalid, 'summary'); }} className={`${isInvalid(invalid, 'summary') ? 'input-field-error' : 'input-field'} resize-none`} />
+            <label className="label-field">{t('admin.plans.reportModal.dateLabel', 'تاريخ الصدور')} <RequiredMark /></label>
+            <input id={fieldId('date')} type="date" value={reportForm.date} onChange={(e) => { setReportForm({ ...reportForm, date: e.target.value }); clearInvalid(setInvalid, 'date'); }} className={`${isInvalid(invalid, 'date') ? 'input-field-error' : 'input-field'}`} />
           </div>
           <ManagedFileField
             usage="report-document"
@@ -3578,6 +3831,56 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
             <input type="checkbox" checked={reportForm.isGeneral} onChange={(e) => setReportForm({ ...reportForm, isGeneral: e.target.checked })} className="h-4 w-4 accent-navy-700" />
             {t('admin.plans.reportModal.generalReportLabel', 'تقرير عام (متاح لجميع اللجان)')}
           </label>
+
+          <CmsEntityTranslationTabs
+            target="reports"
+            recordId={editReportId}
+            canonicalPayload={editReportId ? reports.map((r) => r.id === editReportId ? { ...r, title: reportForm.title, summary: reportForm.summary, period: reportForm.period } : r) : reports}
+            fields={[
+              {
+                name: 'title',
+                label: t('admin.plans.reportModal.titleLabel', 'عنوان التقرير'),
+                kind: 'title',
+                canonicalValue: reportForm.title,
+                placeholder: t('admin.plans.reportModal.titleLabel', 'عنوان التقرير'),
+              },
+              {
+                name: 'period',
+                label: t('admin.plans.reportModal.periodLabel', 'الفترة'),
+                kind: 'text',
+                canonicalValue: reportForm.period,
+                placeholder: t('admin.plans.reportModal.periodPlaceholder', 'مثال: سنوي / ربع سنوي'),
+              },
+              {
+                name: 'summary',
+                label: t('admin.plans.reportModal.summaryLabel', 'ملخص التقرير'),
+                kind: 'description',
+                canonicalValue: reportForm.summary,
+                placeholder: t('admin.plans.reportModal.summaryLabel', 'ملخص التقرير'),
+              },
+            ]}
+            canEdit={isPresident || !editReportId || reports.find((r) => r.id === editReportId)?.authorId === currentUser?.email}
+            translations={reportTranslations}
+            onTranslationChange={(loc, name, val) => {
+              setReportTranslations((prev) => ({
+                ...prev,
+                [loc]: { ...prev[loc], [name]: val },
+              }));
+            }}
+          >
+            <div>
+              <label className="label-field">{t('admin.plans.reportModal.titleLabel', 'عنوان التقرير')} <RequiredMark /></label>
+              <input id={fieldId('title')} type="text" value={reportForm.title} onChange={(e) => { setReportForm({ ...reportForm, title: e.target.value }); clearInvalid(setInvalid, 'title'); }} className={`${isInvalid(invalid, 'title') ? 'input-field-error' : 'input-field'}`} />
+            </div>
+            <div>
+              <label className="label-field">{t('admin.plans.reportModal.periodLabel', 'الفترة')} <RequiredMark /></label>
+              <input id={fieldId('period')} type="text" value={reportForm.period} onChange={(e) => { setReportForm({ ...reportForm, period: e.target.value }); clearInvalid(setInvalid, 'period'); }} className={`${isInvalid(invalid, 'period') ? 'input-field-error' : 'input-field'}`} placeholder={t('admin.plans.reportModal.periodPlaceholder', 'مثال: سنوي / ربع سنوي')} />
+            </div>
+            <div>
+              <label className="label-field">{t('admin.plans.reportModal.summaryLabel', 'ملخص التقرير')} <RequiredMark /></label>
+              <textarea id={fieldId('summary')} rows={3} value={reportForm.summary} onChange={(e) => { setReportForm({ ...reportForm, summary: e.target.value }); clearInvalid(setInvalid, 'summary'); }} className={`${isInvalid(invalid, 'summary') ? 'input-field-error' : 'input-field'} resize-none`} />
+            </div>
+          </CmsEntityTranslationTabs>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setReportModal(false)} className="btn-ghost">{t('common.cancel', 'إلغاء')}</button>
             <button type="submit" className="btn-primary"><CheckCircle2 className="h-4 w-4" /> {editReportId ? t('admin.plans.reportModal.saveChanges', 'حفظ التعديلات') : t('admin.plans.reportModal.add', 'إضافة')}</button>
@@ -3636,6 +3939,10 @@ function ProfileTab({ currentUser }: { currentUser: ReturnType<typeof useApp>["c
     vision: committee?.vision ?? "",
     goals: committee?.goals ?? "",
   });
+  const [visionTranslations, setVisionTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
+    tr: {},
+    en: {},
+  });
   const [invalid, setInvalid] = useState<string[]>([]);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const saveVision = (e: React.FormEvent) => {
@@ -3665,14 +3972,44 @@ function ProfileTab({ currentUser }: { currentUser: ReturnType<typeof useApp>["c
           {committee ? (
             <form onSubmit={saveVision} className="space-y-4">
               <div className="rounded-lg bg-navy-50 px-4 py-2 text-sm font-bold text-navy-700">{getExecutiveSectionLabel(committee.id, t) || committee.name}</div>
-              <div>
-                <label className="label-field">{t('admin.vision.visionLabel', 'الرؤية')} <RequiredMark /></label>
-                <textarea id={fieldId('vision')} rows={4} value={visionForm.vision} onChange={(e) => { setVisionForm({ ...visionForm, vision: e.target.value }); clearInvalid(setInvalid, 'vision'); }} className={`${isInvalid(invalid, 'vision') ? 'input-field-error' : 'input-field'} resize-none`} placeholder={t('admin.vision.visionPlaceholder', 'رؤية اللجنة المستقبلية...')} />
-              </div>
-              <div>
-                <label className="label-field">{t('admin.vision.goalsLabel', 'الأهداف')} <RequiredMark /></label>
-                <textarea id={fieldId('goals')} rows={4} value={visionForm.goals} onChange={(e) => { setVisionForm({ ...visionForm, goals: e.target.value }); clearInvalid(setInvalid, 'goals'); }} className={`${isInvalid(invalid, 'goals') ? 'input-field-error' : 'input-field'} resize-none`} placeholder={t('admin.vision.goalsPlaceholder', 'أهداف اللجنة الاستراتيجية...')} />
-              </div>
+              <CmsEntityTranslationTabs
+                target="committees"
+                recordId={committee.id}
+                canonicalPayload={committees.map((c) => c.id === committee.id ? { ...c, ...visionForm } : c)}
+                fields={[
+                  {
+                    name: 'vision',
+                    label: t('admin.vision.visionLabel', 'الرؤية'),
+                    kind: 'description',
+                    canonicalValue: visionForm.vision,
+                    placeholder: t('admin.vision.visionPlaceholder', 'رؤية اللجنة المستقبلية...'),
+                  },
+                  {
+                    name: 'goals',
+                    label: t('admin.vision.goalsLabel', 'الأهداف'),
+                    kind: 'description',
+                    canonicalValue: visionForm.goals,
+                    placeholder: t('admin.vision.goalsPlaceholder', 'أهداف اللجنة الاستراتيجية...'),
+                  },
+                ]}
+                canEdit={true}
+                translations={visionTranslations}
+                onTranslationChange={(loc, name, val) => {
+                  setVisionTranslations((prev) => ({
+                    ...prev,
+                    [loc]: { ...prev[loc], [name]: val },
+                  }));
+                }}
+              >
+                <div>
+                  <label className="label-field">{t('admin.vision.visionLabel', 'الرؤية')} <RequiredMark /></label>
+                  <textarea id={fieldId('vision')} rows={4} value={visionForm.vision} onChange={(e) => { setVisionForm({ ...visionForm, vision: e.target.value }); clearInvalid(setInvalid, 'vision'); }} className={`${isInvalid(invalid, 'vision') ? 'input-field-error' : 'input-field'} resize-none`} placeholder={t('admin.vision.visionPlaceholder', 'رؤية اللجنة المستقبلية...')} />
+                </div>
+                <div>
+                  <label className="label-field">{t('admin.vision.goalsLabel', 'الأهداف')} <RequiredMark /></label>
+                  <textarea id={fieldId('goals')} rows={4} value={visionForm.goals} onChange={(e) => { setVisionForm({ ...visionForm, goals: e.target.value }); clearInvalid(setInvalid, 'goals'); }} className={`${isInvalid(invalid, 'goals') ? 'input-field-error' : 'input-field'} resize-none`} placeholder={t('admin.vision.goalsPlaceholder', 'أهداف اللجنة الاستراتيجية...')} />
+                </div>
+              </CmsEntityTranslationTabs>
               <button type="submit" className="btn-primary"><Save className="h-4 w-4" /> {t('admin.vision.saveButton', 'حفظ الرؤية والأهداف')}</button>
             </form>
           ) : (

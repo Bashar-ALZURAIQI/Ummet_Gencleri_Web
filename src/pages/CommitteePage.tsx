@@ -27,6 +27,9 @@ import {
   getExecutiveMetricLabel,
 } from '../domain/executivePresentation';
 import { formatStatisticNumber } from '../domain/numberPresentation';
+import { CmsEntityTranslationTabs } from '../components/cmsLocalization/CmsEntityTranslationTabs';
+import { useCmsLocalizationRepository } from '../context/CmsLocalizationContext';
+import { computeSourceHash, type LocalizedCmsLocale, type JsonValue } from '../domain/cmsLocalization';
 
 const iconMap: Record<string, typeof Crown> = {
   Crown, UserCog, Megaphone, GraduationCap, ShieldCheck, CalendarDays, Wallet,
@@ -41,6 +44,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
   const { t, i18n } = useTranslation();
   const locale = i18n.language;
   const { committees, currentUser, setView, pendingProfileEdits, submitProfileEdit, updateBoardHead, uploadManagedFile, savePublishedSiteTarget } = useApp();
+  const localizationRepo = useCmsLocalizationRepository();
 
   // Modals
   const [headModal, setHeadModal] = useState(false);
@@ -56,6 +60,10 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
 
   const [memberModal, setMemberModal] = useState(false);
   const [editingMember, setEditingMember] = useState<CommitteeMember | null>(null);
+  const [memberTranslations, setMemberTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
+    tr: {},
+    en: {},
+  });
   const [memberForm, setMemberForm] = useState<MemberForm>({ name: '', position: '', photo: '' });
 
   const [invalid, setInvalid] = useState<string[]>([]);
@@ -211,19 +219,65 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
   };
 
   // Members
-  const openAddMember = () => { setEditingMember(null); setMemberForm({ name: '', position: '', photo: '' }); setMemberModal(true); };
-  const openEditMember = (m: CommitteeMember) => { setEditingMember(m); setMemberForm({ name: m.name ?? '', position: m.position ?? '', photo: m.photo ?? '' }); setMemberModal(true); };
+  const openAddMember = () => {
+    setEditingMember(null);
+    setMemberTranslations({ tr: {}, en: {} });
+    setMemberForm({ name: '', position: '', photo: '' });
+    setMemberModal(true);
+  };
+  const openEditMember = (m: CommitteeMember) => {
+    setEditingMember(m);
+    setMemberTranslations({ tr: {}, en: {} });
+    setMemberForm({ name: m.name ?? '', position: m.position ?? '', photo: m.photo ?? '' });
+    setMemberModal(true);
+  };
   const saveMember = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!memberForm.name.trim()) return;
     if (!validateRequired(memberForm, ['name', 'position', 'photo'], setInvalid)) return;
     const photo = memberForm.photo;
+    const newMemberId = editingMember?.id ?? 'cm' + Date.now();
     if (!(await submitOrApply((c) => {
       if (editingMember) {
         return { ...c, members: (c.members ?? []).map((m) => m.id === editingMember.id ? { ...m, ...memberForm, photo } : m) };
       }
-      return { ...c, members: [...(c.members ?? []), { id: 'cm' + Date.now(), name: memberForm.name, position: memberForm.position, photo }] };
+      return { ...c, members: [...(c.members ?? []), { id: newMemberId, name: memberForm.name, position: memberForm.position, photo }] };
     }))) return;
+
+    if (!editingMember) {
+      for (const loc of ['tr', 'en'] as const) {
+        const trData = memberTranslations[loc];
+        if (trData.position?.trim()) {
+          try {
+            const latest = await localizationRepo.getDraft('committees', loc);
+            const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
+              ? JSON.parse(JSON.stringify(latest.payload))
+              : [];
+            const commIdx = list.findIndex((c) => c && c.id === committeeId);
+            if (commIdx >= 0) {
+              const commObj = list[commIdx];
+              const members = Array.isArray(commObj.members) ? [...commObj.members] : [];
+              members.push({ id: newMemberId, ...trData });
+              commObj.members = members;
+            } else {
+              list.push({ id: committeeId, members: [{ id: newMemberId, ...trData }] });
+            }
+            await localizationRepo.saveDraft({
+              target: 'committees',
+              locale: loc,
+              payload: list as unknown as JsonValue,
+              status: 'draft',
+              manualPaths: [`${newMemberId}.position`],
+              sourceHash: computeSourceHash(committees),
+              updatedAt: new Date().toISOString(),
+            });
+          } catch {
+            // non-blocking
+          }
+        }
+      }
+    }
+
     setMemberModal(false);
   };
   const deleteMember = async (mid: string) => {
@@ -544,10 +598,33 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               <label htmlFor={fieldId('name')} className="label-field">{t('committee.memberModal.name', 'الاسم')} <RequiredMark /></label>
               <input id={fieldId('name')} required className={`input-field ${isInvalid(invalid, 'name')}`} value={memberForm.name} onChange={(e) => { setMemberForm({ ...memberForm, name: e.target.value }); clearInvalid(setInvalid, 'name'); }} />
             </div>
-            <div>
-              <label htmlFor={fieldId('position')} className="label-field">{t('committee.memberModal.position', 'المسؤولية')} <RequiredMark /></label>
-              <input id={fieldId('position')} required className={`input-field ${isInvalid(invalid, 'position')}`} value={memberForm.position} onChange={(e) => { setMemberForm({ ...memberForm, position: e.target.value }); clearInvalid(setInvalid, 'position'); }} placeholder={t('committee.memberModal.positionPlaceholder', 'مثال: منسق، مستشار...')} />
-            </div>
+            <CmsEntityTranslationTabs
+              target="committees"
+              recordId={editingMember?.id ?? null}
+              canonicalPayload={committees}
+              fields={[
+                {
+                  name: 'position',
+                  label: t('committee.memberModal.position', 'المسؤولية'),
+                  kind: 'text',
+                  canonicalValue: memberForm.position,
+                  placeholder: t('committee.memberModal.positionPlaceholder', 'مثال: منسق، مستشار...'),
+                },
+              ]}
+              canEdit={Boolean(canEditContent)}
+              translations={memberTranslations}
+              onTranslationChange={(loc, name, val) => {
+                setMemberTranslations((prev) => ({
+                  ...prev,
+                  [loc]: { ...prev[loc], [name]: val },
+                }));
+              }}
+            >
+              <div>
+                <label htmlFor={fieldId('position')} className="label-field">{t('committee.memberModal.position', 'المسؤولية')} <RequiredMark /></label>
+                <input id={fieldId('position')} required className={`input-field ${isInvalid(invalid, 'position')}`} value={memberForm.position} onChange={(e) => { setMemberForm({ ...memberForm, position: e.target.value }); clearInvalid(setInvalid, 'position'); }} placeholder={t('committee.memberModal.positionPlaceholder', 'مثال: منسق، مستشار...')} />
+              </div>
+            </CmsEntityTranslationTabs>
             <ManagedFileField
               usage="avatar"
               label={t('committee.memberModal.photo', 'الصورة الشخصية')}

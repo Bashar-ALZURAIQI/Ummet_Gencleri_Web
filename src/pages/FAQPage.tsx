@@ -11,6 +11,9 @@ import RequiredMark from '../components/RequiredMark';
 import { validateChecks, clearInvalid, isInvalid, fieldId } from '../utils/formValidation';
 import { validateFaqCategory, validateFaqItem } from '../domain/cmsValidation';
 import type { FAQCategoryData, FAQItem, SiteEditDiff } from '../data/mockData';
+import { CmsEntityTranslationTabs } from '../components/cmsLocalization/CmsEntityTranslationTabs';
+import { useCmsLocalizationRepository } from '../context/CmsLocalizationContext';
+import { computeSourceHash, type LocalizedCmsLocale, type JsonValue } from '../domain/cmsLocalization';
 
 const iconMap: Record<string, typeof HelpCircle> = {
   Users, ClipboardList, Shield, HelpCircle, Mail, BookOpen, Award, Heart, Megaphone, DollarSign,
@@ -20,16 +23,25 @@ const iconNames = Object.keys(iconMap);
 export default function FAQPage() {
   const { t } = useTranslation();
   const { currentUser, faqCategories, setView, submitSiteEdit, savePublishedSiteTarget } = useApp();
+  const localizationRepo = useCmsLocalizationRepository();
   const [openItems, setOpenItems] = useState<Set<string>>(new Set());
 
   // Category modal
   const [catModalOpen, setCatModalOpen] = useState(false);
   const [editingCat, setEditingCat] = useState<FAQCategoryData | null>(null);
+  const [catTranslations, setCatTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
+    tr: {},
+    en: {},
+  });
   const [catForm, setCatForm] = useState({ title: '', icon: 'HelpCircle', color: 'text-navy-700', bg: 'bg-navy-100' });
 
   // Question modal
   const [qModalOpen, setQModalOpen] = useState(false);
   const [editingQ, setEditingQ] = useState<FAQItem | null>(null);
+  const [qTranslations, setQTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
+    tr: {},
+    en: {},
+  });
   const [qTargetCat, setQTargetCat] = useState<string>('');
   const [qForm, setQForm] = useState({ question: '', answer: '' });
   const [invalid, setInvalid] = useState<string[]>([]);
@@ -50,12 +62,14 @@ export default function FAQPage() {
   // === Category CRUD ===
   const openAddCat = () => {
     setEditingCat(null);
+    setCatTranslations({ tr: {}, en: {} });
     setCatForm({ title: '', icon: 'HelpCircle', color: 'text-navy-700', bg: 'bg-navy-100' });
     setCatModalOpen(true);
   };
 
   const openEditCat = (cat: FAQCategoryData) => {
     setEditingCat(cat);
+    setCatTranslations({ tr: {}, en: {} });
     setCatForm({ title: cat.title, icon: cat.icon, color: cat.color, bg: cat.bg });
     setCatModalOpen(true);
   };
@@ -90,6 +104,7 @@ export default function FAQPage() {
     const validation = validateFaqCategory(catForm);
     if (!validateChecks(validation.invalid.map((key) => ({ key, ok: false })), setInvalid)) return;
     if (!catForm.title.trim()) return;
+    const newCatId = 'faqcat' + Date.now();
     if (currentUser?.role === 'MEDIA_HEAD') {
       if (editingCat) {
         const next: FAQCategoryData = { ...editingCat, ...catForm };
@@ -105,7 +120,7 @@ export default function FAQPage() {
         setCatModalOpen(false);
         return;
       }
-      const newCat: FAQCategoryData = { id: 'faqcat' + Date.now(), ...catForm, items: [] };
+      const newCat: FAQCategoryData = { id: newCatId, ...catForm, items: [] };
       const diffs = catDiffs(null, newCat);
       if (diffs.length) {
         const submitted = await submitSiteEdit({
@@ -120,9 +135,36 @@ export default function FAQPage() {
     }
     const nextCategories = editingCat
       ? faqCategories.map((c) => c.id === editingCat.id ? { ...c, ...catForm } : c)
-      : [...faqCategories, { id: 'faqcat' + Date.now(), ...catForm, items: [] }];
+      : [...faqCategories, { id: newCatId, ...catForm, items: [] }];
     const saved = await savePublishedSiteTarget('faqCategories', nextCategories);
     if (!saved.ok) { alert(saved.error); return; }
+
+    if (!editingCat) {
+      for (const loc of ['tr', 'en'] as const) {
+        const trData = catTranslations[loc];
+        if (trData.title?.trim()) {
+          try {
+            const latest = await localizationRepo.getDraft('faqCategories', loc);
+            const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
+              ? JSON.parse(JSON.stringify(latest.payload))
+              : [];
+            list.push({ id: newCatId, ...trData });
+            await localizationRepo.saveDraft({
+              target: 'faqCategories',
+              locale: loc,
+              payload: list as unknown as JsonValue,
+              status: 'draft',
+              manualPaths: [`${newCatId}.title`],
+              sourceHash: computeSourceHash(nextCategories),
+              updatedAt: new Date().toISOString(),
+            });
+          } catch {
+            // non-blocking
+          }
+        }
+      }
+    }
+
     setCatModalOpen(false);
   };
 
@@ -146,6 +188,7 @@ export default function FAQPage() {
   const openAddQ = (catId: string) => {
     setQTargetCat(catId);
     setEditingQ(null);
+    setQTranslations({ tr: {}, en: {} });
     setQForm({ question: '', answer: '' });
     setQModalOpen(true);
   };
@@ -153,6 +196,7 @@ export default function FAQPage() {
   const openEditQ = (catId: string, item: FAQItem) => {
     setQTargetCat(catId);
     setEditingQ(item);
+    setQTranslations({ tr: {}, en: {} });
     setQForm({ question: item.question, answer: item.answer });
     setQModalOpen(true);
   };
@@ -177,10 +221,10 @@ export default function FAQPage() {
     if (!validateChecks(validation.invalid.map((key) => ({ key, ok: false })), setInvalid)) return;
     if (!qForm.question.trim() || !qForm.answer.trim() || !qTargetCat) return;
     const cat = faqCategories.find((c) => c.id === qTargetCat);
+    const newItemId = editingQ?.id ?? 'faq' + Date.now();
     if (currentUser?.role === 'MEDIA_HEAD') {
       if (!cat) return;
-      const itemId = editingQ?.id ?? 'faq' + Date.now();
-      const nextItem: FAQItem = { id: itemId, question: qForm.question, answer: qForm.answer };
+      const nextItem: FAQItem = { id: newItemId, question: qForm.question, answer: qForm.answer };
       const next: FAQCategoryData = editingQ
         ? { ...cat, items: cat.items.map((it) => it.id === editingQ.id ? nextItem : it) }
         : { ...cat, items: [...cat.items, nextItem] };
@@ -189,7 +233,7 @@ export default function FAQPage() {
         const submitted = await submitSiteEdit({
           pageId: 'faq', pageLabel: 'الأسئلة الشائعة', sectionLabel: cat.title,
           target: 'faqCategories', op: 'update', recordId: cat.id, recordValue: next,
-          nested: { parentField: 'items', itemId },
+          nested: { parentField: 'items', itemId: newItemId },
           diffs,
         });
         if (!submitted) return;
@@ -205,7 +249,7 @@ export default function FAQPage() {
         return { ...c, items: c.items.map((it) => it.id === editingQ.id ? { ...it, ...qForm } : it) };
       });
     } else {
-      const newItem: FAQItem = { id: 'faq' + Date.now(), ...qForm };
+      const newItem: FAQItem = { id: newItemId, ...qForm };
       nextCategories = faqCategories.map((c) => {
         if (c.id !== qTargetCat) return c;
         return { ...c, items: [...c.items, newItem] };
@@ -213,6 +257,41 @@ export default function FAQPage() {
     }
     const saved = await savePublishedSiteTarget('faqCategories', nextCategories);
     if (!saved.ok) { alert(saved.error); return; }
+
+    if (!editingQ) {
+      for (const loc of ['tr', 'en'] as const) {
+        const trData = qTranslations[loc];
+        if (trData.question?.trim() || trData.answer?.trim()) {
+          try {
+            const latest = await localizationRepo.getDraft('faqCategories', loc);
+            const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
+              ? JSON.parse(JSON.stringify(latest.payload))
+              : [];
+            const catIdx = list.findIndex((c) => c && c.id === qTargetCat);
+            if (catIdx >= 0) {
+              const catObj = list[catIdx];
+              const items = Array.isArray(catObj.items) ? [...catObj.items] : [];
+              items.push({ id: newItemId, ...trData });
+              catObj.items = items;
+            } else {
+              list.push({ id: qTargetCat, items: [{ id: newItemId, ...trData }] });
+            }
+            await localizationRepo.saveDraft({
+              target: 'faqCategories',
+              locale: loc,
+              payload: list as unknown as JsonValue,
+              status: 'draft',
+              manualPaths: [`${newItemId}.question`],
+              sourceHash: computeSourceHash(nextCategories),
+              updatedAt: new Date().toISOString(),
+            });
+          } catch {
+            // non-blocking
+          }
+        }
+      }
+    }
+
     setQModalOpen(false);
   };
 
@@ -399,10 +478,33 @@ export default function FAQPage() {
       {/* Category Modal */}
       <Modal open={catModalOpen} onClose={() => setCatModalOpen(false)} title={editingCat ? 'تعديل الفئة' : 'إضافة فئة أسئلة جديدة'} maxWidth="max-w-md">
         <form onSubmit={saveCat} className="space-y-4">
-          <div>
-            <label htmlFor={fieldId('catTitle')} className="label-field">عنوان الفئة <RequiredMark /></label>
-            <input id={fieldId('catTitle')} required className={`input-field ${isInvalid(invalid, 'catTitle')}`} value={catForm.title} onChange={(e) => { setCatForm({ ...catForm, title: e.target.value }); clearInvalid(setInvalid, 'catTitle'); }} placeholder="مثال: الأنشطة الرياضية" />
-          </div>
+          <CmsEntityTranslationTabs
+            target="faqCategories"
+            recordId={editingCat?.id ?? null}
+            canonicalPayload={editingCat ? faqCategories.map((c) => c.id === editingCat.id ? { ...c, ...catForm } : c) : faqCategories}
+            fields={[
+              {
+                name: 'title',
+                label: 'عنوان الفئة',
+                kind: 'title',
+                canonicalValue: catForm.title,
+                placeholder: 'عنوان الفئة',
+              },
+            ]}
+            canEdit={Boolean(isPresidentOrMedia)}
+            translations={catTranslations}
+            onTranslationChange={(loc, name, val) => {
+              setCatTranslations((prev) => ({
+                ...prev,
+                [loc]: { ...prev[loc], [name]: val },
+              }));
+            }}
+          >
+            <div>
+              <label htmlFor={fieldId('catTitle')} className="label-field">عنوان الفئة <RequiredMark /></label>
+              <input id={fieldId('catTitle')} required className={`input-field ${isInvalid(invalid, 'catTitle')}`} value={catForm.title} onChange={(e) => { setCatForm({ ...catForm, title: e.target.value }); clearInvalid(setInvalid, 'catTitle'); }} placeholder="مثال: الأنشطة الرياضية" />
+            </div>
+          </CmsEntityTranslationTabs>
           <div>
             <label className="label-field">الأيقونة</label>
             <div className="flex flex-wrap gap-2">
@@ -452,14 +554,44 @@ export default function FAQPage() {
       {/* Question Modal */}
       <Modal open={qModalOpen} onClose={() => setQModalOpen(false)} title={editingQ ? 'تعديل السؤال' : 'إضافة سؤال جديد'} maxWidth="max-w-lg">
         <form onSubmit={saveQ} className="space-y-4">
-          <div>
-            <label htmlFor={fieldId('qQuestion')} className="label-field">نص السؤال <RequiredMark /></label>
-            <input id={fieldId('qQuestion')} required className={`input-field ${isInvalid(invalid, 'qQuestion')}`} value={qForm.question} onChange={(e) => { setQForm({ ...qForm, question: e.target.value }); clearInvalid(setInvalid, 'qQuestion'); }} placeholder="اكتب السؤال هنا" />
-          </div>
-          <div>
-            <label htmlFor={fieldId('qAnswer')} className="label-field">الإجابة <RequiredMark /></label>
-            <textarea id={fieldId('qAnswer')} required rows={4} className={`input-field resize-none ${isInvalid(invalid, 'qAnswer')}`} value={qForm.answer} onChange={(e) => { setQForm({ ...qForm, answer: e.target.value }); clearInvalid(setInvalid, 'qAnswer'); }} placeholder="اكتب الإجابة هنا" />
-          </div>
+          <CmsEntityTranslationTabs
+            target="faqCategories"
+            recordId={editingQ?.id ?? null}
+            canonicalPayload={editingQ ? faqCategories.map((c) => c.id === qTargetCat ? { ...c, items: c.items.map((it) => it.id === editingQ.id ? { ...it, ...qForm } : it) } : c) : faqCategories}
+            fields={[
+              {
+                name: 'question',
+                label: 'نص السؤال',
+                kind: 'title',
+                canonicalValue: qForm.question,
+                placeholder: 'نص السؤال',
+              },
+              {
+                name: 'answer',
+                label: 'الإجابة',
+                kind: 'richText',
+                canonicalValue: qForm.answer,
+                placeholder: 'الإجابة',
+              },
+            ]}
+            canEdit={Boolean(isPresidentOrMedia)}
+            translations={qTranslations}
+            onTranslationChange={(loc, name, val) => {
+              setQTranslations((prev) => ({
+                ...prev,
+                [loc]: { ...prev[loc], [name]: val },
+              }));
+            }}
+          >
+            <div>
+              <label htmlFor={fieldId('qQuestion')} className="label-field">نص السؤال <RequiredMark /></label>
+              <input id={fieldId('qQuestion')} required className={`input-field ${isInvalid(invalid, 'qQuestion')}`} value={qForm.question} onChange={(e) => { setQForm({ ...qForm, question: e.target.value }); clearInvalid(setInvalid, 'qQuestion'); }} placeholder="اكتب السؤال هنا" />
+            </div>
+            <div>
+              <label htmlFor={fieldId('qAnswer')} className="label-field">الإجابة <RequiredMark /></label>
+              <textarea id={fieldId('qAnswer')} required rows={4} className={`input-field resize-none ${isInvalid(invalid, 'qAnswer')}`} value={qForm.answer} onChange={(e) => { setQForm({ ...qForm, answer: e.target.value }); clearInvalid(setInvalid, 'qAnswer'); }} placeholder="اكتب الإجابة هنا" />
+            </div>
+          </CmsEntityTranslationTabs>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setQModalOpen(false)} className="btn-ghost">إلغاء</button>
             <button type="submit" className="btn-primary">

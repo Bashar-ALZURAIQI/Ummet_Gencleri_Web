@@ -85,17 +85,19 @@ test('5. Human-readable Event location respects isTranslatableLocationValue guar
 // 3. News: Schema & Allowed Editorial Fields
 // ---------------------------------------------------------------------------
 
-test('6. Eligible News editorial fields (title, excerpt, fullContent) are translatable', () => {
+test('6. Eligible News editorial fields (title, category, excerpt, fullContent) are translatable', () => {
   assert.equal(isCmsPathTranslatable('news', 'title'), true);
   assert.equal(isCmsPathTranslatable('news', '*.title'), true);
+  assert.equal(isCmsPathTranslatable('news', 'category'), true);
+  assert.equal(isCmsPathTranslatable('news', '*.category'), true);
   assert.equal(isCmsPathTranslatable('news', 'excerpt'), true);
   assert.equal(isCmsPathTranslatable('news', '*.excerpt'), true);
   assert.equal(isCmsPathTranslatable('news', 'fullContent'), true);
   assert.equal(isCmsPathTranslatable('news', '*.fullContent'), true);
 });
 
-test('7. News technical fields (id, category, date, image, externalUrl, pinned) are excluded', () => {
-  const technicalPaths = ['id', 'category', 'date', 'image', 'externalUrl', 'pinnedOnHomepage'];
+test('7. News technical fields (id, date, image, externalUrl, pinned) are excluded', () => {
+  const technicalPaths = ['id', 'date', 'image', 'externalUrl', 'pinnedOnHomepage'];
   for (const path of technicalPaths) {
     assert.equal(isCmsPathTranslatable('news', path), false, `news.${path} should not be translatable`);
     assert.equal(isCmsPathTranslatable('news', `0.${path}`), false, `news.0.${path} should not be translatable`);
@@ -307,11 +309,12 @@ test('23. Both flows use identical Event eligible editorial fields (title, locat
   }
 });
 
-test('24. category and activityType remain excluded from translation tabs in both flows', async () => {
+test('24. category and activityType remain excluded from Event translation tabs in both flows', async () => {
   const adminSource = await readAdminDashboard();
   const programsSource = await readProgramsPage();
-  assert.doesNotMatch(adminSource, /name:\s*['"]category['"]/);
-  assert.doesNotMatch(adminSource, /name:\s*['"]activityType['"]/);
+  const adminEventsBlock = adminSource.match(/<CmsEntityTranslationTabs[^>]*target="events"[\s\S]*?<\/CmsEntityTranslationTabs>/)?.[0] ?? '';
+  assert.doesNotMatch(adminEventsBlock, /name:\s*['"]category['"]/);
+  assert.doesNotMatch(adminEventsBlock, /name:\s*['"]activityType['"]/);
   assert.doesNotMatch(programsSource, /name:\s*['"]category['"]/);
   assert.doesNotMatch(programsSource, /name:\s*['"]activityType['"]/);
 });

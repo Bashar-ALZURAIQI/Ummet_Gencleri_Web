@@ -14,6 +14,7 @@ import {
   validateProfileAvatar,
 } from '../domain/profileSettingsPolicy';
 import { normalizeProfile } from '../utils/profileNormalize';
+import { getAcademicYearPresentation, ACADEMIC_YEAR_KEY_MAP } from '../domain/academicYearPresentation';
 import PasswordField from './PasswordField';
 import UserAvatar from './UserAvatar';
 
@@ -304,7 +305,22 @@ export default function ProfileSettings({
               <input name="major" value={form.major} onChange={(event) => updateField('major', event.target.value)} className="input-field mt-1" />
             </label>
             <label className="block text-sm font-semibold text-gray-700">{t('profile.academicYear', 'السنة الدراسية')}
-              <input name="year" value={form.year} onChange={(event) => updateField('year', event.target.value)} className="input-field mt-1" />
+              <select
+                name="year"
+                value={form.year}
+                onChange={(event) => updateField('year', event.target.value)}
+                className="input-field mt-1"
+              >
+                <option value="">{t('common.selectFromList', 'اختر من القائمة...')}</option>
+                {Object.keys(ACADEMIC_YEAR_KEY_MAP).map((canonicalYear) => (
+                  <option key={canonicalYear} value={canonicalYear}>
+                    {getAcademicYearPresentation(canonicalYear, t)}
+                  </option>
+                ))}
+                {form.year && !ACADEMIC_YEAR_KEY_MAP[form.year] && (
+                  <option value={form.year}>{form.year}</option>
+                )}
+              </select>
             </label>
           </div>
           <label className="block text-sm font-semibold text-gray-700">{t('profile.bio', 'نبذة شخصية')}

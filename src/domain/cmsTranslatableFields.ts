@@ -219,6 +219,8 @@ export const CMS_TRANSLATABLE_SCHEMA: Record<string, readonly CmsTranslatableFie
   news: [
     { pathPattern: 'title', kind: 'title' },
     { pathPattern: '*.title', kind: 'title' },
+    { pathPattern: 'category', kind: 'title' },
+    { pathPattern: '*.category', kind: 'title' },
     { pathPattern: 'excerpt', kind: 'description' },
     { pathPattern: '*.excerpt', kind: 'description' },
     { pathPattern: 'fullContent', kind: 'richText' },

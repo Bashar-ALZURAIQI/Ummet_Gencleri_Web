@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Images, Filter, Play, Calendar, MapPin, Camera, Video, X,
@@ -11,6 +11,9 @@ import RequiredMark from '../components/RequiredMark';
 import { validateRequired, clearInvalid, isInvalid, fieldId } from '../utils/formValidation';
 import type { GalleryAlbum, GalleryCategory, GalleryMedia, SiteEditDiff } from '../data/mockData';
 import ManagedFileField from '../components/ManagedFileField';
+import { CmsEntityTranslationTabs } from '../components/cmsLocalization/CmsEntityTranslationTabs';
+import { useCmsLocalizationRepository } from '../context/CmsLocalizationContext';
+import { computeSourceHash, type LocalizedCmsLocale, type JsonValue } from '../domain/cmsLocalization';
 
 export default function MediaGallery() {
   const {
@@ -21,14 +24,19 @@ export default function MediaGallery() {
     uploadManagedFile,
     savePublishedSiteTarget,
   } = useApp();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [filter, setFilter] = useState<string>('all');
   const [selectedAlbumId, setSelectedAlbumId] = useState<string | null>(null);
   const [lightboxMedia, setLightboxMedia] = useState<GalleryMedia | null>(null);
 
   // Album modal
+  const localizationRepo = useCmsLocalizationRepository();
   const [albumModalOpen, setAlbumModalOpen] = useState(false);
   const [editingAlbum, setEditingAlbum] = useState<GalleryAlbum | null>(null);
+  const [albumTranslations, setAlbumTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
+    tr: {},
+    en: {},
+  });
   const [albumForm, setAlbumForm] = useState({
     title: '', categoryId: '', date: '', location: '',
     coverImage: '', photoCount: 0, videoCount: 0, description: '',
@@ -37,10 +45,44 @@ export default function MediaGallery() {
   // Category modal
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<GalleryCategory | null>(null);
+  const [categoryTranslations, setCategoryTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
+    tr: {},
+    en: {},
+  });
   const [categoryForm, setCategoryForm] = useState({ label: '' });
 
   // Media modal (add media to album)
   const [mediaModalOpen, setMediaModalOpen] = useState(false);
+  const [editingMediaId, setEditingMediaId] = useState<string>('');
+  const [mediaTranslations, setMediaTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
+    tr: {},
+    en: {},
+  });
+  const [localizedCategories, setLocalizedCategories] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (i18n.language === 'ar') {
+      setLocalizedCategories({});
+      return;
+    }
+    const loc = (i18n.language === 'tr' ? 'tr' : 'en') as LocalizedCmsLocale;
+    void Promise.all([
+      localizationRepo.getDraft('galleryCategories', loc),
+      localizationRepo.getPublished('galleryCategories', loc),
+    ]).then(([draft, pub]) => {
+      const rec = draft ?? pub;
+      if (rec && Array.isArray(rec.payload)) {
+        const map: Record<string, string> = {};
+        for (const item of rec.payload as Record<string, unknown>[]) {
+          if (item && typeof item.id === 'string' && typeof item.label === 'string' && item.label.trim()) {
+            map[item.id] = item.label;
+          }
+        }
+        setLocalizedCategories(map);
+      }
+    });
+  }, [i18n.language, localizationRepo, galleryCategories]);
+
   const [mediaForm, setMediaForm] = useState({
     type: 'photo' as 'photo' | 'video',
     source: 'upload' as 'upload' | 'external',
@@ -98,6 +140,7 @@ export default function MediaGallery() {
   // === Album CRUD ===
   const openAddAlbum = () => {
     setEditingAlbum(null);
+    setAlbumTranslations({ tr: {}, en: {} });
     setAlbumForm({
       title: '', categoryId: galleryCategories[0]?.id ?? '', date: new Date().toISOString().slice(0, 10),
       location: '', coverImage: '', photoCount: 0, videoCount: 0, description: '',
@@ -107,6 +150,7 @@ export default function MediaGallery() {
 
   const openEditAlbum = (album: GalleryAlbum) => {
     setEditingAlbum(album);
+    setAlbumTranslations({ tr: {}, en: {} });
     setAlbumForm({
       title: album.title, categoryId: album.categoryId, date: album.date,
       location: album.location, coverImage: album.coverImage,
@@ -147,8 +191,9 @@ export default function MediaGallery() {
       );
       if (!saved.ok) return;
     } else {
+      const newAlbumId = 'album' + Date.now();
       const newAlbum: GalleryAlbum = {
-        id: 'album' + Date.now(), ...albumForm, media: [], createdByRole: currentUser?.role,
+        id: newAlbumId, ...albumForm, media: [], createdByRole: currentUser?.role,
       };
       if (currentUser?.role === 'MEDIA_HEAD') {
         const diffs = albumDiffs('add', null, newAlbum);
@@ -165,6 +210,31 @@ export default function MediaGallery() {
       }
       const saved = await savePublishedSiteTarget('galleryAlbums', [newAlbum, ...galleryAlbums]);
       if (!saved.ok) return;
+
+      // Bind drafted translations to authoritative new album ID
+      for (const loc of ['tr', 'en'] as const) {
+        const trData = albumTranslations[loc];
+        if (trData.title?.trim() || trData.location?.trim() || trData.description?.trim()) {
+          try {
+            const latest = await localizationRepo.getDraft('galleryAlbums', loc);
+            const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
+              ? JSON.parse(JSON.stringify(latest.payload))
+              : [];
+            list.push({ id: newAlbumId, ...trData });
+            await localizationRepo.saveDraft({
+              target: 'galleryAlbums',
+              locale: loc,
+              payload: list as unknown as JsonValue,
+              status: 'draft',
+              manualPaths: [`${newAlbumId}.title`],
+              sourceHash: computeSourceHash([newAlbum, ...galleryAlbums]),
+              updatedAt: new Date().toISOString(),
+            });
+          } catch {
+            // non-blocking
+          }
+        }
+      }
     }
     setAlbumModalOpen(false);
   };
@@ -190,12 +260,14 @@ export default function MediaGallery() {
   // === Category CRUD ===
   const openAddCategory = () => {
     setEditingCategory(null);
+    setCategoryTranslations({ tr: {}, en: {} });
     setCategoryForm({ label: '' });
     setCategoryModalOpen(true);
   };
 
   const openEditCategory = (cat: GalleryCategory) => {
     setEditingCategory(cat);
+    setCategoryTranslations({ tr: {}, en: {} });
     setCategoryForm({ label: cat.label });
     setCategoryModalOpen(true);
   };
@@ -225,7 +297,8 @@ export default function MediaGallery() {
       );
       if (!saved.ok) return;
     } else {
-      const newCat: GalleryCategory = { id: 'cat' + Date.now(), label: categoryForm.label };
+      const newCatId = 'cat' + Date.now();
+      const newCat: GalleryCategory = { id: newCatId, label: categoryForm.label };
       if (currentUser?.role === 'MEDIA_HEAD') {
         const diffs = categoryDiffs('add', null, newCat);
         if (diffs.length) {
@@ -241,6 +314,31 @@ export default function MediaGallery() {
       }
       const saved = await savePublishedSiteTarget('galleryCategories', [...galleryCategories, newCat]);
       if (!saved.ok) return;
+
+      // Bind drafted translations to authoritative new category ID
+      for (const loc of ['tr', 'en'] as const) {
+        const trData = categoryTranslations[loc];
+        if (trData.label?.trim()) {
+          try {
+            const latest = await localizationRepo.getDraft('galleryCategories', loc);
+            const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
+              ? JSON.parse(JSON.stringify(latest.payload))
+              : [];
+            list.push({ id: newCatId, ...trData });
+            await localizationRepo.saveDraft({
+              target: 'galleryCategories',
+              locale: loc,
+              payload: list as unknown as JsonValue,
+              status: 'draft',
+              manualPaths: [`${newCatId}.label`],
+              sourceHash: computeSourceHash([...galleryCategories, newCat]),
+              updatedAt: new Date().toISOString(),
+            });
+          } catch {
+            // non-blocking
+          }
+        }
+      }
     }
     setCategoryModalOpen(false);
   };
@@ -269,7 +367,10 @@ export default function MediaGallery() {
 
   // === Media CRUD ===
   const openAddMedia = () => {
+    const newMediaId = 'media' + Date.now();
+    setEditingMediaId(newMediaId);
     setMediaForm({ type: 'photo', source: 'upload', url: '', thumbnail: '', caption: '', photoUrl: '' });
+    setMediaTranslations({ tr: {}, en: {} });
     setMediaModalOpen(true);
   };
 
@@ -286,7 +387,7 @@ export default function MediaGallery() {
     }, mediaFields, setInvalid)) return;
     if (!mediaForm.url.trim() || !selectedAlbumId) return;
     const newMedia: GalleryMedia = {
-      id: 'media' + Date.now(),
+      id: editingMediaId || ('media' + Date.now()),
       type: mediaForm.type,
       url: mediaForm.url,
       thumbnail: mediaForm.thumbnail || undefined,
@@ -409,7 +510,7 @@ export default function MediaGallery() {
                 }`}
               >
                 <Images className="h-4 w-4" />
-                {cat.label}
+                {localizedCategories[cat.id] || cat.label}
               </button>
               {isPresidentOrMedia && (
                 <div className="absolute -top-2 -left-2 flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
@@ -682,10 +783,6 @@ export default function MediaGallery() {
       {/* Album Modal */}
       <Modal open={albumModalOpen} onClose={() => setAlbumModalOpen(false)} title={editingAlbum ? 'تعديل الألبوم' : 'إضافة ألبوم جديد'} maxWidth="max-w-lg">
         <form onSubmit={saveAlbum} className="space-y-4">
-          <div>
-            <label htmlFor={fieldId('albumTitle')} className="label-field">عنوان الألبوم <RequiredMark /></label>
-            <input id={fieldId('albumTitle')} required className={`input-field ${isInvalid(invalid, 'albumTitle')}`} value={albumForm.title} onChange={(e) => { setAlbumForm({ ...albumForm, title: e.target.value }); clearInvalid(setInvalid, 'albumTitle'); }} />
-          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor={fieldId('albumCategory')} className="label-field">التصنيف <RequiredMark /></label>
@@ -698,7 +795,7 @@ export default function MediaGallery() {
               >
                 <option value="">اختر تصنيفًا</option>
                 {galleryCategories.map((c) => (
-                  <option key={c.id} value={c.id}>{c.label}</option>
+                  <option key={c.id} value={c.id}>{localizedCategories[c.id] || c.label}</option>
                 ))}
               </select>
             </div>
@@ -706,10 +803,6 @@ export default function MediaGallery() {
               <label htmlFor={fieldId('albumDate')} className="label-field">التاريخ <RequiredMark /></label>
               <input id={fieldId('albumDate')} required type="date" className={`input-field ${isInvalid(invalid, 'albumDate')}`} value={albumForm.date} onChange={(e) => { setAlbumForm({ ...albumForm, date: e.target.value }); clearInvalid(setInvalid, 'albumDate'); }} />
             </div>
-          </div>
-          <div>
-            <label htmlFor={fieldId('albumLocation')} className="label-field">المكان <RequiredMark /></label>
-            <input id={fieldId('albumLocation')} required className={`input-field ${isInvalid(invalid, 'albumLocation')}`} value={albumForm.location} onChange={(e) => { setAlbumForm({ ...albumForm, location: e.target.value }); clearInvalid(setInvalid, 'albumLocation'); }} />
           </div>
           <ManagedFileField
             usage="gallery-image"
@@ -733,10 +826,58 @@ export default function MediaGallery() {
               <input id={fieldId('albumVideoCount')} required type="number" min="0" className={`input-field ${isInvalid(invalid, 'albumVideoCount')}`} value={albumForm.videoCount} onChange={(e) => { setAlbumForm({ ...albumForm, videoCount: parseInt(e.target.value) || 0 }); clearInvalid(setInvalid, 'albumVideoCount'); }} />
             </div>
           </div>
-          <div>
-            <label htmlFor={fieldId('albumDescription')} className="label-field">الوصف <RequiredMark /></label>
-            <textarea id={fieldId('albumDescription')} required rows={2} className={`input-field resize-none ${isInvalid(invalid, 'albumDescription')}`} value={albumForm.description} onChange={(e) => { setAlbumForm({ ...albumForm, description: e.target.value }); clearInvalid(setInvalid, 'albumDescription'); }} />
-          </div>
+
+          <CmsEntityTranslationTabs
+            target="galleryAlbums"
+            recordId={editingAlbum?.id ?? null}
+            canonicalPayload={editingAlbum ? galleryAlbums.map((a) => a.id === editingAlbum.id ? { ...a, ...albumForm } : a) : galleryAlbums}
+            fields={[
+              {
+                name: 'title',
+                label: 'عنوان الألبوم',
+                kind: 'title',
+                canonicalValue: albumForm.title,
+                placeholder: 'عنوان الألبوم',
+              },
+              {
+                name: 'location',
+                label: 'المكان',
+                kind: 'text',
+                isLocation: true,
+                canonicalValue: albumForm.location,
+                placeholder: 'المكان',
+              },
+              {
+                name: 'description',
+                label: 'الوصف',
+                kind: 'description',
+                canonicalValue: albumForm.description,
+                placeholder: 'الوصف',
+              },
+            ]}
+            canEdit={Boolean(isPresidentOrMedia)}
+            translations={albumTranslations}
+            onTranslationChange={(loc, name, val) => {
+              setAlbumTranslations((prev) => ({
+                ...prev,
+                [loc]: { ...prev[loc], [name]: val },
+              }));
+            }}
+          >
+            <div>
+              <label htmlFor={fieldId('albumTitle')} className="label-field">عنوان الألبوم <RequiredMark /></label>
+              <input id={fieldId('albumTitle')} required className={`input-field ${isInvalid(invalid, 'albumTitle')}`} value={albumForm.title} onChange={(e) => { setAlbumForm({ ...albumForm, title: e.target.value }); clearInvalid(setInvalid, 'albumTitle'); }} />
+            </div>
+            <div>
+              <label htmlFor={fieldId('albumLocation')} className="label-field">المكان <RequiredMark /></label>
+              <input id={fieldId('albumLocation')} required className={`input-field ${isInvalid(invalid, 'albumLocation')}`} value={albumForm.location} onChange={(e) => { setAlbumForm({ ...albumForm, location: e.target.value }); clearInvalid(setInvalid, 'albumLocation'); }} />
+            </div>
+            <div>
+              <label htmlFor={fieldId('albumDescription')} className="label-field">الوصف <RequiredMark /></label>
+              <textarea id={fieldId('albumDescription')} required rows={2} className={`input-field resize-none ${isInvalid(invalid, 'albumDescription')}`} value={albumForm.description} onChange={(e) => { setAlbumForm({ ...albumForm, description: e.target.value }); clearInvalid(setInvalid, 'albumDescription'); }} />
+            </div>
+          </CmsEntityTranslationTabs>
+
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setAlbumModalOpen(false)} className="btn-ghost">إلغاء</button>
             <button type="submit" className="btn-primary">
@@ -749,10 +890,33 @@ export default function MediaGallery() {
       {/* Category Modal */}
       <Modal open={categoryModalOpen} onClose={() => setCategoryModalOpen(false)} title={editingCategory ? 'تعديل التصنيف' : 'إضافة تصنيف جديد'} maxWidth="max-w-sm">
         <form onSubmit={saveCategory} className="space-y-4">
-          <div>
-            <label htmlFor={fieldId('catLabel')} className="label-field">اسم التصنيف <RequiredMark /></label>
-            <input id={fieldId('catLabel')} required className={`input-field ${isInvalid(invalid, 'catLabel')}`} value={categoryForm.label} onChange={(e) => { setCategoryForm({ label: e.target.value }); clearInvalid(setInvalid, 'catLabel'); }} placeholder="مثال: الأنشطة الرياضية" />
-          </div>
+          <CmsEntityTranslationTabs
+            target="galleryCategories"
+            recordId={editingCategory?.id ?? null}
+            canonicalPayload={editingCategory ? galleryCategories.map((c) => c.id === editingCategory.id ? { ...c, ...categoryForm } : c) : galleryCategories}
+            fields={[
+              {
+                name: 'label',
+                label: 'اسم التصنيف',
+                kind: 'title',
+                canonicalValue: categoryForm.label,
+                placeholder: 'اسم التصنيف',
+              },
+            ]}
+            canEdit={Boolean(isPresidentOrMedia)}
+            translations={categoryTranslations}
+            onTranslationChange={(loc, name, val) => {
+              setCategoryTranslations((prev) => ({
+                ...prev,
+                [loc]: { ...prev[loc], [name]: val },
+              }));
+            }}
+          >
+            <div>
+              <label htmlFor={fieldId('catLabel')} className="label-field">اسم التصنيف <RequiredMark /></label>
+              <input id={fieldId('catLabel')} required className={`input-field ${isInvalid(invalid, 'catLabel')}`} value={categoryForm.label} onChange={(e) => { setCategoryForm({ label: e.target.value }); clearInvalid(setInvalid, 'catLabel'); }} placeholder="مثال: الأنشطة الرياضية" />
+            </div>
+          </CmsEntityTranslationTabs>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setCategoryModalOpen(false)} className="btn-ghost">إلغاء</button>
             <button type="submit" className="btn-primary">
@@ -843,10 +1007,33 @@ export default function MediaGallery() {
               }}
             />
           )}
-          <div>
-            <label htmlFor={fieldId('mediaCaption')} className="label-field">تعليق / وصف <RequiredMark /></label>
-            <input id={fieldId('mediaCaption')} required className={`input-field ${isInvalid(invalid, 'mediaCaption')}`} value={mediaForm.caption} onChange={(e) => { setMediaForm({ ...mediaForm, caption: e.target.value }); clearInvalid(setInvalid, 'mediaCaption'); }} />
-          </div>
+          <CmsEntityTranslationTabs
+            target="galleryAlbums"
+            recordId={editingMediaId || null}
+            canonicalPayload={galleryAlbums}
+            fields={[
+              {
+                name: 'caption',
+                label: 'تعليق / وصف',
+                kind: 'description',
+                canonicalValue: mediaForm.caption,
+                placeholder: 'تعليق / وصف',
+              },
+            ]}
+            canEdit={Boolean(isPresidentOrMedia)}
+            translations={mediaTranslations}
+            onTranslationChange={(loc, name, val) => {
+              setMediaTranslations((prev) => ({
+                ...prev,
+                [loc]: { ...prev[loc], [name]: val },
+              }));
+            }}
+          >
+            <div>
+              <label htmlFor={fieldId('mediaCaption')} className="label-field">تعليق / وصف <RequiredMark /></label>
+              <input id={fieldId('mediaCaption')} required className={`input-field ${isInvalid(invalid, 'mediaCaption')}`} value={mediaForm.caption} onChange={(e) => { setMediaForm({ ...mediaForm, caption: e.target.value }); clearInvalid(setInvalid, 'mediaCaption'); }} />
+            </div>
+          </CmsEntityTranslationTabs>
           <div>
             <label htmlFor={fieldId('mediaPhotoUrl')} className="label-field">رابط المنشور (انستغرام / فيسبوك) {mediaForm.type === 'photo' ? <RequiredMark /> : <span className="text-gray-400">(اختياري للفيديو)</span>}</label>
             <div className="relative">
