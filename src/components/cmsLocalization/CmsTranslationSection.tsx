@@ -65,11 +65,9 @@ export function CmsTranslationSection({
   path,
   label,
   kind,
-  canonicalValue: _canonicalValue,
   canonicalPayload,
   canEdit,
   onDraftSaved,
-  onPublished: _onPublished,
 }: CmsTranslationSectionProps) {
   const { t } = useTranslation();
   const repository = useCmsLocalizationRepository();

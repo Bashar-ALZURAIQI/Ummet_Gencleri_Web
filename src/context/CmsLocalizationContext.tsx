@@ -33,6 +33,8 @@ export function CmsLocalizationProvider({
   );
 }
 
+// Co-locates context provider and consumer hook as unified context API.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useCmsLocalizationRepository(): CmsLocalizationRepository {
   const ctx = useContext(CmsLocalizationContext);
   return ctx.repository;
