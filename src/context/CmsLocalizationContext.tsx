@@ -1,19 +1,20 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import {
   type CmsLocalizationRepository,
-  InMemoryCmsLocalizationRepository,
 } from '../domain/cmsLocalizationRepository.ts';
 import {
   type TranslationProvider,
 } from '../services/translation/types.ts';
 import { defaultAzureTranslator } from '../services/translation/AzureTranslator.ts';
+import { SupabaseCmsLocalizationRepository } from '../services/localization/SupabaseCmsLocalizationRepository.ts';
 
 export interface CmsLocalizationContextValue {
   repository: CmsLocalizationRepository;
   translationProvider: TranslationProvider;
 }
 
-const defaultRepository = new InMemoryCmsLocalizationRepository();
+// Default runtime repository is SupabaseCmsLocalizationRepository; InMemoryCmsLocalizationRepository can be injected for testing.
+const defaultRepository = new SupabaseCmsLocalizationRepository();
 
 const CmsLocalizationContext = createContext<CmsLocalizationContextValue>({
   repository: defaultRepository,
@@ -30,7 +31,7 @@ export function CmsLocalizationProvider({
   children: ReactNode;
 }): JSX.Element {
   const stableRepository = useMemo(
-    () => repository ?? new InMemoryCmsLocalizationRepository(),
+    () => repository ?? new SupabaseCmsLocalizationRepository(),
     [repository],
   );
 

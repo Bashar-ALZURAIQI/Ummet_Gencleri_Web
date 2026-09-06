@@ -585,10 +585,10 @@ test('19. InMemoryCmsLocalizationRepository continues to function independently'
   assert.equal(draft.payload.hero.title, 'Test');
 });
 
-test('20. CmsLocalizationContext safely defaults to InMemoryCmsLocalizationRepository pre-deployment', async () => {
+test('20. CmsLocalizationContext activates SupabaseCmsLocalizationRepository as default runtime repository while preserving injection', async () => {
   const ctxSource = await readFile(new URL('../src/context/CmsLocalizationContext.tsx', import.meta.url), 'utf8');
-  assert.match(ctxSource, /new\s+InMemoryCmsLocalizationRepository\(\)/);
-  assert.doesNotMatch(ctxSource, /new\s+SupabaseCmsLocalizationRepository\(\)/);
+  assert.match(ctxSource, /new\s+SupabaseCmsLocalizationRepository\(\)/);
+  assert.match(ctxSource, /repository\s*\?\?\s*new\s+SupabaseCmsLocalizationRepository\(\)/);
 });
 
 // ---------------------------------------------------------------------------
