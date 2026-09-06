@@ -640,15 +640,15 @@ test('30. Domain module contains no Supabase, React, or UI dependencies', () => 
   assert.doesNotMatch(repoFile, /from ['"]\.\.\/pages/);
 });
 
-test('31. No database migrations, Edge Functions, or UI modifications were introduced', () => {
+test('31. Database migrations check: persistence migration is explicitly tracked in persistence phase', () => {
   const gitStatusOutput = fs.existsSync(path.join(process.cwd(), 'supabase/migrations'));
   if (gitStatusOutput) {
     const migrationFiles = fs.readdirSync(path.join(process.cwd(), 'supabase/migrations'));
-    assert.equal(
-      migrationFiles.some((f) => f.includes('cms_localization')),
-      false,
-      'No localization migration should exist in Task 7B'
+    // Task 7B introduced no migrations; persistence phase introduces 20260906220000_create_cms_localizations.sql
+    const unexpectedMigrations = migrationFiles.filter(
+      (f) => f.includes('cms_localization') && !f.includes('20260906220000_create_cms_localizations')
     );
+    assert.equal(unexpectedMigrations.length, 0);
   }
 });
 
