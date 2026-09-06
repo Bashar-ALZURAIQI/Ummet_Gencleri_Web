@@ -1454,6 +1454,15 @@ const ar = {
     discardChanges: 'إغلاق وتجاهل التعديلات',
     manualEditBadge: 'تعديل يدوي محفوظ',
     saveFailed: 'فشل حفظ الترجمة، النص العربي محفوظ بأمان.',
+    translate: 'ترجمة',
+    translateChanges: 'ترجمة التغييرات',
+    translating: 'جارٍ الترجمة...',
+    translationFailed: 'فشلت الترجمة',
+    translationCompleted: 'اكتملت الترجمة',
+    noChangesToTranslate: 'لا توجد تغييرات تتطلب الترجمة',
+    machineTranslated: 'مترجم آلياً',
+    manualTranslationProtected: 'الترجمة اليدوية محمية',
+    translateBoth: 'ترجمة للتركية والإنجليزية',
   },
 };
 

@@ -83,12 +83,17 @@ export interface FieldLocalizationState {
  * Safely extracts a string value from a nested JSON payload using dot-notation path.
  * Supports direct string payloads as well as nested objects.
  */
-function extractFieldValue(payload: unknown, path: string): string {
+export function extractFieldValue(payload: unknown, path: string): string {
   if (typeof payload === 'string') {
     return payload;
   }
   if (!payload || typeof payload !== 'object') {
     return '';
+  }
+
+  const obj = payload as Record<string, unknown>;
+  if (path in obj && typeof obj[path] === 'string') {
+    return obj[path] as string;
   }
 
   const cleanPath = path.replace(/\[(\d+)\]/g, '.$1.');

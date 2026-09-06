@@ -256,6 +256,15 @@ test('18. ar, tr, and en locale files have matching cmsLocalization dictionary k
     'status',
     'translations',
     'unsavedChangesWarning',
+    'translate',
+    'translateChanges',
+    'translating',
+    'translationFailed',
+    'translationCompleted',
+    'noChangesToTranslate',
+    'machineTranslated',
+    'manualTranslationProtected',
+    'translateBoth',
   ].sort();
 
   assert.deepEqual(Object.keys(ar.cmsLocalization).sort(), expectedCmsKeys);

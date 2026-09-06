@@ -1452,6 +1452,15 @@ const en: TranslationSchema = {
     discardChanges: 'Close and Discard Changes',
     manualEditBadge: 'Manual edit preserved',
     saveFailed: 'Failed to save translation, Arabic text was saved safely.',
+    translate: 'Translate',
+    translateChanges: 'Translate changes',
+    translating: 'Translating...',
+    translationFailed: 'Translation failed',
+    translationCompleted: 'Translation completed',
+    noChangesToTranslate: 'No changes require translation',
+    machineTranslated: 'Machine translated',
+    manualTranslationProtected: 'Manual translation protected',
+    translateBoth: 'Translate TR + EN',
   },
 };
 

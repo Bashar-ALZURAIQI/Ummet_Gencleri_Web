@@ -989,10 +989,18 @@ function BoardTab({ committees, setCommittees, students, currentUser, updateBoar
   const [headModal, setHeadModal] = useState(false);
   const [headCommittee, setHeadCommittee] = useState<CommitteeId | null>(null);
   const [headForm, setHeadForm] = useState({ name: '', role: '', bio: '', photo: '', email: '', phone: '', university: '', major: '', year: '' });
+  const [headTranslations, setHeadTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
+    tr: {},
+    en: {},
+  });
 
   const [respModal, setRespModal] = useState(false);
   const [respTarget, setRespTarget] = useState<{ committeeId: CommitteeId; idx: number } | null>(null);
   const [respText, setRespText] = useState('');
+  const [respTranslations, setRespTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
+    tr: {},
+    en: {},
+  });
 
   const [invalid, setInvalid] = useState<string[]>([]);
 
@@ -1128,6 +1136,7 @@ function BoardTab({ committees, setCommittees, students, currentUser, updateBoar
   const openHead = (c: typeof committees[0]) => {
     if (c.head?.id !== currentUser?.userId) return;
     setHeadCommittee(c.id);
+    setHeadTranslations({ tr: {}, en: {} });
     setHeadForm({ name: c.head?.name ?? '', role: c.head?.role ?? '', bio: c.head?.bio ?? '', photo: c.head?.photo ?? '', email: currentUser.contactEmail ?? '', phone: c.head?.phone ?? '', university: c.head?.university ?? '', major: c.head?.major ?? '', year: c.head?.year ?? '' });
     setHeadModal(true);
   };
@@ -1159,12 +1168,14 @@ function BoardTab({ committees, setCommittees, students, currentUser, updateBoar
 
   const openAddResp = (committeeId: CommitteeId) => {
     setRespTarget({ committeeId, idx: -1 });
+    setRespTranslations({ tr: {}, en: {} });
     setRespText('');
     setRespModal(true);
   };
   const openEditResp = (committeeId: CommitteeId, idx: number) => {
     const c = committees.find((x) => x.id === committeeId);
     setRespTarget({ committeeId, idx });
+    setRespTranslations({ tr: {}, en: {} });
     setRespText(c?.responsibilities[idx] || '');
     setRespModal(true);
   };
@@ -1407,10 +1418,33 @@ function BoardTab({ committees, setCommittees, students, currentUser, updateBoar
             <label className="label-field">{t('admin.board.headModal.positionLabel', 'المسمى الوظيفي')}</label>
             <input id={fieldId('role')} readOnly className="input-field bg-gray-100 text-gray-500" value={getExecutiveRoleLabel(headForm.role, t) || headForm.role} />
           </div>
-          <div>
-            <label className="label-field">{t('admin.board.headModal.bioLabel', 'النبذة التعريفية')} <RequiredMark /></label>
-            <textarea id={fieldId('bio')} rows={3} className={`${isInvalid(invalid, 'bio') ? 'input-field-error' : 'input-field'} resize-none`} value={headForm.bio} onChange={(e) => { setHeadForm({ ...headForm, bio: e.target.value }); clearInvalid(setInvalid, 'bio'); }} />
-          </div>
+          <CmsEntityTranslationTabs
+            target="committees"
+            recordId={headCommittee}
+            canonicalPayload={committees}
+            fields={[
+              {
+                name: 'head.bio',
+                label: t('admin.board.headModal.bioLabel', 'النبذة التعريفية'),
+                kind: 'richText',
+                canonicalValue: headForm.bio,
+                placeholder: t('admin.board.headModal.bioLabel', 'النبذة التعريفية'),
+              },
+            ]}
+            canEdit={true}
+            translations={headTranslations}
+            onTranslationChange={(loc, name, val) => {
+              setHeadTranslations((prev) => ({
+                ...prev,
+                [loc]: { ...prev[loc], [name]: val },
+              }));
+            }}
+          >
+            <div>
+              <label className="label-field">{t('admin.board.headModal.bioLabel', 'النبذة التعريفية')} <RequiredMark /></label>
+              <textarea id={fieldId('bio')} rows={3} className={`${isInvalid(invalid, 'bio') ? 'input-field-error' : 'input-field'} resize-none`} value={headForm.bio} onChange={(e) => { setHeadForm({ ...headForm, bio: e.target.value }); clearInvalid(setInvalid, 'bio'); }} />
+            </div>
+          </CmsEntityTranslationTabs>
           <div>
             <label className="label-field">{t('admin.board.headModal.photoLabel', 'الصورة الشخصية')}</label>
             <input id={fieldId('photo')} type="text" dir="ltr" className="input-field bg-gray-100 text-gray-500" value={headForm.photo} readOnly placeholder={t('admin.board.headModal.photoHint', 'غيّر الصورة من إعدادات الملف الشخصي')} />
@@ -1455,10 +1489,33 @@ function BoardTab({ committees, setCommittees, students, currentUser, updateBoar
       {/* Responsibility modal */}
       <Modal open={respModal} onClose={() => setRespModal(false)} title={respTarget?.idx && respTarget.idx >= 0 ? t('admin.board.respModal.editTitle', 'تعديل البند') : t('admin.board.respModal.addTitle', 'إضافة بند جديد')} maxWidth="max-w-md">
         <form onSubmit={saveResp} className="space-y-4">
-          <div>
-            <label className="label-field">{t('admin.board.respModal.textLabel', 'نص البند')} <RequiredMark /></label>
-            <textarea id={fieldId('respText')} rows={3} className={`${isInvalid(invalid, 'respText') ? 'input-field-error' : 'input-field'} resize-none`} value={respText} onChange={(e) => { setRespText(e.target.value); clearInvalid(setInvalid, 'respText'); }} placeholder={t('admin.board.respModal.placeholder', 'اكتب المهمة أو المسؤولية')} />
-          </div>
+          <CmsEntityTranslationTabs
+            target="committees"
+            recordId={respTarget?.committeeId ?? null}
+            canonicalPayload={committees}
+            fields={[
+              {
+                name: `responsibilities.${respTarget?.idx !== undefined && respTarget.idx >= 0 ? respTarget.idx : (committees.find((x) => x.id === respTarget?.committeeId)?.responsibilities?.length ?? 0)}`,
+                label: t('admin.board.respModal.textLabel', 'نص البند'),
+                kind: 'text',
+                canonicalValue: respText,
+                placeholder: t('admin.board.respModal.placeholder', 'اكتب المهمة أو المسؤولية'),
+              },
+            ]}
+            canEdit={true}
+            translations={respTranslations}
+            onTranslationChange={(loc, name, val) => {
+              setRespTranslations((prev) => ({
+                ...prev,
+                [loc]: { ...prev[loc], [name]: val },
+              }));
+            }}
+          >
+            <div>
+              <label className="label-field">{t('admin.board.respModal.textLabel', 'نص البند')} <RequiredMark /></label>
+              <textarea id={fieldId('respText')} rows={3} className={`${isInvalid(invalid, 'respText') ? 'input-field-error' : 'input-field'} resize-none`} value={respText} onChange={(e) => { setRespText(e.target.value); clearInvalid(setInvalid, 'respText'); }} placeholder={t('admin.board.respModal.placeholder', 'اكتب المهمة أو المسؤولية')} />
+            </div>
+          </CmsEntityTranslationTabs>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setRespModal(false)} className="btn-ghost">{t('admin.board.respModal.cancel', 'إلغاء')}</button>
             <button type="submit" className="btn-primary"><Save className="h-4 w-4" /> {t('admin.board.respModal.save', 'حفظ')}</button>

@@ -22,7 +22,7 @@ import {
 import { canCreateExecutiveContent } from '../domain/phaseThreeEconomy.ts';
 import { CmsEntityTranslationTabs } from '../components/cmsLocalization/CmsEntityTranslationTabs';
 import { useCmsLocalizationRepository } from '../context/CmsLocalizationContext';
-import { computeSourceHash, type JsonValue } from '../domain/cmsLocalization';
+import { computeSourceHash, type JsonValue, type LocalizedCmsLocale } from '../domain/cmsLocalization';
 import { getEventCategoryLabel } from '../domain/eventCategoryPresentation';
 
 type Tab = 'upcoming' | 'past';
@@ -42,6 +42,10 @@ export default function ProgramsPage() {
   const [cat, setCat] = useState<EventCategory | 'all'>('all');
   const [editingHeader, setEditingHeader] = useState(false);
   const [headerForm, setHeaderForm] = useState<ProgramsContent>(programsContent);
+  const [headerTranslations, setHeaderTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
+    tr: { badge: '', title: '', description: '' },
+    en: { badge: '', title: '', description: '' },
+  });
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [invalid, setInvalid] = useState<string[]>([]);
@@ -326,6 +330,27 @@ export default function ProgramsPage() {
     }
     const saved = await savePublishedSiteTarget('programsContent', headerForm);
     if (!saved.ok) return;
+    for (const loc of ['tr', 'en'] as const) {
+      const trData = headerTranslations[loc];
+      if (trData.badge?.trim() || trData.title?.trim() || trData.description?.trim()) {
+        try {
+          const latest = await repository.getDraft('programsContent', loc);
+          const prevObj = (latest?.payload && typeof latest.payload === 'object') ? (latest.payload as Record<string, unknown>) : {};
+          const nextObj = { ...prevObj, ...trData };
+          await repository.saveDraft({
+            target: 'programsContent',
+            locale: loc,
+            payload: nextObj as unknown as JsonValue,
+            status: 'draft',
+            manualPaths: Object.keys(trData).filter((k) => trData[k]?.trim()),
+            sourceHash: computeSourceHash(headerForm),
+            updatedAt: new Date().toISOString(),
+          });
+        } catch {
+          // non-blocking
+        }
+      }
+    }
     setEditingHeader(false);
   };
 
@@ -338,37 +363,74 @@ export default function ProgramsPage() {
         <div className="container-app relative">
           {editingHeader ? (
             <form onSubmit={saveHeader} className="mx-auto max-w-2xl space-y-3 text-right">
-              <div>
-                <label className="mb-1.5 block text-right text-xs font-bold text-gold-300">الشارة <RequiredMark /></label>
-                <input
-                  id={fieldId('badge')}
-                  className={`${isInvalid(invalid, 'badge') ? 'input-field-dark-error' : 'w-full rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm text-white placeholder:text-gray-400 focus:border-gold-400 focus:outline-none'}`}
-                  value={headerForm.badge}
-                  onChange={(e) => { setHeaderForm({ ...headerForm, badge: e.target.value }); clearInvalid(setInvalid, 'badge'); }}
-                  placeholder="الشارة"
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-right text-xs font-bold text-gold-300">العنوان الرئيسي <RequiredMark /></label>
-                <input
-                  id={fieldId('title')}
-                  className={`${isInvalid(invalid, 'title') ? 'input-field-dark-error' : 'w-full rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-lg font-bold text-white placeholder:text-gray-400 focus:border-gold-400 focus:outline-none'}`}
-                  value={headerForm.title}
-                  onChange={(e) => { setHeaderForm({ ...headerForm, title: e.target.value }); clearInvalid(setInvalid, 'title'); }}
-                  placeholder="العنوان الرئيسي"
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-right text-xs font-bold text-gold-300">النص الوصفي <RequiredMark /></label>
-                <textarea
-                  id={fieldId('description')}
-                  rows={2}
-                  className={`${isInvalid(invalid, 'description') ? 'input-field-dark-error resize-none' : 'w-full resize-none rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm text-white placeholder:text-gray-400 focus:border-gold-400 focus:outline-none'}`}
-                  value={headerForm.description}
-                  onChange={(e) => { setHeaderForm({ ...headerForm, description: e.target.value }); clearInvalid(setInvalid, 'description'); }}
-                  placeholder="النص الوصفي"
-                />
-              </div>
+              <CmsEntityTranslationTabs
+                target="programsContent"
+                recordId="header"
+                canonicalPayload={headerForm}
+                fields={[
+                  {
+                    name: 'badge',
+                    label: t('programs.headerModal.badge', 'الشارة'),
+                    kind: 'title',
+                    canonicalValue: headerForm.badge,
+                    placeholder: 'الشارة',
+                  },
+                  {
+                    name: 'title',
+                    label: t('programs.headerModal.title', 'العنوان الرئيسي'),
+                    kind: 'title',
+                    canonicalValue: headerForm.title,
+                    placeholder: 'العنوان الرئيسي',
+                  },
+                  {
+                    name: 'description',
+                    label: t('programs.headerModal.description', 'النص الوصفي'),
+                    kind: 'description',
+                    canonicalValue: headerForm.description,
+                    placeholder: 'النص الوصفي',
+                  },
+                ]}
+                canEdit={Boolean(isPresident)}
+                translations={headerTranslations}
+                onTranslationChange={(loc, name, val) => {
+                  setHeaderTranslations((prev) => ({
+                    ...prev,
+                    [loc]: { ...prev[loc], [name]: val },
+                  }));
+                }}
+              >
+                <div>
+                  <label className="mb-1.5 block text-right text-xs font-bold text-gold-300">الشارة <RequiredMark /></label>
+                  <input
+                    id={fieldId('badge')}
+                    className={`${isInvalid(invalid, 'badge') ? 'input-field-dark-error' : 'w-full rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm text-white placeholder:text-gray-400 focus:border-gold-400 focus:outline-none'}`}
+                    value={headerForm.badge}
+                    onChange={(e) => { setHeaderForm({ ...headerForm, badge: e.target.value }); clearInvalid(setInvalid, 'badge'); }}
+                    placeholder="الشارة"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-right text-xs font-bold text-gold-300">العنوان الرئيسي <RequiredMark /></label>
+                  <input
+                    id={fieldId('title')}
+                    className={`${isInvalid(invalid, 'title') ? 'input-field-dark-error' : 'w-full rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-lg font-bold text-white placeholder:text-gray-400 focus:border-gold-400 focus:outline-none'}`}
+                    value={headerForm.title}
+                    onChange={(e) => { setHeaderForm({ ...headerForm, title: e.target.value }); clearInvalid(setInvalid, 'title'); }}
+                    placeholder="العنوان الرئيسي"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-right text-xs font-bold text-gold-300">النص الوصفي <RequiredMark /></label>
+                  <textarea
+                    id={fieldId('description')}
+                    rows={2}
+                    className={`${isInvalid(invalid, 'description') ? 'input-field-dark-error resize-none' : 'w-full resize-none rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm text-white placeholder:text-gray-400 focus:border-gold-400 focus:outline-none'}`}
+                    value={headerForm.description}
+                    onChange={(e) => { setHeaderForm({ ...headerForm, description: e.target.value }); clearInvalid(setInvalid, 'description'); }}
+                    placeholder="النص الوصفي"
+                  />
+                </div>
+              </CmsEntityTranslationTabs>
               <div className="flex justify-center gap-2">
                 <button type="submit" className="inline-flex items-center gap-1.5 rounded-lg bg-gold-400 px-4 py-2 text-sm font-bold text-navy-950 hover:bg-gold-300">
                   <Save className="h-4 w-4" /> حفظ
@@ -384,7 +446,14 @@ export default function ProgramsPage() {
                 <span className="text-sm font-bold uppercase tracking-wider text-gold-300">{programsContent.badge}</span>
                 {isPresident && (
                   <button
-                    onClick={() => { setHeaderForm(programsContent); setEditingHeader(true); }}
+                    onClick={() => {
+                      setHeaderForm(programsContent);
+                      setHeaderTranslations({
+                        tr: { badge: '', title: '', description: '' },
+                        en: { badge: '', title: '', description: '' },
+                      });
+                      setEditingHeader(true);
+                    }}
                     className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 text-gold-300 transition-colors hover:bg-white/20"
                     title="تعديل الترويسة"
                   >

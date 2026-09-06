@@ -58,6 +58,18 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
   const [statIdx, setStatIdx] = useState<number>(-1);
   const [statForm, setStatForm] = useState<StatForm>({ label: '', value: '' });
 
+  const [headTranslations, setHeadTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
+    tr: {},
+    en: {},
+  });
+  const [respTranslations, setRespTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
+    tr: {},
+    en: {},
+  });
+  const [statTranslations, setStatTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
+    tr: {},
+    en: {},
+  });
   const [memberModal, setMemberModal] = useState(false);
   const [editingMember, setEditingMember] = useState<CommitteeMember | null>(null);
   const [memberTranslations, setMemberTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
@@ -168,6 +180,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
   // Head
   const openHead = () => {
     const h = committee.head ?? {};
+    setHeadTranslations({ tr: {}, en: {} });
     setHeadForm({ name: h.name ?? '', role: h.role ?? '', bio: h.bio ?? '', photo: h.photo ?? '', email: h.email ?? '' });
     setHeadModal(true);
   };
@@ -186,8 +199,8 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
   };
 
   // Responsibilities
-  const openAddResp = () => { setRespIdx(-1); setRespText(''); setRespModal(true); };
-  const openEditResp = (i: number) => { setRespIdx(i); setRespText(committee.responsibilities?.[i] ?? ''); setRespModal(true); };
+  const openAddResp = () => { setRespIdx(-1); setRespTranslations({ tr: {}, en: {} }); setRespText(''); setRespModal(true); };
+  const openEditResp = (i: number) => { setRespIdx(i); setRespTranslations({ tr: {}, en: {} }); setRespText(committee.responsibilities?.[i] ?? ''); setRespModal(true); };
   const saveResp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!respText.trim()) return;
@@ -206,7 +219,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
   };
 
   // Stats
-  const openEditStat = (i: number) => { setStatIdx(i); setStatForm({ ...(committee.stats?.[i] ?? { value: '', label: '' }) }); setStatModal(true); };
+  const openEditStat = (i: number) => { setStatIdx(i); setStatTranslations({ tr: {}, en: {} }); setStatForm({ ...(committee.stats?.[i] ?? { value: '', label: '' }) }); setStatModal(true); };
   const saveStat = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateRequired(statForm, ['value', 'label'], setInvalid)) return;
@@ -522,10 +535,33 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               <label htmlFor={fieldId('role')} className="label-field">{t('committee.headModal.role', 'المسمى الوظيفي')} <RequiredMark /></label>
               <input id={fieldId('role')} readOnly className="input-field bg-gray-100 text-gray-500" value={getExecutiveRoleLabel(headForm.role, t) || headForm.role} />
             </div>
-            <div>
-              <label htmlFor={fieldId('bio')} className="label-field">{t('committee.headModal.bio', 'النبذة التعريفية')} <RequiredMark /></label>
-              <textarea id={fieldId('bio')} required rows={3} className={`input-field resize-none ${isInvalid(invalid, 'bio')}`} value={headForm.bio} onChange={(e) => { setHeadForm({ ...headForm, bio: e.target.value }); clearInvalid(setInvalid, 'bio'); }} />
-            </div>
+            <CmsEntityTranslationTabs
+              target="committees"
+              recordId={committee.id}
+              canonicalPayload={committees}
+              fields={[
+                {
+                  name: 'head.bio',
+                  label: t('committee.headModal.bio', 'النبذة التعريفية'),
+                  kind: 'richText',
+                  canonicalValue: headForm.bio,
+                  placeholder: t('committee.headModal.bio', 'النبذة التعريفية'),
+                },
+              ]}
+              canEdit={Boolean(canEditPersonalProfile)}
+              translations={headTranslations}
+              onTranslationChange={(loc, name, val) => {
+                setHeadTranslations((prev) => ({
+                  ...prev,
+                  [loc]: { ...prev[loc], [name]: val },
+                }));
+              }}
+            >
+              <div>
+                <label htmlFor={fieldId('bio')} className="label-field">{t('committee.headModal.bio', 'النبذة التعريفية')} <RequiredMark /></label>
+                <textarea id={fieldId('bio')} required rows={3} className={`input-field resize-none ${isInvalid(invalid, 'bio')}`} value={headForm.bio} onChange={(e) => { setHeadForm({ ...headForm, bio: e.target.value }); clearInvalid(setInvalid, 'bio'); }} />
+              </div>
+            </CmsEntityTranslationTabs>
             <ManagedFileField
               usage="avatar"
               label={t('committee.headModal.photo', 'الصورة الشخصية')}
@@ -554,10 +590,33 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
       {canEditContent && (
         <Modal open={respModal} onClose={() => setRespModal(false)} title={respIdx >= 0 ? t('committee.respModal.editTitle', 'تعديل البند') : t('committee.respModal.addTitle', 'إضافة بند جديد')} maxWidth="max-w-md">
           <form onSubmit={saveResp} className="space-y-4">
-            <div>
-              <label htmlFor={fieldId('respText')} className="label-field">{t('committee.respModal.textLabel', 'نص البند')} <RequiredMark /></label>
-              <textarea id={fieldId('respText')} required rows={3} className={`input-field resize-none ${isInvalid(invalid, 'respText')}`} value={respText} onChange={(e) => { setRespText(e.target.value); clearInvalid(setInvalid, 'respText'); }} placeholder={t('committee.respModal.placeholder', 'اكتب المهمة أو المسؤولية')} />
-            </div>
+            <CmsEntityTranslationTabs
+              target="committees"
+              recordId={committee.id}
+              canonicalPayload={committees}
+              fields={[
+                {
+                  name: `responsibilities.${respIdx >= 0 ? respIdx : (committee.responsibilities?.length ?? 0)}`,
+                  label: t('committee.respModal.textLabel', 'نص البند'),
+                  kind: 'text',
+                  canonicalValue: respText,
+                  placeholder: t('committee.respModal.placeholder', 'اكتب المهمة أو المسؤولية'),
+                },
+              ]}
+              canEdit={Boolean(canEditContent)}
+              translations={respTranslations}
+              onTranslationChange={(loc, name, val) => {
+                setRespTranslations((prev) => ({
+                  ...prev,
+                  [loc]: { ...prev[loc], [name]: val },
+                }));
+              }}
+            >
+              <div>
+                <label htmlFor={fieldId('respText')} className="label-field">{t('committee.respModal.textLabel', 'نص البند')} <RequiredMark /></label>
+                <textarea id={fieldId('respText')} required rows={3} className={`input-field resize-none ${isInvalid(invalid, 'respText')}`} value={respText} onChange={(e) => { setRespText(e.target.value); clearInvalid(setInvalid, 'respText'); }} placeholder={t('committee.respModal.placeholder', 'اكتب المهمة أو المسؤولية')} />
+              </div>
+            </CmsEntityTranslationTabs>
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => setRespModal(false)} className="btn-ghost">{t('common.cancel', 'إلغاء')}</button>
               <button type="submit" disabled={contentSubmitting} className="btn-primary disabled:cursor-not-allowed disabled:opacity-60">
@@ -576,10 +635,33 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               <label htmlFor={fieldId('value')} className="label-field">{t('committee.statModal.valueLabel', 'الرقم/القيمة')} <RequiredMark /></label>
               <input id={fieldId('value')} required className={`input-field ${isInvalid(invalid, 'value')}`} value={statForm.value} onChange={(e) => { setStatForm({ ...statForm, value: e.target.value }); clearInvalid(setInvalid, 'value'); }} />
             </div>
-            <div>
-              <label htmlFor={fieldId('label')} className="label-field">{t('committee.statModal.nameLabel', 'المسمى')} <RequiredMark /></label>
-              <input id={fieldId('label')} required className={`input-field ${isInvalid(invalid, 'label')}`} value={statForm.label} onChange={(e) => { setStatForm({ ...statForm, label: e.target.value }); clearInvalid(setInvalid, 'label'); }} />
-            </div>
+            <CmsEntityTranslationTabs
+              target="committees"
+              recordId={committee.id ? `${committee.id}.stats.${statIdx}` : `stats.${statIdx}`}
+              canonicalPayload={committees}
+              fields={[
+                {
+                  name: 'label',
+                  label: t('committee.statModal.nameLabel', 'المسمى'),
+                  kind: 'title',
+                  canonicalValue: statForm.label,
+                  placeholder: t('committee.statModal.nameLabel', 'المسمى'),
+                },
+              ]}
+              canEdit={Boolean(canEditContent)}
+              translations={statTranslations}
+              onTranslationChange={(loc, name, val) => {
+                setStatTranslations((prev) => ({
+                  ...prev,
+                  [loc]: { ...prev[loc], [name]: val },
+                }));
+              }}
+            >
+              <div>
+                <label htmlFor={fieldId('label')} className="label-field">{t('committee.statModal.nameLabel', 'المسمى')} <RequiredMark /></label>
+                <input id={fieldId('label')} required className={`input-field ${isInvalid(invalid, 'label')}`} value={statForm.label} onChange={(e) => { setStatForm({ ...statForm, label: e.target.value }); clearInvalid(setInvalid, 'label'); }} />
+              </div>
+            </CmsEntityTranslationTabs>
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => setStatModal(false)} className="btn-ghost">{t('common.cancel', 'إلغاء')}</button>
               <button type="submit" disabled={contentSubmitting} className="btn-primary disabled:cursor-not-allowed disabled:opacity-60">

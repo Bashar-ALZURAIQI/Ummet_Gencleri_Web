@@ -1452,6 +1452,15 @@ const tr: TranslationSchema = {
     discardChanges: 'Kapat ve Değişiklikleri Yoksay',
     manualEditBadge: 'Manuel düzenleme korundu',
     saveFailed: 'Çeviri kaydedilemedi, Arapça metin güvenle korundu.',
+    translate: 'Çevir',
+    translateChanges: 'Değişiklikleri Çevir',
+    translating: 'Çevriliyor...',
+    translationFailed: 'Çeviri başarısız oldu',
+    translationCompleted: 'Çeviri tamamlandı',
+    noChangesToTranslate: 'Çeviri gerektiren değişiklik yok',
+    machineTranslated: 'Otomatik çevrildi',
+    manualTranslationProtected: 'Manuel çeviri korundu',
+    translateBoth: 'TR + EN Çevir',
   },
 };
 
