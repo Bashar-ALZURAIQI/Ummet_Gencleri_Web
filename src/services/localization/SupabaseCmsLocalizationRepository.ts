@@ -20,6 +20,8 @@ import {
 export interface CmsLocalizationQueryClient {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   from(table: string): any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  rpc?(fn: string, args?: Record<string, unknown>): Promise<{ data: any; error: { message: string } | null }>;
 }
 
 export class SupabaseCmsLocalizationRepository implements CmsLocalizationRepository {
@@ -290,6 +292,78 @@ export class SupabaseCmsLocalizationRepository implements CmsLocalizationReposit
       }
 
       return true;
+    } catch (err) {
+      if (err instanceof CmsLocalizationRepositoryError) throw err;
+      throw new CmsLocalizationRepositoryError(
+        'UNKNOWN',
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+
+  public async publishEventLocalization(
+    eventId: string,
+    locale: LocalizedCmsLocale,
+    translation: { title?: string; description?: string; location?: string },
+  ): Promise<void> {
+    this.assertSupportedLocalizedLocale(locale);
+    const trimmedId = eventId.trim();
+    if (!trimmedId) {
+      throw new CmsLocalizationRepositoryError('UNKNOWN', 'Valid eventId is required');
+    }
+
+    const client = await this.getClient();
+
+    try {
+      // Use the secure server-enforced RPC when available on Supabase client
+      if (typeof client.rpc === 'function') {
+        const { error } = await client.rpc('publish_event_localization', {
+          p_event_id: trimmedId,
+          p_locale: locale,
+          p_translation: translation,
+        });
+
+        if (error) {
+          throw new CmsLocalizationRepositoryError(
+            'UNKNOWN',
+            `Failed to publish event localization: ${error.message}`,
+          );
+        }
+        return;
+      }
+
+      // Fallback for mock/test query clients lacking .rpc
+      const existing = await this.getPublished<Record<string, unknown>[]>('events', locale);
+      const pubList = Array.isArray(existing?.payload)
+        ? JSON.parse(JSON.stringify(existing.payload))
+        : [];
+      const sanitized: Record<string, unknown> = { id: trimmedId };
+      if (translation.title?.trim()) sanitized.title = translation.title.trim();
+      if (translation.description?.trim()) sanitized.description = translation.description.trim();
+      if (translation.location?.trim()) sanitized.location = translation.location.trim();
+
+      const idx = pubList.findIndex((item: Record<string, unknown>) => item && typeof item === 'object' && item.id === trimmedId);
+      if (idx >= 0) {
+        pubList[idx] = { ...pubList[idx], ...sanitized };
+      } else {
+        pubList.push(sanitized);
+      }
+
+      const manualPaths = existing?.manualPaths ? [...existing.manualPaths] : [];
+      const pathToAdd = `${trimmedId}.title`;
+      if (!manualPaths.includes(pathToAdd)) {
+        manualPaths.push(pathToAdd);
+      }
+
+      await this.savePublished({
+        target: 'events',
+        locale,
+        payload: pubList as unknown as JsonValue,
+        status: 'fresh',
+        manualPaths,
+        stalePaths: existing?.stalePaths ? existing.stalePaths.filter((p) => p !== pathToAdd) : [],
+        updatedAt: new Date().toISOString(),
+      });
     } catch (err) {
       if (err instanceof CmsLocalizationRepositoryError) throw err;
       throw new CmsLocalizationRepositoryError(

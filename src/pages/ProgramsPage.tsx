@@ -262,24 +262,36 @@ export default function ProgramsPage() {
         notify('error', saved.error ?? 'تعذر إنشاء الفعالية.');
         return;
       }
-      // Bind drafted translations to authoritative event ID
+      // Bind and publish entered translations to authoritative event ID
       for (const loc of ['tr', 'en'] as const) {
         const trData = translations[loc];
         if (trData.title?.trim() || trData.description?.trim() || trData.location?.trim()) {
           try {
-            const latest = await repository.getDraft('events', loc);
-            const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
-              ? JSON.parse(JSON.stringify(latest.payload))
-              : [];
-            list.push({ id: publicEventId, ...trData });
             const nextEvents = [newEvent, ...events];
+            const sourceHash = computeSourceHash(nextEvents);
+
+            // 1. Publish translation for the new published event via scoped publication
+            await repository.publishEventLocalization(publicEventId, loc, trData);
+
+            // 2. Keep draft partition synchronized
+            const latestDraft = await repository.getDraft('events', loc);
+            const draftList: Record<string, unknown>[] = Array.isArray(latestDraft?.payload)
+              ? JSON.parse(JSON.stringify(latestDraft.payload))
+              : [];
+            const dIdx = draftList.findIndex((d) => d && typeof d === 'object' && (d as Record<string, unknown>).id === publicEventId);
+            if (dIdx >= 0) {
+              draftList[dIdx] = { ...draftList[dIdx], ...trData, id: publicEventId };
+            } else {
+              draftList.push({ id: publicEventId, ...trData });
+            }
             await repository.saveDraft({
               target: 'events',
               locale: loc,
-              payload: list as unknown as JsonValue,
+              payload: draftList as unknown as JsonValue,
               status: 'draft',
               manualPaths: [`${publicEventId}.title`],
-              sourceHash: computeSourceHash(nextEvents),
+              stalePaths: [],
+              sourceHash,
               updatedAt: new Date().toISOString(),
             });
           } catch {
@@ -690,6 +702,7 @@ export default function ProgramsPage() {
               },
             ]}
             canEdit={canAddEvent && (!editId || isPresident)}
+            canPublish={canAddEvent && (!editId || isPresident)}
             translations={translations}
             onTranslationChange={(loc, name, val) => {
               setTranslations((prev) => ({

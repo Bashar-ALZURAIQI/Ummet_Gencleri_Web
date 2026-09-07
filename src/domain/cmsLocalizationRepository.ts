@@ -131,6 +131,17 @@ export interface CmsLocalizationRepository {
     target: CmsTarget | string,
     locale: LocalizedCmsLocale,
   ): Promise<boolean>;
+
+  /**
+   * Scoped publication for a single event's localization.
+   * Merges or appends the localized fields for the specified event into the published
+   * events overlay without granting broad target-wide overwrite authority.
+   */
+  publishEventLocalization(
+    eventId: string,
+    locale: LocalizedCmsLocale,
+    translation: { title?: string; description?: string; location?: string },
+  ): Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -307,6 +318,54 @@ export class InMemoryCmsLocalizationRepository implements CmsLocalizationReposit
     this.assertSupportedLocalizedLocale(locale);
     const key = this.makeKey(target, locale);
     return this.draftStore.delete(key);
+  }
+
+  public async publishEventLocalization(
+    eventId: string,
+    locale: LocalizedCmsLocale,
+    translation: { title?: string; description?: string; location?: string },
+  ): Promise<void> {
+    this.assertSupportedLocalizedLocale(locale);
+    const trimmedId = eventId.trim();
+    if (!trimmedId) {
+      throw new CmsLocalizationRepositoryError('UNKNOWN', 'Valid eventId is required');
+    }
+
+    const key = this.makeKey('events', locale);
+    const existing = this.publishedStore.get(key);
+    const currentPayload = Array.isArray(existing?.payload)
+      ? safeClone(existing.payload as Record<string, unknown>[])
+      : [];
+
+    const sanitized: Record<string, unknown> = { id: trimmedId };
+    if (translation.title?.trim()) sanitized.title = translation.title.trim();
+    if (translation.description?.trim()) sanitized.description = translation.description.trim();
+    if (translation.location?.trim()) sanitized.location = translation.location.trim();
+
+    const idx = currentPayload.findIndex((item) => item && typeof item === 'object' && item.id === trimmedId);
+    if (idx >= 0) {
+      currentPayload[idx] = { ...currentPayload[idx], ...sanitized };
+    } else {
+      currentPayload.push(sanitized);
+    }
+
+    const manualPaths = existing?.manualPaths ? [...existing.manualPaths] : [];
+    const pathToAdd = `${trimmedId}.title`;
+    if (!manualPaths.includes(pathToAdd)) {
+      manualPaths.push(pathToAdd);
+    }
+
+    const updatedRecord: CmsLocalizationRecord<unknown> = {
+      target: 'events',
+      locale,
+      payload: currentPayload,
+      status: 'fresh',
+      manualPaths,
+      stalePaths: existing?.stalePaths ? existing.stalePaths.filter((p) => p !== pathToAdd) : [],
+      updatedAt: new Date().toISOString(),
+    };
+
+    this.publishedStore.set(key, updatedRecord);
   }
 }
 

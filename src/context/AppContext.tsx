@@ -10,6 +10,8 @@ import {
 } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, type ServiceResult } from '../lib/supabase';
+import { i18n } from '../i18n/config.ts';
+import { overlayLocalizedCmsPayload } from '../domain/cmsPublicRead.ts';
 import {
   listAssignableMembers,
   listPresidentAssignableMembers,
@@ -709,6 +711,22 @@ interface AppContextValue {
     value: unknown,
   ) => Promise<{ ok: boolean; error?: string }>;
   createPublishedEvent: (event: UEvent) => Promise<{ ok: boolean; error?: string }>;
+  canonicalSiteContent?: SiteContent;
+  canonicalAboutContent?: AboutContent;
+  canonicalNews?: NewsItem[];
+  canonicalEvents?: UEvent[];
+  canonicalFaqCategories?: FAQCategoryData[];
+  canonicalGuideSections?: GuideSectionData[];
+  canonicalGalleryAlbums?: GalleryAlbum[];
+  canonicalGalleryCategories?: GalleryCategory[];
+  canonicalCommittees?: typeof mockCommittees;
+  canonicalPlans?: AdminPlan[];
+  canonicalReports?: AdminReport[];
+  canonicalProgramsContent?: ProgramsContent;
+  canonicalContactCards?: ContactCardData[];
+  canonicalContactMap?: ContactMapData;
+  canonicalGeneralInfo?: GeneralInfo;
+  refreshPublishedLocalizations?: () => Promise<void>;
 }
 
 const EMPTY_OWN_PROFILE_OPERATION_RESULTS: OwnProfileOperationResults = {
@@ -1323,6 +1341,145 @@ export function AppProvider({ children }: { children: ReactNode }) {
     safeWrite(LS_EVENTS_KEY, events);
     safeWrite(LS_GALLERY_KEY, { albums: galleryAlbums, categories: galleryCategories });
   }, [siteContent, aboutContent, generalInfo, programsContent, guideQuickInfo, guideSections, galleryAlbums, galleryCategories, faqCategories, contactCards, contactMap, events, news, plans, reports, committees]);
+
+  const [activeLocale, setActiveLocale] = useState<string>(() => i18n.language || 'ar');
+
+  useEffect(() => {
+    const handleLanguageChanged = (lng: string) => {
+      setActiveLocale(lng || 'ar');
+    };
+    i18n.on('languageChanged', handleLanguageChanged);
+    return () => {
+      i18n.off('languageChanged', handleLanguageChanged);
+    };
+  }, []);
+
+  const [publishedLocalizations, setPublishedLocalizations] = useState<Record<string, unknown>>({});
+
+  const refreshPublishedLocalizations = useCallback(async () => {
+    if (activeLocale === 'ar') {
+      setPublishedLocalizations({});
+      return;
+    }
+    try {
+      const { data, error } = await supabase
+        .from('cms_localizations')
+        .select('target, payload')
+        .eq('partition', 'published')
+        .eq('locale', activeLocale);
+
+      if (error || !data) return;
+      const map: Record<string, unknown> = {};
+      for (const row of data) {
+        if (row && typeof row.target === 'string') {
+          map[row.target] = row.payload;
+        }
+      }
+      setPublishedLocalizations(map);
+    } catch {
+      // Clean fallback to canonical Arabic on network error
+    }
+  }, [activeLocale]);
+
+  useEffect(() => {
+    void refreshPublishedLocalizations();
+  }, [refreshPublishedLocalizations]);
+
+  const effectiveNews = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return news;
+    const localized = publishedLocalizations['news'];
+    return overlayLocalizedCmsPayload(news, localized) as NewsItem[];
+  }, [activeLocale, view.kind, news, publishedLocalizations]);
+
+  const effectiveEvents = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return events;
+    const localized = publishedLocalizations['events'];
+    return overlayLocalizedCmsPayload(events, localized) as UEvent[];
+  }, [activeLocale, view.kind, events, publishedLocalizations]);
+
+  const effectiveSiteContent = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return siteContent;
+    const localized = publishedLocalizations['site'];
+    return overlayLocalizedCmsPayload(siteContent, localized) as SiteContent;
+  }, [activeLocale, view.kind, siteContent, publishedLocalizations]);
+
+  const effectiveAboutContent = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return aboutContent;
+    const localized = publishedLocalizations['about'];
+    return overlayLocalizedCmsPayload(aboutContent, localized) as AboutContent;
+  }, [activeLocale, view.kind, aboutContent, publishedLocalizations]);
+
+  const effectiveFaqCategories = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return faqCategories;
+    const localized = publishedLocalizations['faqCategories'];
+    return overlayLocalizedCmsPayload(faqCategories, localized) as FAQCategoryData[];
+  }, [activeLocale, view.kind, faqCategories, publishedLocalizations]);
+
+  const effectiveGuideSections = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return guideSections;
+    const localized = publishedLocalizations['guideSections'];
+    return overlayLocalizedCmsPayload(guideSections, localized) as GuideSectionData[];
+  }, [activeLocale, view.kind, guideSections, publishedLocalizations]);
+
+  const effectiveGuideQuickInfo = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return guideQuickInfo;
+    const localized = publishedLocalizations['guideQuickInfo'];
+    return overlayLocalizedCmsPayload(guideQuickInfo, localized) as string;
+  }, [activeLocale, view.kind, guideQuickInfo, publishedLocalizations]);
+
+  const effectiveGalleryAlbums = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return galleryAlbums;
+    const localized = publishedLocalizations['galleryAlbums'];
+    return overlayLocalizedCmsPayload(galleryAlbums, localized) as GalleryAlbum[];
+  }, [activeLocale, view.kind, galleryAlbums, publishedLocalizations]);
+
+  const effectiveGalleryCategories = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return galleryCategories;
+    const localized = publishedLocalizations['galleryCategories'];
+    return overlayLocalizedCmsPayload(galleryCategories, localized) as GalleryCategory[];
+  }, [activeLocale, view.kind, galleryCategories, publishedLocalizations]);
+
+  const effectiveCommittees = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return committees;
+    const localized = publishedLocalizations['committees'];
+    return overlayLocalizedCmsPayload(committees, localized) as typeof mockCommittees;
+  }, [activeLocale, view.kind, committees, publishedLocalizations]);
+
+  const effectivePlans = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return plans;
+    const localized = publishedLocalizations['plans'];
+    return overlayLocalizedCmsPayload(plans, localized) as AdminPlan[];
+  }, [activeLocale, view.kind, plans, publishedLocalizations]);
+
+  const effectiveReports = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return reports;
+    const localized = publishedLocalizations['reports'];
+    return overlayLocalizedCmsPayload(reports, localized) as AdminReport[];
+  }, [activeLocale, view.kind, reports, publishedLocalizations]);
+
+  const effectiveProgramsContent = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return programsContent;
+    const localized = publishedLocalizations['programsContent'];
+    return overlayLocalizedCmsPayload(programsContent, localized) as ProgramsContent;
+  }, [activeLocale, view.kind, programsContent, publishedLocalizations]);
+
+  const effectiveContactCards = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return contactCards;
+    const localized = publishedLocalizations['contactCards'];
+    return overlayLocalizedCmsPayload(contactCards, localized) as ContactCardData[];
+  }, [activeLocale, view.kind, contactCards, publishedLocalizations]);
+
+  const effectiveContactMap = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return contactMap;
+    const localized = publishedLocalizations['contactMap'];
+    return overlayLocalizedCmsPayload(contactMap, localized) as ContactMapData;
+  }, [activeLocale, view.kind, contactMap, publishedLocalizations]);
+
+  const effectiveGeneralInfo = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return generalInfo;
+    const localized = publishedLocalizations['generalInfo'];
+    return overlayLocalizedCmsPayload(generalInfo, localized) as GeneralInfo;
+  }, [activeLocale, view.kind, generalInfo, publishedLocalizations]);
 
   const applyPublishedContentBundle = useCallback((bundle: SiteContentBundle) => {
     if (bundle.siteContent) setSiteContent(bundle.siteContent);
@@ -3543,16 +3700,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       view,
       setView,
       navigate,
-      events,
+      events: effectiveEvents,
       setEvents,
-      news,
+      news: effectiveNews,
       setNews,
       students,
       suggestions,
       setSuggestions,
-      plans,
+      plans: effectivePlans,
       setPlans,
-      reports,
+      reports: effectiveReports,
       setReports,
       currentStudent,
       currentUser,
@@ -3582,29 +3739,45 @@ export function AppProvider({ children }: { children: ReactNode }) {
       canAccessCommittee,
       canAccessAdmin,
       canEditSection,
-      generalInfo,
+      generalInfo: effectiveGeneralInfo,
       setGeneralInfo,
-      siteContent,
+      siteContent: effectiveSiteContent,
       setSiteContent,
       updateSiteField,
       updateSiteFields,
-      aboutContent,
+      aboutContent: effectiveAboutContent,
       setAboutContent,
       updateAboutField,
       updateAboutFields,
-      guideSections,
+      guideSections: effectiveGuideSections,
       setGuideSections,
-      galleryAlbums,
+      galleryAlbums: effectiveGalleryAlbums,
       setGalleryAlbums,
-      galleryCategories,
+      galleryCategories: effectiveGalleryCategories,
       setGalleryCategories,
-      faqCategories,
+      faqCategories: effectiveFaqCategories,
       setFaqCategories,
-      contactCards,
+      contactCards: effectiveContactCards,
       setContactCards,
-      contactMap,
+      contactMap: effectiveContactMap,
       setContactMap,
-      committees: committees,
+      committees: effectiveCommittees,
+      canonicalSiteContent: siteContent,
+      canonicalAboutContent: aboutContent,
+      canonicalNews: news,
+      canonicalEvents: events,
+      canonicalFaqCategories: faqCategories,
+      canonicalGuideSections: guideSections,
+      canonicalGalleryAlbums: galleryAlbums,
+      canonicalGalleryCategories: galleryCategories,
+      canonicalCommittees: committees,
+      canonicalPlans: plans,
+      canonicalReports: reports,
+      canonicalProgramsContent: programsContent,
+      canonicalContactCards: contactCards,
+      canonicalContactMap: contactMap,
+      canonicalGeneralInfo: generalInfo,
+      refreshPublishedLocalizations,
       members,
       setMembers,
       updateMemberProfile,
@@ -3633,9 +3806,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       editRequestsLoading,
       editRequestsError,
       clearEditRequestsError,
-      programsContent,
+      programsContent: effectiveProgramsContent,
       setProgramsContent,
-      guideQuickInfo,
+      guideQuickInfo: effectiveGuideQuickInfo,
       setGuideQuickInfo,
       submitSiteEdit,
       approveSiteEdit,
@@ -3669,4 +3842,9 @@ export function useApp() {
   const ctx = useContext(AppContext);
   if (!ctx) throw new Error('useApp must be used within AppProvider');
   return ctx;
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function useOptionalApp() {
+  return useContext(AppContext);
 }

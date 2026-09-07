@@ -46,6 +46,7 @@ export default function ContactPage() {
   });
   const [mapError, setMapError] = useState('');
 
+  const isPresident = currentUser?.role === 'PRESIDENT';
   const isPresidentOrMedia =
     currentUser &&
     (currentUser.role === 'PRESIDENT' || currentUser.role === 'MEDIA_HEAD');
@@ -357,6 +358,7 @@ export default function ContactPage() {
               },
             ]}
             canEdit={Boolean(isPresidentOrMedia)}
+            canPublish={Boolean(isPresident)}
             translations={cardTranslations}
             onTranslationChange={(loc, name, val) => {
               setCardTranslations((prev) => ({
@@ -406,6 +408,7 @@ export default function ContactPage() {
               },
             ]}
             canEdit={Boolean(isPresidentOrMedia)}
+            canPublish={Boolean(isPresident)}
             translations={mapTranslations}
             onTranslationChange={(loc, name, val) => {
               setMapTranslations((prev) => ({

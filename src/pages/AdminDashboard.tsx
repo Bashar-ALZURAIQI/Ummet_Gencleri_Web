@@ -1870,6 +1870,7 @@ function GalleryTab({ galleryAlbums, setGalleryAlbums, galleryCategories, curren
               },
             ]}
             canEdit={isPresident || !editingAlbum || editingAlbum.createdByRole === currentUser?.role}
+            canPublish={isPresident}
             translations={translations}
             onTranslationChange={(loc, name, val) => {
               setTranslations((prev) => ({
@@ -2110,24 +2111,36 @@ function EventsTab({ events, currentUser }: {
         setToast({ id: Date.now(), type: 'error', text: saved.error ?? t('admin.events.createFailed', 'تعذر إنشاء الفعالية.') });
         return;
       }
-      // Bind drafted translations to authoritative event ID
+      // Bind and publish entered translations to authoritative event ID
       for (const loc of ['tr', 'en'] as const) {
         const trData = translations[loc];
         if (trData.title?.trim() || trData.description?.trim() || trData.location?.trim()) {
           try {
-            const latest = await repository.getDraft('events', loc);
-            const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
-              ? JSON.parse(JSON.stringify(latest.payload))
-              : [];
-            list.push({ id: publicEventId, ...trData });
             const nextEvents = [newEvent, ...events];
+            const sourceHash = computeSourceHash(nextEvents);
+
+            // 1. Publish translation for the new published event via scoped publication
+            await repository.publishEventLocalization(publicEventId, loc, trData);
+
+            // 2. Keep draft partition synchronized
+            const latestDraft = await repository.getDraft('events', loc);
+            const draftList: Record<string, unknown>[] = Array.isArray(latestDraft?.payload)
+              ? JSON.parse(JSON.stringify(latestDraft.payload))
+              : [];
+            const dIdx = draftList.findIndex((d) => d && typeof d === 'object' && (d as Record<string, unknown>).id === publicEventId);
+            if (dIdx >= 0) {
+              draftList[dIdx] = { ...draftList[dIdx], ...trData, id: publicEventId };
+            } else {
+              draftList.push({ id: publicEventId, ...trData });
+            }
             await repository.saveDraft({
               target: 'events',
               locale: loc,
-              payload: list as unknown as JsonValue,
+              payload: draftList as unknown as JsonValue,
               status: 'draft',
               manualPaths: [`${publicEventId}.title`],
-              sourceHash: computeSourceHash(nextEvents),
+              stalePaths: [],
+              sourceHash,
               updatedAt: new Date().toISOString(),
             });
           } catch {
@@ -2327,6 +2340,7 @@ function EventsTab({ events, currentUser }: {
               },
             ]}
             canEdit={canCreate && (!editId || isPresident)}
+            canPublish={canCreate && (!editId || isPresident)}
             translations={translations}
             onTranslationChange={(loc, name, val) => {
               setTranslations((prev) => ({
@@ -2369,6 +2383,7 @@ function NewsTab({ news, currentUser, submitSiteEdit }: {
   const { t } = useTranslation();
   const repository = useCmsLocalizationRepository();
   const { uploadManagedFile, savePublishedSiteTarget } = useApp();
+  const isPresident = currentUser?.role === 'PRESIDENT';
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [invalid, setInvalid] = useState<string[]>([]);
@@ -2486,24 +2501,47 @@ function NewsTab({ news, currentUser, submitSiteEdit }: {
       const saved = await savePublishedSiteTarget('news', [newNews, ...news]);
       if (!saved.ok) return;
 
-      // Bind drafted translations to authoritative news ID
+      // Bind and publish entered translations to authoritative news ID for direct president publish
       for (const loc of ['tr', 'en'] as const) {
         const trData = translations[loc];
         if (trData.title?.trim() || trData.excerpt?.trim() || trData.fullContent?.trim()) {
           try {
-            const latest = await repository.getDraft('news', loc);
-            const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
-              ? JSON.parse(JSON.stringify(latest.payload))
-              : [];
-            list.push({ id: newNewsId, ...trData });
             const nextNewsList = [newNews, ...news];
+            const sourceHash = computeSourceHash(nextNewsList);
+
+            // 1. Publish translation for the directly published news
+            const latestPublished = await repository.getPublished('news', loc);
+            const pubList: Record<string, unknown>[] = Array.isArray(latestPublished?.payload)
+              ? JSON.parse(JSON.stringify(latestPublished.payload))
+              : [];
+            pubList.push({ id: newNewsId, ...trData });
+            await repository.savePublished({
+              target: 'news',
+              locale: loc,
+              payload: pubList as unknown as JsonValue,
+              status: 'fresh',
+              manualPaths: [`${newNewsId}.title`],
+              stalePaths: [],
+              sourceHash,
+              updatedAt: new Date().toISOString(),
+            });
+
+            // 2. Keep draft partition synchronized
+            const latestDraft = await repository.getDraft('news', loc);
+            const draftList: Record<string, unknown>[] = Array.isArray(latestDraft?.payload)
+              ? JSON.parse(JSON.stringify(latestDraft.payload))
+              : pubList;
+            if (!draftList.some((d) => d && typeof d === 'object' && (d as Record<string, unknown>).id === newNewsId)) {
+              draftList.push({ id: newNewsId, ...trData });
+            }
             await repository.saveDraft({
               target: 'news',
               locale: loc,
-              payload: list as unknown as JsonValue,
+              payload: draftList as unknown as JsonValue,
               status: 'draft',
               manualPaths: [`${newNewsId}.title`],
-              sourceHash: computeSourceHash(nextNewsList),
+              stalePaths: [],
+              sourceHash,
               updatedAt: new Date().toISOString(),
             });
           } catch {
@@ -2655,7 +2693,8 @@ function NewsTab({ news, currentUser, submitSiteEdit }: {
                 placeholder: t('admin.news.modal.fullContentPlaceholder', 'المحتوى الكامل للخبر'),
               },
             ]}
-            canEdit={true}
+            canEdit={isPresident || currentUser?.role === 'MEDIA_HEAD'}
+            canPublish={isPresident}
             translations={translations}
             onTranslationChange={(loc, name, val) => {
               setTranslations((prev) => ({
@@ -3822,6 +3861,7 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
               },
             ]}
             canEdit={isPresident || !editPlanId || plans.find((p) => p.id === editPlanId)?.authorId === currentUser?.email}
+            canPublish={isPresident}
             translations={planTranslations}
             onTranslationChange={(loc, name, val) => {
               setPlanTranslations((prev) => ({
@@ -3917,6 +3957,7 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
               },
             ]}
             canEdit={isPresident || !editReportId || reports.find((r) => r.id === editReportId)?.authorId === currentUser?.email}
+            canPublish={isPresident}
             translations={reportTranslations}
             onTranslationChange={(loc, name, val) => {
               setReportTranslations((prev) => ({

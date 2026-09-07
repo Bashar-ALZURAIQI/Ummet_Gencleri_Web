@@ -91,6 +91,7 @@ export default function MediaGallery() {
 
   const [invalid, setInvalid] = useState<string[]>([]);
 
+  const isPresident = currentUser?.role === 'PRESIDENT';
   const isPresidentOrMedia =
     currentUser &&
     (currentUser.role === 'PRESIDENT' || currentUser.role === 'MEDIA_HEAD');
@@ -856,6 +857,7 @@ export default function MediaGallery() {
               },
             ]}
             canEdit={Boolean(isPresidentOrMedia)}
+            canPublish={Boolean(isPresident)}
             translations={albumTranslations}
             onTranslationChange={(loc, name, val) => {
               setAlbumTranslations((prev) => ({
@@ -904,6 +906,7 @@ export default function MediaGallery() {
               },
             ]}
             canEdit={Boolean(isPresidentOrMedia)}
+            canPublish={Boolean(isPresident)}
             translations={categoryTranslations}
             onTranslationChange={(loc, name, val) => {
               setCategoryTranslations((prev) => ({
@@ -1021,6 +1024,7 @@ export default function MediaGallery() {
               },
             ]}
             canEdit={Boolean(isPresidentOrMedia)}
+            canPublish={Boolean(isPresident)}
             translations={mediaTranslations}
             onTranslationChange={(loc, name, val) => {
               setMediaTranslations((prev) => ({

@@ -1,6 +1,6 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Save, Globe, Info, Sparkles } from 'lucide-react';
+import { Save, Globe, Info, CheckCircle2 } from 'lucide-react';
 import {
   type CmsTarget,
   type LocalizedCmsLocale,
@@ -8,7 +8,6 @@ import {
   type LocalizationStatus,
   type JsonValue,
   computeSourceHash,
-  isLocalizationPathManual,
 } from '../../domain/cmsLocalization.ts';
 import type { CmsFieldKind } from '../../domain/cmsTranslatableFields.ts';
 import {
@@ -17,7 +16,6 @@ import {
 } from '../../domain/cmsLocalizationEditor.ts';
 import {
   useCmsLocalizationRepository,
-  useCmsTranslationProvider,
 } from '../../context/CmsLocalizationContext.tsx';
 import { TranslationStatusBadge } from './TranslationStatusBadge.tsx';
 import { LocalizedFieldEditor } from './LocalizedFieldEditor.tsx';
@@ -37,6 +35,7 @@ export interface CmsEntityTranslationTabsProps {
   canonicalPayload: unknown;
   fields: CmsEntityFieldConfig[];
   canEdit: boolean;
+  canPublish?: boolean;
   translations: Record<LocalizedCmsLocale, Record<string, string>>;
   onTranslationChange: (locale: LocalizedCmsLocale, fieldName: string, value: string) => void;
   onDraftSaved?: (locale: LocalizedCmsLocale) => void;
@@ -50,8 +49,8 @@ interface LocaleStatusState {
   manualPaths: readonly string[];
   saving: boolean;
   saveError: string | null;
-  translating: boolean;
-  translateError: string | null;
+  publishing: boolean;
+  publishError: string | null;
 }
 
 const createInitialStatusState = (): LocaleStatusState => ({
@@ -61,8 +60,8 @@ const createInitialStatusState = (): LocaleStatusState => ({
   manualPaths: [],
   saving: false,
   saveError: null,
-  translating: false,
-  translateError: null,
+  publishing: false,
+  publishError: null,
 });
 
 function getFieldOrNestedValue(obj: Record<string, unknown>, path: string): string | undefined {
@@ -128,12 +127,98 @@ function applyFieldTranslations(
   }
 }
 
+function buildUpdatedPayload(
+  baseCandidate: unknown,
+  recordId: string | null,
+  target: CmsTarget | string,
+  localeTranslations: Record<string, string>,
+): JsonValue {
+  if (Array.isArray(baseCandidate)) {
+    const list: Record<string, unknown>[] = JSON.parse(JSON.stringify(baseCandidate));
+    let found = false;
+    if (recordId && recordId.includes('.stats.')) {
+      const [commId, , sIdx] = recordId.split('.');
+      const comm = list.find((c) => c && c.id === commId);
+      if (comm) {
+        if (!Array.isArray(comm.stats)) comm.stats = [];
+        const statsList = comm.stats as Record<string, unknown>[];
+        const sIndex = parseInt(sIdx, 10);
+        if (!statsList[sIndex]) statsList[sIndex] = {};
+        applyFieldTranslations(statsList[sIndex], localeTranslations);
+        found = true;
+      }
+    } else {
+      const idx = list.findIndex((el) => el && el.id === recordId);
+      if (idx >= 0) {
+        applyFieldTranslations(list[idx], localeTranslations);
+        found = true;
+      } else {
+        // Check nested in items, members, or media
+        for (const el of list) {
+          if (el && typeof el === 'object') {
+            for (const key of ['items', 'members', 'media'] as const) {
+              if (Array.isArray(el[key])) {
+                const nestedList = el[key] as Record<string, unknown>[];
+                const nIdx = nestedList.findIndex((n) => n && n.id === recordId);
+                if (nIdx >= 0) {
+                  applyFieldTranslations(nestedList[nIdx], localeTranslations);
+                  found = true;
+                  break;
+                }
+              }
+            }
+            if (found) break;
+          }
+        }
+      }
+    }
+    if (!found && recordId && !recordId.includes('.stats.')) {
+      const newItem: Record<string, unknown> = { id: recordId };
+      applyFieldTranslations(newItem, localeTranslations);
+      list.push(newItem);
+    }
+    return list as unknown as JsonValue;
+  } else {
+    const obj: Record<string, unknown> =
+      baseCandidate && typeof baseCandidate === 'object'
+        ? JSON.parse(JSON.stringify(baseCandidate))
+        : {};
+    let found = false;
+    if (
+      obj.id === recordId ||
+      (!obj.id && (!recordId || recordId === 'map' || recordId === 'contactMap' || recordId === 'header' || target === 'programsContent' || target === 'site' || target === 'about' || target === 'generalInfo'))
+    ) {
+      applyFieldTranslations(obj, localeTranslations);
+      found = true;
+    } else {
+      for (const key of ['items', 'members', 'media'] as const) {
+        if (Array.isArray(obj[key])) {
+          const nestedList = obj[key] as Record<string, unknown>[];
+          const nIdx = nestedList.findIndex((n) => n && n.id === recordId);
+          if (nIdx >= 0) {
+            applyFieldTranslations(nestedList[nIdx], localeTranslations);
+            found = true;
+            break;
+          }
+        }
+      }
+    }
+    if (!found && recordId) {
+      const targetNested = ((obj[recordId] as Record<string, unknown>) ?? {});
+      applyFieldTranslations(targetNested, localeTranslations);
+      obj[recordId] = targetNested;
+    }
+    return obj as unknown as JsonValue;
+  }
+}
+
 export function CmsEntityTranslationTabs({
   target,
   recordId,
   canonicalPayload,
   fields,
   canEdit,
+  canPublish,
   translations,
   onTranslationChange,
   onDraftSaved,
@@ -141,7 +226,10 @@ export function CmsEntityTranslationTabs({
 }: CmsEntityTranslationTabsProps) {
   const { t } = useTranslation();
   const repository = useCmsLocalizationRepository();
-  const translationProvider = useCmsTranslationProvider();
+
+  const isAuthorizedToPublish = canPublish !== undefined
+    ? canPublish
+    : Boolean(canEdit);
 
   const [activeTab, setActiveTab] = useState<'ar' | LocalizedCmsLocale>('ar');
   const [trStatus, setTrStatus] = useState<LocaleStatusState>(createInitialStatusState);
@@ -213,11 +301,11 @@ export function CmsEntityTranslationTabs({
           } else {
             for (const key of ['items', 'members', 'media'] as const) {
               if (Array.isArray(payloadObj[key])) {
-                const nested = (payloadObj[key] as Record<string, unknown>[]).find(
+                const nestedList = (payloadObj[key] as Record<string, unknown>[]).find(
                   (n) => n && typeof n === 'object' && n.id === recordId,
                 );
-                if (nested) {
-                  item = nested;
+                if (nestedList) {
+                  item = nestedList;
                   break;
                 }
               }
@@ -247,12 +335,12 @@ export function CmsEntityTranslationTabs({
           statusState: {
             status: derivedStatus,
             isStale: activeRecord.status === 'stale',
-            isManual: (activeRecord.manualPaths ?? []).length > 0,
+            isManual: true,
             manualPaths: activeRecord.manualPaths ?? [],
             saving: false,
             saveError: null,
-            translating: false,
-            translateError: null,
+            publishing: false,
+            publishError: null,
           },
           loadedFields,
         };
@@ -306,85 +394,7 @@ export function CmsEntityTranslationTabs({
       ]);
 
       const baseCandidate = latestDraft?.payload ?? latestPublished?.payload ?? canonicalPayload;
-      let nextPayload: JsonValue;
-
-      if (Array.isArray(baseCandidate)) {
-        const list: Record<string, unknown>[] = JSON.parse(JSON.stringify(baseCandidate));
-        let found = false;
-        if (recordId && recordId.includes('.stats.')) {
-          const [commId, , sIdx] = recordId.split('.');
-          const comm = list.find((c) => c && c.id === commId);
-          if (comm) {
-            if (!Array.isArray(comm.stats)) comm.stats = [];
-            const statsList = comm.stats as Record<string, unknown>[];
-            const sIndex = parseInt(sIdx, 10);
-            if (!statsList[sIndex]) statsList[sIndex] = {};
-            applyFieldTranslations(statsList[sIndex], localeTranslations);
-            found = true;
-          }
-        } else {
-          const idx = list.findIndex((el) => el && el.id === recordId);
-          if (idx >= 0) {
-            applyFieldTranslations(list[idx], localeTranslations);
-            found = true;
-          } else {
-            // Check nested in items, members, or media
-            for (const el of list) {
-              if (el && typeof el === 'object') {
-                for (const key of ['items', 'members', 'media'] as const) {
-                  if (Array.isArray(el[key])) {
-                    const nestedList = el[key] as Record<string, unknown>[];
-                    const nIdx = nestedList.findIndex((n) => n && n.id === recordId);
-                    if (nIdx >= 0) {
-                      applyFieldTranslations(nestedList[nIdx], localeTranslations);
-                      found = true;
-                      break;
-                    }
-                  }
-                }
-                if (found) break;
-              }
-            }
-          }
-        }
-        if (!found && recordId && !recordId.includes('.stats.')) {
-          const newItem: Record<string, unknown> = { id: recordId };
-          applyFieldTranslations(newItem, localeTranslations);
-          list.push(newItem);
-        }
-        nextPayload = list as unknown as JsonValue;
-      } else {
-        const obj: Record<string, unknown> =
-          baseCandidate && typeof baseCandidate === 'object'
-            ? JSON.parse(JSON.stringify(baseCandidate))
-            : {};
-        let found = false;
-        if (
-          obj.id === recordId ||
-          (!obj.id && (!recordId || recordId === 'map' || recordId === 'contactMap' || recordId === 'header' || target === 'programsContent' || target === 'site' || target === 'about' || target === 'generalInfo'))
-        ) {
-          applyFieldTranslations(obj, localeTranslations);
-          found = true;
-        } else {
-          for (const key of ['items', 'members', 'media'] as const) {
-            if (Array.isArray(obj[key])) {
-              const nestedList = obj[key] as Record<string, unknown>[];
-              const nIdx = nestedList.findIndex((n) => n && n.id === recordId);
-              if (nIdx >= 0) {
-                applyFieldTranslations(nestedList[nIdx], localeTranslations);
-                found = true;
-                break;
-              }
-            }
-          }
-        }
-        if (!found && recordId) {
-          const targetNested = ((obj[recordId] as Record<string, unknown>) ?? {});
-          applyFieldTranslations(targetNested, localeTranslations);
-          obj[recordId] = targetNested;
-        }
-        nextPayload = obj as unknown as JsonValue;
-      }
+      const nextPayload = buildUpdatedPayload(baseCandidate, recordId, target, localeTranslations);
 
       const activeRecord = latestDraft ?? latestPublished;
       let updatedManual = activeRecord?.manualPaths ? [...activeRecord.manualPaths] : [];
@@ -426,205 +436,60 @@ export function CmsEntityTranslationTabs({
     }
   };
 
-  const handleAutoTranslate = async (locale: LocalizedCmsLocale) => {
-    if (!canEdit) return;
-    const currentStatus = locale === 'tr' ? trStatus : enStatus;
+  const handlePublish = async (locale: LocalizedCmsLocale) => {
+    if (!canEdit || !isAuthorizedToPublish || (!recordId && target !== 'contactMap' && target !== 'site' && target !== 'programsContent' && target !== 'about' && target !== 'generalInfo')) return;
     const updater = locale === 'tr' ? setTrStatus : setEnStatus;
-    const currentTranslations = translations[locale];
+    const localeTranslations = translations[locale];
 
-    // Determine eligible candidate fields
-    const candidateFields: Record<string, string> = {};
-    const manualPaths = currentStatus.manualPaths ?? [];
-
-    for (const f of fields) {
-      if (f.isLocation && !isTranslatableLocationValue(f.canonicalValue)) {
-        continue;
-      }
-      if (!f.canonicalValue || !f.canonicalValue.trim()) {
-        continue;
-      }
-
-      const fieldPath = recordId ? `${recordId}.${f.name}` : f.name;
-      // Protect human manual edits
-      if (isLocalizationPathManual(fieldPath, manualPaths) || isLocalizationPathManual(f.name, manualPaths)) {
-        continue;
-      }
-
-      const existingVal = currentTranslations[f.name];
-      if (currentStatus.status === 'stale') {
-        candidateFields[f.name] = f.canonicalValue;
-      } else {
-        if (!existingVal || !existingVal.trim()) {
-          candidateFields[f.name] = f.canonicalValue;
-        }
-      }
-    }
-
-    if (Object.keys(candidateFields).length === 0) {
-      updater((prev) => ({
-        ...prev,
-        translateError: t('cmsLocalization.noChangesToTranslate', 'لا توجد تغييرات تتطلب الترجمة'),
-      }));
-      return;
-    }
-
-    updater((prev) => ({ ...prev, translating: true, translateError: null }));
+    updater((prev) => ({ ...prev, publishing: true, publishError: null }));
 
     try {
-      const result = await translationProvider.translate({
-        sourceLocale: 'ar',
-        targetLocale: locale,
-        fields: candidateFields,
-      });
+      const [latestDraft, latestPublished] = await Promise.all([
+        repository.getDraft(target, locale),
+        repository.getPublished(target, locale),
+      ]);
 
-      const translatedEntries = result.translations;
+      const baseCandidate = latestDraft?.payload ?? latestPublished?.payload ?? canonicalPayload;
+      const nextPayload = buildUpdatedPayload(baseCandidate, recordId, target, localeTranslations);
 
-      // Update parent translation form state immediately
-      for (const [key, val] of Object.entries(translatedEntries)) {
-        onTranslationChange(locale, key, val);
-      }
-
-      // Persist draft into repository if target allows record persistence
-      if (recordId || target === 'contactMap' || target === 'site' || target === 'programsContent' || target === 'about' || target === 'generalInfo') {
-        const [latestDraft, latestPublished] = await Promise.all([
-          repository.getDraft(target, locale),
-          repository.getPublished(target, locale),
-        ]);
-
-        const baseCandidate = latestDraft?.payload ?? latestPublished?.payload ?? canonicalPayload;
-        let nextPayload: JsonValue;
-
-        const combinedTranslations = {
-          ...currentTranslations,
-          ...translatedEntries,
-        };
-
-        if (Array.isArray(baseCandidate)) {
-          const list: Record<string, unknown>[] = JSON.parse(JSON.stringify(baseCandidate));
-          let found = false;
-          if (recordId && recordId.includes('.stats.')) {
-            const [commId, , sIdx] = recordId.split('.');
-            const comm = list.find((c) => c && c.id === commId);
-            if (comm) {
-              if (!Array.isArray(comm.stats)) comm.stats = [];
-              const statsList = comm.stats as Record<string, unknown>[];
-              const sIndex = parseInt(sIdx, 10);
-              if (!statsList[sIndex]) statsList[sIndex] = {};
-              applyFieldTranslations(statsList[sIndex], combinedTranslations);
-              found = true;
-            }
-          } else {
-            const idx = list.findIndex((el) => el && el.id === recordId);
-            if (idx >= 0) {
-              applyFieldTranslations(list[idx], combinedTranslations);
-              found = true;
-            } else {
-              for (const el of list) {
-                if (el && typeof el === 'object') {
-                  for (const key of ['items', 'members', 'media'] as const) {
-                    if (Array.isArray(el[key])) {
-                      const nestedList = el[key] as Record<string, unknown>[];
-                      const nIdx = nestedList.findIndex((n) => n && n.id === recordId);
-                      if (nIdx >= 0) {
-                        applyFieldTranslations(nestedList[nIdx], combinedTranslations);
-                        found = true;
-                        break;
-                      }
-                    }
-                  }
-                  if (found) break;
-                }
-              }
-            }
-          }
-          if (!found && recordId && !recordId.includes('.stats.')) {
-            const newItem: Record<string, unknown> = { id: recordId };
-            applyFieldTranslations(newItem, combinedTranslations);
-            list.push(newItem);
-          }
-          nextPayload = list as unknown as JsonValue;
-        } else {
-          const obj: Record<string, unknown> =
-            baseCandidate && typeof baseCandidate === 'object'
-              ? JSON.parse(JSON.stringify(baseCandidate))
-              : {};
-          let found = false;
-          if (
-            obj.id === recordId ||
-            (!obj.id && (!recordId || recordId === 'map' || recordId === 'contactMap' || recordId === 'header' || target === 'programsContent' || target === 'site' || target === 'about' || target === 'generalInfo'))
-          ) {
-            applyFieldTranslations(obj, combinedTranslations);
-            found = true;
-          } else {
-            for (const key of ['items', 'members', 'media'] as const) {
-              if (Array.isArray(obj[key])) {
-                const nestedList = obj[key] as Record<string, unknown>[];
-                const nIdx = nestedList.findIndex((n) => n && n.id === recordId);
-                if (nIdx >= 0) {
-                  applyFieldTranslations(nestedList[nIdx], combinedTranslations);
-                  found = true;
-                  break;
-                }
-              }
-            }
-          }
-          if (!found && recordId) {
-            const targetNested = ((obj[recordId] as Record<string, unknown>) ?? {});
-            applyFieldTranslations(targetNested, combinedTranslations);
-            obj[recordId] = targetNested;
-          }
-          nextPayload = obj as unknown as JsonValue;
+      const activeRecord = latestDraft ?? latestPublished;
+      let updatedManual = activeRecord?.manualPaths ? [...activeRecord.manualPaths] : [];
+      for (const f of fields) {
+        if (localeTranslations[f.name]?.trim()) {
+          const pathToAdd = recordId ? `${recordId}.${f.name}` : f.name;
+          updatedManual = recordManualPath(updatedManual, pathToAdd);
         }
-
-        const activeRecord = latestDraft ?? latestPublished;
-        // Strictly preserve manual paths without adding machine-translated fields
-        const preservedManual = activeRecord?.manualPaths ? [...activeRecord.manualPaths] : [];
-
-        // Clear refreshed paths from stalePaths
-        const refreshedKeys = new Set(Object.keys(translatedEntries));
-        const updatedStalePaths = (activeRecord?.stalePaths ?? []).filter((p) => {
-          const key = p.includes('.') ? p.split('.').pop()! : p;
-          return !refreshedKeys.has(key);
-        });
-
-        const recordToSave: CmsLocalizationRecord = {
-          target,
-          locale,
-          payload: nextPayload,
-          status: 'draft',
-          manualPaths: preservedManual,
-          stalePaths: updatedStalePaths,
-          sourceHash: computeSourceHash(canonicalPayload),
-          sourceVersion: activeRecord?.sourceVersion,
-          updatedAt: new Date().toISOString(),
-        };
-
-        await repository.saveDraft(recordToSave);
-        onDraftSaved?.(locale);
       }
+
+      const recordToSave: CmsLocalizationRecord = {
+        target,
+        locale,
+        payload: nextPayload,
+        status: 'fresh',
+        manualPaths: updatedManual,
+        stalePaths: [],
+        sourceHash: computeSourceHash(canonicalPayload),
+        sourceVersion: activeRecord?.sourceVersion,
+        updatedAt: new Date().toISOString(),
+      };
+
+      await repository.savePublished(recordToSave);
 
       updater((prev) => ({
         ...prev,
-        translating: false,
-        status: 'draft',
-        isStale: false,
-        translateError: null,
+        publishing: false,
+        status: 'fresh',
+        publishError: null,
       }));
+
+      onDraftSaved?.(locale);
     } catch {
       updater((prev) => ({
         ...prev,
-        translating: false,
-        translateError: t('cmsLocalization.translationFailed', 'فشلت الترجمة'),
+        publishing: false,
+        publishError: t('cmsLocalization.publishFailed', 'تعذر نشر الترجمة.'),
       }));
     }
-  };
-
-  const handleTranslateBoth = async () => {
-    if (!canEdit) return;
-    await Promise.allSettled([
-      handleAutoTranslate('tr'),
-      handleAutoTranslate('en'),
-    ]);
   };
 
   return (
@@ -671,19 +536,6 @@ export function CmsEntityTranslationTabs({
             <TranslationStatusBadge status={enStatus.status} size="sm" />
           </button>
         </div>
-
-        {(trStatus.status === 'missing' || trStatus.status === 'stale' || enStatus.status === 'missing' || enStatus.status === 'stale') && (
-          <button
-            type="button"
-            onClick={() => void handleTranslateBoth()}
-            disabled={!canEdit || trStatus.translating || enStatus.translating}
-            className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-semibold text-primary-700 bg-primary-50/80 hover:bg-primary-100 border border-primary-200 transition-colors disabled:opacity-50"
-            title={t('cmsLocalization.translateBoth', 'ترجمة للتركية والإنجليزية')}
-          >
-            <Sparkles className="h-3 w-3" />
-            <span>{t('cmsLocalization.translateBoth', 'TR + EN')}</span>
-          </button>
-        )}
       </div>
 
       {/* Tab Panels */}
@@ -704,32 +556,6 @@ export function CmsEntityTranslationTabs({
               />
             </div>
             <div className="flex items-center gap-2">
-              {(activeTab === 'tr' ? trStatus.status : enStatus.status) === 'missing' && (
-                <button
-                  type="button"
-                  onClick={() => void handleAutoTranslate(activeTab)}
-                  disabled={!canEdit || (activeTab === 'tr' ? trStatus.translating : enStatus.translating)}
-                  className="inline-flex items-center gap-1 rounded bg-primary-50 text-primary-700 hover:bg-primary-100 px-2.5 py-1 text-xs font-semibold border border-primary-200 transition-colors disabled:opacity-50"
-                >
-                  <Sparkles className="h-3 w-3" />
-                  {(activeTab === 'tr' ? trStatus.translating : enStatus.translating)
-                    ? t('cmsLocalization.translating', 'جارٍ الترجمة...')
-                    : t('cmsLocalization.translate', 'ترجمة')}
-                </button>
-              )}
-              {(activeTab === 'tr' ? trStatus.status : enStatus.status) === 'stale' && (
-                <button
-                  type="button"
-                  onClick={() => void handleAutoTranslate(activeTab)}
-                  disabled={!canEdit || (activeTab === 'tr' ? trStatus.translating : enStatus.translating)}
-                  className="inline-flex items-center gap-1 rounded bg-amber-50 text-amber-800 hover:bg-amber-100 px-2.5 py-1 text-xs font-semibold border border-amber-200 transition-colors disabled:opacity-50"
-                >
-                  <Sparkles className="h-3 w-3" />
-                  {(activeTab === 'tr' ? trStatus.translating : enStatus.translating)
-                    ? t('cmsLocalization.translating', 'جارٍ الترجمة...')
-                    : t('cmsLocalization.translateChanges', 'ترجمة التغييرات')}
-                </button>
-              )}
               {!recordId && (
                 <span className="text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
                   {t(
@@ -740,15 +566,6 @@ export function CmsEntityTranslationTabs({
               )}
             </div>
           </div>
-
-          {(activeTab === 'tr' ? trStatus.translateError : enStatus.translateError) && (
-            <div
-              role="alert"
-              className="rounded bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800 border border-amber-200"
-            >
-              {activeTab === 'tr' ? trStatus.translateError : enStatus.translateError}
-            </div>
-          )}
 
           {fields.map((f) => {
             // Value-aware location guard
@@ -799,19 +616,42 @@ export function CmsEntityTranslationTabs({
             </div>
           )}
 
-          {recordId && (
-            <div className="flex justify-end pt-1">
+          {(activeTab === 'tr' ? trStatus.publishError : enStatus.publishError) && (
+            <div
+              role="alert"
+              className="rounded bg-rose-50 px-2.5 py-1.5 text-xs text-rose-700 border border-rose-200"
+            >
+              {activeTab === 'tr' ? trStatus.publishError : enStatus.publishError}
+            </div>
+          )}
+
+          {(recordId || target === 'contactMap' || target === 'site' || target === 'programsContent' || target === 'about' || target === 'generalInfo') && (
+            <div className="flex items-center justify-end gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => void handleSaveDraft(activeTab)}
-                disabled={!canEdit || (activeTab === 'tr' ? trStatus.saving : enStatus.saving) || (activeTab === 'tr' ? trStatus.translating : enStatus.translating)}
-                className="inline-flex items-center gap-1 rounded bg-navy-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-navy-700 disabled:opacity-50 transition-colors"
+                disabled={!canEdit || (activeTab === 'tr' ? trStatus.saving : enStatus.saving) || (activeTab === 'tr' ? trStatus.publishing : enStatus.publishing)}
+                className="inline-flex items-center gap-1 rounded bg-navy-100 px-3 py-1.5 text-xs font-medium text-navy-800 hover:bg-navy-200 disabled:opacity-50 transition-colors"
               >
                 <Save className="h-3.5 w-3.5" />
                 {(activeTab === 'tr' ? trStatus.saving : enStatus.saving)
                   ? t('cmsLocalization.saving', 'جارٍ الحفظ...')
                   : t('cmsLocalization.saveDraft', 'حفظ كمسودة')}
               </button>
+
+              {isAuthorizedToPublish && (
+                <button
+                  type="button"
+                  onClick={() => void handlePublish(activeTab)}
+                  disabled={!canEdit || (activeTab === 'tr' ? trStatus.publishing : enStatus.publishing) || (activeTab === 'tr' ? trStatus.saving : enStatus.saving)}
+                  className="inline-flex items-center gap-1 rounded bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  {(activeTab === 'tr' ? trStatus.publishing : enStatus.publishing)
+                    ? t('cmsLocalization.publishing', 'جارٍ النشر...')
+                    : t('cmsLocalization.publish', 'نشر مباشر')}
+                </button>
+              )}
             </div>
           )}
         </div>

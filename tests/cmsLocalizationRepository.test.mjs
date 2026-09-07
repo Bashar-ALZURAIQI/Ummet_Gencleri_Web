@@ -644,9 +644,11 @@ test('31. Database migrations check: persistence migration is explicitly tracked
   const gitStatusOutput = fs.existsSync(path.join(process.cwd(), 'supabase/migrations'));
   if (gitStatusOutput) {
     const migrationFiles = fs.readdirSync(path.join(process.cwd(), 'supabase/migrations'));
-    // Task 7B introduced no migrations; persistence phase introduces 20260906220000_create_cms_localizations.sql
+    // Known migrations: 20260906220000_create_cms_localizations.sql and corrective 20260907060000_align_cms_localizations_authorization.sql
     const unexpectedMigrations = migrationFiles.filter(
-      (f) => f.includes('cms_localization') && !f.includes('20260906220000_create_cms_localizations')
+      (f) => f.includes('cms_localization') &&
+        !f.includes('20260906220000_create_cms_localizations') &&
+        !f.includes('20260907060000_align_cms_localizations_authorization')
     );
     assert.equal(unexpectedMigrations.length, 0);
   }

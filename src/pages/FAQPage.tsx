@@ -46,6 +46,7 @@ export default function FAQPage() {
   const [qForm, setQForm] = useState({ question: '', answer: '' });
   const [invalid, setInvalid] = useState<string[]>([]);
 
+  const isPresident = currentUser?.role === 'PRESIDENT';
   const isPresidentOrMedia =
     currentUser &&
     (currentUser.role === 'PRESIDENT' || currentUser.role === 'MEDIA_HEAD');
@@ -492,6 +493,7 @@ export default function FAQPage() {
               },
             ]}
             canEdit={Boolean(isPresidentOrMedia)}
+            canPublish={Boolean(isPresident)}
             translations={catTranslations}
             onTranslationChange={(loc, name, val) => {
               setCatTranslations((prev) => ({
@@ -575,6 +577,7 @@ export default function FAQPage() {
               },
             ]}
             canEdit={Boolean(isPresidentOrMedia)}
+            canPublish={Boolean(isPresident)}
             translations={qTranslations}
             onTranslationChange={(loc, name, val) => {
               setQTranslations((prev) => ({

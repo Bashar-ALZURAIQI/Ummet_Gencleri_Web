@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 
 // Dynamic imports to capture RED status when modules are not yet created
 let SupabaseCmsLocalizationRepository;
@@ -632,10 +633,10 @@ test('25. migration does NOT create permissive anonymous draft write policies an
 // 26–27. Architecture Safety & Deployment Safeguards
 // ---------------------------------------------------------------------------
 
-test('26. automatic translation workflow remains repository-agnostic', async () => {
-  const translatorSource = await readFile(new URL('../src/services/translation/AzureTranslator.ts', import.meta.url), 'utf8');
-  assert.doesNotMatch(translatorSource, /SupabaseCmsLocalizationRepository/);
-  assert.doesNotMatch(translatorSource, /from\(['"]cms_localizations['"]\)/);
+test('26. manual translation architecture permanently retires automatic translation services', async () => {
+  assert.equal(existsSync(new URL('../src/services/translation/AzureTranslator.ts', import.meta.url)), false);
+  assert.equal(existsSync(new URL('../src/services/translation/', import.meta.url)), false);
+  assert.equal(existsSync(new URL('../supabase/functions/translate-cms-content/', import.meta.url)), false);
 });
 
 test('27. no remote migration or deployment command is introduced', async () => {
@@ -645,4 +646,80 @@ test('27. no remote migration or deployment command is introduced', async () => 
     assert.doesNotMatch(script, /supabase\s+db\s+push/);
     assert.doesNotMatch(script, /supabase\s+migration\s+repair/);
   }
+});
+
+test('28. corrective migration restricts generic published write policies to President and creates scoped event RPC', async () => {
+  const alignMigrationSql = await readFile(
+    new URL('../supabase/migrations/20260907060000_align_cms_localizations_authorization.sql', import.meta.url),
+    'utf8',
+  );
+  assert.match(alignMigrationSql, /DROP POLICY IF EXISTS "cms_localizations_published_insert"/);
+  assert.match(alignMigrationSql, /CREATE POLICY "cms_localizations_published_insert"/);
+  assert.match(alignMigrationSql, /authz\.is_president/);
+  // Generic table write policies must NOT grant broad is_executive writes
+  assert.doesNotMatch(alignMigrationSql, /CREATE POLICY "cms_localizations_published_insert"[\s\S]*?authz\.is_executive/);
+  assert.doesNotMatch(alignMigrationSql, /CREATE POLICY "cms_localizations_published_update"[\s\S]*?authz\.is_executive/);
+  assert.doesNotMatch(alignMigrationSql, /CREATE POLICY "cms_localizations_published_delete"[\s\S]*?authz\.is_executive/);
+  assert.doesNotMatch(alignMigrationSql, /USING\s*\(\s*true\s*\)/i);
+  assert.doesNotMatch(alignMigrationSql, /WITH\s+CHECK\s*\(\s*true\s*\)/i);
+
+  // Scoped RPC exists with security definer and empty search path
+  assert.match(alignMigrationSql, /CREATE OR REPLACE FUNCTION public\.publish_event_localization/);
+  assert.match(alignMigrationSql, /SECURITY DEFINER/);
+  assert.match(alignMigrationSql, /SET search_path = ''/);
+  assert.match(alignMigrationSql, /REVOKE EXECUTE ON FUNCTION public\.publish_event_localization/);
+  assert.match(alignMigrationSql, /GRANT EXECUTE ON FUNCTION public\.publish_event_localization[\s\S]*?TO authenticated/);
+});
+
+test('29. InMemoryCmsLocalizationRepository supports scoped publishEventLocalization without mutating other events', async () => {
+  const repo = new InMemoryCmsLocalizationRepository();
+  // Prepopulate with existing event localization
+  await repo.savePublished({
+    target: 'events',
+    locale: 'tr',
+    payload: [
+      { id: 'e1', title: 'İlk Etkinlik', description: 'Açıklama 1', location: 'Salon 1' }
+    ],
+    status: 'fresh',
+    manualPaths: ['e1.title'],
+    stalePaths: [],
+    updatedAt: new Date().toISOString(),
+  });
+
+  // Publish localization for a new event e2
+  await repo.publishEventLocalization('e2', 'tr', {
+    title: 'İkinci Etkinlik',
+    description: 'Açıklama 2',
+    location: 'Salon 2',
+  });
+
+  const updated = await repo.getPublished('events', 'tr');
+  assert.equal(Array.isArray(updated.payload), true);
+  assert.equal(updated.payload.length, 2);
+  assert.deepEqual(updated.payload[0], { id: 'e1', title: 'İlk Etkinlik', description: 'Açıklama 1', location: 'Salon 1' });
+  assert.deepEqual(updated.payload[1], { id: 'e2', title: 'İkinci Etkinlik', description: 'Açıklama 2', location: 'Salon 2' });
+  assert.ok(updated.manualPaths.includes('e2.title'));
+});
+
+test('30. SupabaseCmsLocalizationRepository delegates publishEventLocalization to RPC or fallback query client', async () => {
+  let rpcCalled = false;
+  let rpcArgs = null;
+  const mockClient = {
+    rpc(fnName, args) {
+      if (fnName === 'publish_event_localization') {
+        rpcCalled = true;
+        rpcArgs = args;
+        return Promise.resolve({ data: { status: 'fresh' }, error: null });
+      }
+      return Promise.resolve({ data: null, error: new Error('Unknown RPC') });
+    }
+  };
+
+  const repo = new SupabaseCmsLocalizationRepository(mockClient);
+  await repo.publishEventLocalization('ev-99', 'tr', { title: 'Test Başlık' });
+
+  assert.equal(rpcCalled, true);
+  assert.equal(rpcArgs.p_event_id, 'ev-99');
+  assert.equal(rpcArgs.p_locale, 'tr');
+  assert.deepEqual(rpcArgs.p_translation, { title: 'Test Başlık' });
 });

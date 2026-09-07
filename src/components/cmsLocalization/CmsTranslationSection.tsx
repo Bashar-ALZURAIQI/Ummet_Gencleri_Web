@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronDown, ChevronUp, Save, Globe, Sparkles } from 'lucide-react';
+import { ChevronDown, ChevronUp, Save, Globe } from 'lucide-react';
 import {
   type CmsTarget,
   type LocalizedCmsLocale,
@@ -8,7 +8,6 @@ import {
   type LocalizationStatus,
   type JsonValue,
   computeSourceHash,
-  isLocalizationPathManual,
 } from '../../domain/cmsLocalization.ts';
 import type { CmsFieldKind } from '../../domain/cmsTranslatableFields.ts';
 import {
@@ -19,9 +18,7 @@ import {
 } from '../../domain/cmsLocalizationEditor.ts';
 import {
   useCmsLocalizationRepository,
-  useCmsTranslationProvider,
 } from '../../context/CmsLocalizationContext.tsx';
-import { determineTranslationCandidates } from '../../domain/cmsTranslationCandidate.ts';
 import { TranslationStatusBadge } from './TranslationStatusBadge.tsx';
 import { LocalizedFieldEditor } from './LocalizedFieldEditor.tsx';
 
@@ -49,8 +46,6 @@ interface LocaleFieldState {
   publishedRecord: CmsLocalizationRecord | null;
   saving: boolean;
   saveError: string | null;
-  translating: boolean;
-  translateError: string | null;
 }
 
 const createInitialLocaleState = (): LocaleFieldState => ({
@@ -65,8 +60,6 @@ const createInitialLocaleState = (): LocaleFieldState => ({
   publishedRecord: null,
   saving: false,
   saveError: null,
-  translating: false,
-  translateError: null,
 });
 
 export function CmsTranslationSection({
@@ -74,14 +67,12 @@ export function CmsTranslationSection({
   path,
   label,
   kind,
-  canonicalValue,
   canonicalPayload,
   canEdit,
   onDraftSaved,
 }: CmsTranslationSectionProps) {
   const { t } = useTranslation();
   const repository = useCmsLocalizationRepository();
-  const translationProvider = useCmsTranslationProvider();
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [trState, setTrState] = useState<LocaleFieldState>(createInitialLocaleState);
@@ -117,8 +108,6 @@ export function CmsTranslationSection({
           publishedRecord,
           saving: false,
           saveError: null,
-          translating: false,
-          translateError: null,
         };
       } catch {
         return createInitialLocaleState();
@@ -153,7 +142,6 @@ export function CmsTranslationSection({
         isManual: true,
         manualPaths: updatedManualPaths,
         saveError: null,
-        translateError: null,
       };
     });
   };
@@ -214,140 +202,39 @@ export function CmsTranslationSection({
       updater((prev) => ({
         ...prev,
         saving: false,
-        saveError: t('cmsLocalization.saveFailed'),
-      }));
-    }
-  };
-
-  const handleAutoTranslate = async (locale: LocalizedCmsLocale) => {
-    if (!canEdit || !canonicalValue?.trim()) return;
-    const currentState = locale === 'tr' ? trState : enState;
-    const updater = locale === 'tr' ? setTrState : setEnState;
-
-    // Guard against overwriting manual translations
-    const manualPaths = currentState.record?.manualPaths ?? currentState.manualPaths;
-    if (isLocalizationPathManual(path, manualPaths)) {
-      updater((prev) => ({
-        ...prev,
-        translateError: t('cmsLocalization.manualTranslationProtected', 'الترجمة اليدوية محمية'),
-      }));
-      return;
-    }
-
-    const mode = currentState.status === 'stale' ? 'stale' : 'missing';
-    const candidates = determineTranslationCandidates({
-      target,
-      canonicalPayload,
-      activeRecord: currentState.record,
-      locale,
-      mode,
-    });
-
-    const textToTranslate = candidates[path] || (mode === 'missing' && !currentState.value ? canonicalValue : '');
-
-    if (!textToTranslate.trim()) {
-      updater((prev) => ({
-        ...prev,
-        translateError: t('cmsLocalization.noChangesToTranslate', 'لا توجد تغييرات تتطلب الترجمة'),
-      }));
-      return;
-    }
-
-    updater((prev) => ({ ...prev, translating: true, translateError: null }));
-
-    try {
-      const result = await translationProvider.translate({
-        sourceLocale: 'ar',
-        targetLocale: locale,
-        fields: { [path]: textToTranslate },
-      });
-
-      const translatedText = result.translations[path];
-      if (!translatedText) {
-        throw new Error('MISSING_TRANSLATION_OUTPUT');
-      }
-
-      const [latestDraft, latestPublished] = await Promise.all([
-        repository.getDraft(target, locale),
-        repository.getPublished(target, locale),
-      ]);
-
-      const basePayload = resolveDraftBasePayload(
-        latestDraft,
-        latestPublished,
-        canonicalPayload,
-      );
-      const updatedPayload = updateNestedPayload(basePayload, path, translatedText);
-
-      const latestActive = latestDraft ?? latestPublished ?? currentState.record;
-      // Do NOT record path into manualPaths (it was machine translated)
-      const preservedManualPaths = latestActive?.manualPaths ?? currentState.manualPaths ?? [];
-      const updatedStalePaths = (latestActive?.stalePaths ?? currentState.record?.stalePaths ?? []).filter(
-        (p) => p !== path,
-      );
-
-      const recordToSave: CmsLocalizationRecord = {
-        target,
-        locale,
-        payload: updatedPayload,
-        status: 'draft',
-        manualPaths: preservedManualPaths,
-        stalePaths: updatedStalePaths,
-        sourceHash: computeSourceHash(canonicalPayload),
-        sourceVersion: latestActive?.sourceVersion ?? currentState.record?.sourceVersion,
-        updatedAt: new Date().toISOString(),
-      };
-
-      const saved = await repository.saveDraft(recordToSave);
-
-      updater((prev) => ({
-        ...prev,
-        value: translatedText,
-        translating: false,
-        isDirty: false,
-        status: 'draft',
-        isStale: false,
-        record: saved,
-        draftRecord: saved,
-        translateError: null,
-      }));
-
-      onDraftSaved?.(locale);
-    } catch {
-      updater((prev) => ({
-        ...prev,
-        translating: false,
-        translateError: t('cmsLocalization.translationFailed', 'فشلت الترجمة'),
+        saveError: t('cmsLocalization.saveFailed', 'تعذر حفظ المسودة.'),
       }));
     }
   };
 
   return (
-    <div className="mt-3 rounded-lg border border-navy-100 bg-navy-50/40 p-2.5">
-      {/* Accordion Toggle Header */}
+    <div className="mt-2 rounded-lg border border-navy-100 bg-navy-50/40 p-2 text-right">
+      {/* Header / Toggle Button */}
       <button
         type="button"
-        onClick={() => setIsExpanded(!isExpanded)}
+        onClick={() => setIsExpanded((prev) => !prev)}
         aria-expanded={isExpanded}
-        className="flex w-full items-center justify-between text-start transition-colors hover:text-navy-900"
+        className="flex w-full items-center justify-between gap-2 text-xs font-semibold text-navy-800 hover:text-navy-950 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 rounded p-1 transition-colors"
       >
+        <div className="flex items-center gap-1.5">
+          <Globe className="h-3.5 w-3.5 text-navy-600" />
+          <span>{t('cmsLocalization.translations', 'الترجمات (تركية / إنجليزية)')}</span>
+        </div>
         <div className="flex items-center gap-2">
-          <Globe className="h-4 w-4 text-navy-600" />
-          <span className="text-xs font-bold text-navy-800">
-            {t('cmsLocalization.translations')}
-          </span>
-          <div className="flex items-center gap-1.5 ms-2">
-            <span className="text-[11px] font-semibold text-gray-500">TR</span>
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] text-gray-500 font-medium">TR:</span>
             <TranslationStatusBadge status={trState.status} size="sm" />
-            <span className="text-[11px] font-semibold text-gray-500 ms-1">EN</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] text-gray-500 font-medium">EN:</span>
             <TranslationStatusBadge status={enState.status} size="sm" />
           </div>
+          {isExpanded ? (
+            <ChevronUp className="h-4 w-4 text-gray-500" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-gray-500" />
+          )}
         </div>
-        {isExpanded ? (
-          <ChevronUp className="h-4 w-4 text-gray-400" />
-        ) : (
-          <ChevronDown className="h-4 w-4 text-gray-400" />
-        )}
       </button>
 
       {/* Expanded Translation Body */}
@@ -360,28 +247,6 @@ export function CmsTranslationSection({
                 <span className="text-xs font-bold text-navy-900">Türkçe</span>
                 <TranslationStatusBadge status={trState.status} size="sm" />
               </div>
-              {trState.status === 'missing' && (
-                <button
-                  type="button"
-                  onClick={() => void handleAutoTranslate('tr')}
-                  disabled={!canEdit || trState.translating}
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary-600 hover:text-primary-700 disabled:opacity-50"
-                >
-                  <Sparkles className="h-3 w-3" />
-                  {trState.translating ? t('cmsLocalization.translating') : t('cmsLocalization.translate')}
-                </button>
-              )}
-              {trState.status === 'stale' && (
-                <button
-                  type="button"
-                  onClick={() => void handleAutoTranslate('tr')}
-                  disabled={!canEdit || trState.translating}
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 hover:text-amber-700 disabled:opacity-50"
-                >
-                  <Sparkles className="h-3 w-3" />
-                  {trState.translating ? t('cmsLocalization.translating') : t('cmsLocalization.translateChanges')}
-                </button>
-              )}
             </div>
             <LocalizedFieldEditor
               target={target}
@@ -392,28 +257,23 @@ export function CmsTranslationSection({
               kind={kind}
               isStale={trState.isStale}
               isManual={trState.isManual}
-              disabled={!canEdit || trState.saving || trState.translating}
+              disabled={!canEdit || trState.saving}
               onChange={(val) => handleFieldChange('tr', val)}
             />
-            {trState.translateError && (
-              <div role="alert" className="rounded bg-amber-50 px-2 py-1 text-xs text-amber-800 border border-amber-200">
-                {trState.translateError}
-              </div>
-            )}
             {trState.saveError && (
               <div role="alert" className="rounded bg-rose-50 px-2 py-1 text-xs text-rose-700 border border-rose-200">
                 {trState.saveError}
               </div>
             )}
-            <div className="flex justify-end pt-1">
+            <div className="flex justify-end gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => void handleSaveDraft('tr')}
-                disabled={!canEdit || trState.saving || trState.translating}
-                className="inline-flex items-center gap-1 rounded bg-navy-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-navy-700 disabled:opacity-50 transition-colors"
+                disabled={!canEdit || trState.saving}
+                className="inline-flex items-center gap-1 rounded border border-navy-300 bg-white px-2.5 py-1 text-xs font-medium text-navy-700 hover:bg-navy-50 disabled:opacity-50 transition-colors"
               >
                 <Save className="h-3 w-3" />
-                {trState.saving ? t('cmsLocalization.saving') : t('cmsLocalization.saveDraft')}
+                {trState.saving ? t('cmsLocalization.saving', 'جاري الحفظ...') : t('cmsLocalization.saveDraft', 'حفظ كمسودة')}
               </button>
             </div>
           </div>
@@ -425,28 +285,6 @@ export function CmsTranslationSection({
                 <span className="text-xs font-bold text-navy-900">English</span>
                 <TranslationStatusBadge status={enState.status} size="sm" />
               </div>
-              {enState.status === 'missing' && (
-                <button
-                  type="button"
-                  onClick={() => void handleAutoTranslate('en')}
-                  disabled={!canEdit || enState.translating}
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary-600 hover:text-primary-700 disabled:opacity-50"
-                >
-                  <Sparkles className="h-3 w-3" />
-                  {enState.translating ? t('cmsLocalization.translating') : t('cmsLocalization.translate')}
-                </button>
-              )}
-              {enState.status === 'stale' && (
-                <button
-                  type="button"
-                  onClick={() => void handleAutoTranslate('en')}
-                  disabled={!canEdit || enState.translating}
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 hover:text-amber-700 disabled:opacity-50"
-                >
-                  <Sparkles className="h-3 w-3" />
-                  {enState.translating ? t('cmsLocalization.translating') : t('cmsLocalization.translateChanges')}
-                </button>
-              )}
             </div>
             <LocalizedFieldEditor
               target={target}
@@ -457,28 +295,23 @@ export function CmsTranslationSection({
               kind={kind}
               isStale={enState.isStale}
               isManual={enState.isManual}
-              disabled={!canEdit || enState.saving || enState.translating}
+              disabled={!canEdit || enState.saving}
               onChange={(val) => handleFieldChange('en', val)}
             />
-            {enState.translateError && (
-              <div role="alert" className="rounded bg-amber-50 px-2 py-1 text-xs text-amber-800 border border-amber-200">
-                {enState.translateError}
-              </div>
-            )}
             {enState.saveError && (
               <div role="alert" className="rounded bg-rose-50 px-2 py-1 text-xs text-rose-700 border border-rose-200">
                 {enState.saveError}
               </div>
             )}
-            <div className="flex justify-end pt-1">
+            <div className="flex justify-end gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => void handleSaveDraft('en')}
-                disabled={!canEdit || enState.saving || enState.translating}
-                className="inline-flex items-center gap-1 rounded bg-navy-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-navy-700 disabled:opacity-50 transition-colors"
+                disabled={!canEdit || enState.saving}
+                className="inline-flex items-center gap-1 rounded border border-navy-300 bg-white px-2.5 py-1 text-xs font-medium text-navy-700 hover:bg-navy-50 disabled:opacity-50 transition-colors"
               >
                 <Save className="h-3 w-3" />
-                {enState.saving ? t('cmsLocalization.saving') : t('cmsLocalization.saveDraft')}
+                {enState.saving ? t('cmsLocalization.saving', 'جاري الحفظ...') : t('cmsLocalization.saveDraft', 'حفظ كمسودة')}
               </button>
             </div>
           </div>

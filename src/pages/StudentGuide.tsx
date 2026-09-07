@@ -62,6 +62,7 @@ export default function StudentGuide() {
   const [editingQuickInfo, setEditingQuickInfo] = useState(false);
   const [invalid, setInvalid] = useState<string[]>([]);
 
+  const isPresident = currentUser?.role === 'PRESIDENT';
   const isPresidentOrMedia =
     currentUser &&
     (currentUser.role === 'PRESIDENT' || currentUser.role === 'MEDIA_HEAD');
@@ -779,6 +780,7 @@ export default function StudentGuide() {
               },
             ]}
             canEdit={Boolean(isPresidentOrMedia)}
+            canPublish={Boolean(isPresident)}
             translations={secTranslations}
             onTranslationChange={(loc, name, val) => {
               setSecTranslations((prev) => ({
@@ -877,6 +879,7 @@ export default function StudentGuide() {
               })),
             ]}
             canEdit={Boolean(isPresidentOrMedia)}
+            canPublish={Boolean(isPresident)}
             translations={itemTranslations}
             onTranslationChange={(loc, name, val) => {
               setItemTranslations((prev) => ({

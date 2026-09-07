@@ -604,6 +604,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
                 },
               ]}
               canEdit={Boolean(canEditContent)}
+              canPublish={Boolean(isPresident)}
               translations={respTranslations}
               onTranslationChange={(loc, name, val) => {
                 setRespTranslations((prev) => ({
@@ -649,6 +650,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
                 },
               ]}
               canEdit={Boolean(canEditContent)}
+              canPublish={Boolean(isPresident)}
               translations={statTranslations}
               onTranslationChange={(loc, name, val) => {
                 setStatTranslations((prev) => ({
@@ -694,6 +696,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
                 },
               ]}
               canEdit={Boolean(canEditContent)}
+              canPublish={Boolean(isPresident)}
               translations={memberTranslations}
               onTranslationChange={(loc, name, val) => {
                 setMemberTranslations((prev) => ({
