@@ -41,6 +41,7 @@ export const ADMIN_TABS = [
   'oversight',
   'task-management',
   'member-points',
+  'translation-monitoring',
   'profile',
 ] as const;
 

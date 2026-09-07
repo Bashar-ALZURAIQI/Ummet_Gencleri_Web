@@ -116,6 +116,8 @@ export interface CmsLocalizationRecord<T = JsonValue> {
   manualPaths?: readonly string[];
   updatedAt?: string;
   updatedBy?: string;
+  partition?: 'draft' | 'published';
+  id?: string;
 }
 
 // ---------------------------------------------------------------------------

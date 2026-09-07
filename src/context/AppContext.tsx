@@ -718,6 +718,7 @@ interface AppContextValue {
   canonicalEvents?: UEvent[];
   canonicalFaqCategories?: FAQCategoryData[];
   canonicalGuideSections?: GuideSectionData[];
+  canonicalGuideQuickInfo?: string;
   canonicalGalleryAlbums?: GalleryAlbum[];
   canonicalGalleryCategories?: GalleryCategory[];
   canonicalCommittees?: typeof mockCommittees;
@@ -3769,6 +3770,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       canonicalEvents: events,
       canonicalFaqCategories: faqCategories,
       canonicalGuideSections: guideSections,
+      canonicalGuideQuickInfo: guideQuickInfo,
       canonicalGalleryAlbums: galleryAlbums,
       canonicalGalleryCategories: galleryCategories,
       canonicalCommittees: committees,

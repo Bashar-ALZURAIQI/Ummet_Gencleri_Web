@@ -4,8 +4,9 @@ import {
   Plus, Search, Trash2, Edit3, Mail, GraduationCap, CheckCircle2, Clock, FileText, Target, ChevronLeft, User,
   Video, UserCheck, UserX, CalendarClock, Link2, Inbox, Info, Crown, Save, Image, MessageSquareReply, Send,
   Download, Eye, EyeOff, Lightbulb, MessageCircle, ClipboardCheck, RefreshCw,
-  Images, Camera, Film, MapPin,
+  Images, Camera, Film, MapPin, Globe2,
 } from 'lucide-react';
+import TranslationMonitoringTab from '../components/cmsLocalization/TranslationMonitoringTab';
 import { useApp } from '../context/AppContext';
 import { useTranslation } from 'react-i18next';
 import Modal from '../components/Modal';
@@ -59,7 +60,7 @@ import {
   type GalleryAlbum, type GalleryCategory, type GalleryMedia,
 } from '../data/mockData';
 
-export type AdminTab = 'stats' | 'board' | 'pending-edits' | 'site-pending' | 'branding' | 'history' | 'events' | 'gallery' | 'news' | 'members' | 'applications' | 'inbox' | 'plans' | 'suggestions' | 'guide-suggestions' | 'excuses' | 'oversight' | 'task-management' | 'member-points' | 'profile';
+export type AdminTab = 'stats' | 'board' | 'pending-edits' | 'site-pending' | 'branding' | 'history' | 'events' | 'gallery' | 'news' | 'members' | 'applications' | 'inbox' | 'plans' | 'suggestions' | 'guide-suggestions' | 'excuses' | 'oversight' | 'task-management' | 'member-points' | 'translation-monitoring' | 'profile';
 
 export default function AdminDashboard() {
   const { t } = useTranslation();
@@ -103,6 +104,7 @@ export default function AdminDashboard() {
       { id: 'oversight', label: 'الرقابة والتحضير', icon: UserCheck, show: canManageOversight(currentUser?.role) },
       { id: 'task-management', label: 'إدارة المهام', icon: ClipboardList, show: canManageTasks(currentUser?.role) },
       { id: 'member-points', label: 'نقاط الأعضاء', icon: Target, show: canManageMemberPoints(currentUser?.role) },
+      { id: 'translation-monitoring', label: 'مراقبة الترجمة', icon: Globe2, show: currentUser?.role === 'PRESIDENT' || currentUser?.role === 'MEDIA_HEAD' },
       { id: 'profile', label: 'الملف الشخصي', icon: User, show: !!currentUser && isLeadershipRole(currentUser.role) },
     ];
 
@@ -126,6 +128,7 @@ export default function AdminDashboard() {
       oversight: t('admin.tabs.oversight', 'الرقابة والتحضير'),
       'task-management': t('admin.tabs.taskManagement', 'إدارة المهام'),
       'member-points': t('admin.tabs.memberPoints', 'نقاط الأعضاء'),
+      'translation-monitoring': t('admin.tabs.translationMonitoring', 'مراقبة الترجمة'),
       profile: t('admin.tabs.profile', 'الملف الشخصي'),
     };
 
@@ -211,6 +214,7 @@ export default function AdminDashboard() {
           {tab === 'oversight' && canManageOversight(currentUser?.role) && <OversightEvaluationPanel />}
           {tab === 'task-management' && canManageTasks(currentUser?.role) && <TaskManagementDashboard />}
           {tab === 'member-points' && currentUser && canManageMemberPoints(currentUser.role) && <MemberPointsAdminPanel role={currentUser.role} />}
+          {tab === 'translation-monitoring' && (currentUser?.role === 'PRESIDENT' || currentUser?.role === 'MEDIA_HEAD') && <TranslationMonitoringTab />}
           {tab === 'profile' && currentUser && isLeadershipRole(currentUser.role) && <ProfileTab currentUser={currentUser} />}
         </div>
       </SidebarLayout>

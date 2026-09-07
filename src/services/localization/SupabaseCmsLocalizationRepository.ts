@@ -372,4 +372,33 @@ export class SupabaseCmsLocalizationRepository implements CmsLocalizationReposit
       );
     }
   }
+
+  public async listMonitoringRecords(): Promise<CmsLocalizationRecord<JsonValue>[]> {
+    const client = await this.getClient();
+    try {
+      const { data, error } = await client
+        .from('cms_localizations')
+        .select('*')
+        .in('locale', ['tr', 'en']);
+
+      if (error) {
+        throw new CmsLocalizationRepositoryError(
+          'UNKNOWN',
+          `Failed to list monitoring localizations: ${error.message}`,
+        );
+      }
+
+      if (!data || !Array.isArray(data)) {
+        return [];
+      }
+
+      return data.map((row: CmsLocalizationRow) => mapRowToRecord(row));
+    } catch (err) {
+      if (err instanceof CmsLocalizationRepositoryError) throw err;
+      throw new CmsLocalizationRepositoryError(
+        'UNKNOWN',
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
 }

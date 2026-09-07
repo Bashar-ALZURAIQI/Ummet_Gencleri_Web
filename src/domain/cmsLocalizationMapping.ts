@@ -37,6 +37,8 @@ export function mapRowToRecord<T = JsonValue>(
     manualPaths: Array.isArray(row.manual_paths) ? [...row.manual_paths] : [],
     updatedAt: row.updated_at ?? undefined,
     updatedBy: row.updated_by ?? undefined,
+    partition: row.partition,
+    id: row.id,
   };
 }
 

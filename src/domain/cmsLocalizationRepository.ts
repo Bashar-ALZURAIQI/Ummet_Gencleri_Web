@@ -142,6 +142,12 @@ export interface CmsLocalizationRepository {
     locale: LocalizedCmsLocale,
     translation: { title?: string; description?: string; location?: string },
   ): Promise<void>;
+
+  /**
+   * Reads all published and draft localization records for 'tr' and 'en'
+   * for monitoring and health inspection. Zero writes, read-only.
+   */
+  listMonitoringRecords(): Promise<CmsLocalizationRecord<JsonValue>[]>;
 }
 
 // ---------------------------------------------------------------------------
@@ -366,6 +372,21 @@ export class InMemoryCmsLocalizationRepository implements CmsLocalizationReposit
     };
 
     this.publishedStore.set(key, updatedRecord);
+  }
+
+  public async listMonitoringRecords(): Promise<CmsLocalizationRecord<JsonValue>[]> {
+    const records: CmsLocalizationRecord<unknown>[] = [];
+    for (const rec of this.publishedStore.values()) {
+      const cloned = safeClone(rec);
+      cloned.partition = 'published';
+      records.push(cloned);
+    }
+    for (const rec of this.draftStore.values()) {
+      const cloned = safeClone(rec);
+      cloned.partition = 'draft';
+      records.push(cloned);
+    }
+    return records as CmsLocalizationRecord<JsonValue>[];
   }
 }
 

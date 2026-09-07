@@ -396,7 +396,7 @@ export function extractTranslatableCmsFields(
   const rules = CMS_TRANSLATABLE_SCHEMA[target];
   if (!rules || rules.length === 0) return result;
 
-  function traverse(value: unknown, currentPath: string): void {
+  function traverse(value: unknown, currentPath: string, parentCardId?: string): void {
     if (value === null || value === undefined) {
       return;
     }
@@ -404,21 +404,21 @@ export function extractTranslatableCmsFields(
     if (Array.isArray(value)) {
       for (let i = 0; i < value.length; i++) {
         const nextPath = currentPath ? `${currentPath}.${i}` : `${i}`;
-        traverse(value[i], nextPath);
+        traverse(value[i], nextPath, parentCardId);
       }
       return;
     }
 
     if (typeof value === 'object') {
       const obj = value as Record<string, unknown>;
-      const cardId = target === 'contactCards' && typeof obj.id === 'string' ? obj.id : undefined;
+      const cardId = target === 'contactCards' && typeof obj.id === 'string' ? obj.id : parentCardId;
       for (const key of Object.keys(obj)) {
         if (target === 'contactCards' && key === 'value' && cardId && !isTranslatableContactCardValue(cardId, obj.value)) {
           // Strictly skip technical invariants (email/phone) in contactCards
           continue;
         }
         const nextPath = currentPath ? `${currentPath}.${key}` : key;
-        traverse(obj[key], nextPath);
+        traverse(obj[key], nextPath, cardId);
       }
       return;
     }
@@ -428,7 +428,16 @@ export function extractTranslatableCmsFields(
       if (trimmed.length === 0) return;
 
       const cleanPath = currentPath.trim();
-      const matchingRule = rules.find((r) => matchPathPattern(r.pathPattern, cleanPath));
+      let matchingRule = rules.find((r) => matchPathPattern(r.pathPattern, cleanPath));
+      if (
+        !matchingRule &&
+        target === 'contactCards' &&
+        (cleanPath.endsWith('.value') || cleanPath === 'value') &&
+        (parentCardId === 'address' || parentCardId === 'hours')
+      ) {
+        matchingRule = { pathPattern: cleanPath, kind: 'text' };
+      }
+
       if (matchingRule) {
         result.push({
           target: target as CmsTarget,
