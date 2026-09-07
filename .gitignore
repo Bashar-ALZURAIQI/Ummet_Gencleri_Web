@@ -32,3 +32,6 @@ dist-ssr
 
 .vercel/
 .wrangler/
+
+# Supabase local CLI files
+supabase/.temp/
