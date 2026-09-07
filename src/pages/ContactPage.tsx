@@ -22,6 +22,7 @@ const iconMap: Record<string, typeof Mail> = {
 export default function ContactPage() {
   const {
     currentUser, addContactMessage, contactCards, contactMap, submitSiteEdit, savePublishedSiteTarget,
+    canonicalContactCards, canonicalContactMap,
   } = useApp();
   const { t } = useTranslation();
   const [form, setForm] = useState({ name: '', email: '', subject: '', body: '' });
@@ -82,8 +83,9 @@ export default function ContactPage() {
   };
 
   const openEditCard = (card: ContactCardData) => {
-    setEditingCard(card);
-    setCardForm({ title: card.title, value: card.value, sub: card.sub });
+    const canon = canonicalContactCards?.find((c) => c.id === card.id) ?? card;
+    setEditingCard(canon);
+    setCardForm({ title: canon.title, value: canon.value, sub: canon.sub });
     setCardTranslations({ tr: {}, en: {} });
     setCardModalOpen(true);
   };
@@ -126,7 +128,8 @@ export default function ContactPage() {
   };
 
   const openEditMap = () => {
-    setMapForm({ title: contactMap.title, source: contactMap.embedUrl });
+    const canonMap = canonicalContactMap ?? contactMap;
+    setMapForm({ title: canonMap.title, source: canonMap.embedUrl });
     setMapTranslations({ tr: {}, en: {} });
     setMapError('');
     setMapModalOpen(true);
@@ -339,7 +342,7 @@ export default function ContactPage() {
                 canonicalValue: cardForm.title,
                 placeholder: t('contact.editCardModal.titleLabel', 'العنوان'),
               },
-              ...(editingCard && (editingCard.id === 'address' || isTranslatableLocationValue(editingCard.value))
+              ...(editingCard && (editingCard.id === 'address' || editingCard.id === 'hours' || isTranslatableLocationValue(editingCard.value)) && editingCard.id !== 'email' && editingCard.id !== 'phone'
                 ? [{
                     name: 'value',
                     label: t('contact.editCardModal.valueLabel', 'القيمة'),

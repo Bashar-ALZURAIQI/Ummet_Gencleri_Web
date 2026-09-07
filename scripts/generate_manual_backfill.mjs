@@ -36,16 +36,29 @@ function computeSourceHash(payload) {
 // 1. SITE
 const canonicalSite = {
   hero: {
-    badge: 'الاتحاد الطلابي الرائد',
-    title: 'نبني قادة الغد، اليوم',
-    subtitle: 'منصة شبابية طلابية تجمع بين التميز الأكاديمي، البناء القيادي، والعمل المجتمعي الهادف',
-    ctaPrimary: 'انضم إلينا',
-    ctaSecondary: 'تعرف علينا',
-    image: 'https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/site_assets/hero/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/84687d4a-57fa-4e89-8d76-c0cba6783d54.jpg',
+    badge: 'نُمكّن الشباب، نبني المستقبل',
+    image: 'https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/gallery/site/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/1278474e-180d-4c5c-9b50-22472fb26a39.jpg',
+    title: 'اتحاد شباب الأمة',
+    badge1: {
+      label: 'جائزة تكريم',
+      value: '12',
+    },
+    badge2: {
+      icon: 'TrendingUp',
+      label: 'نمو سنوي',
+      value: '+%10',
+    },
+    subtitle: 'نحو جيلٍ واعٍ ومسؤول ',
+    primaryBtn: 'تصفح البرامج',
+    description: 'اتحاد شبابي يجمع طلاب الجامعات تحت مظلة واحدة، لتعزيز الهوية، وتنمية المهارات، وبناء قادة الغد عبر برامج تثقيفية وتدريبية وتطوعية متكاملة.',
+    tertiaryBtn: 'الهيئة التنفيذية',
+    secondaryBtn: 'تعرّف على الاتحاد',
   },
   about: {
-    title: 'عن اتحاد شباب الأمة',
-    subtitle: 'رسالتنا ورؤيتنا',
+    badge: 'من نحن',
+    image: 'https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/gallery/site/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/793f1e54-2550-4a05-82cc-75ebf0957f93.jpg',
+    title: 'رسالتنا: بناء جيلٍ يحمل همّ أمته',
+    subtitle: 'انضم إلى عائلة اتحاد شباب الأمة',
     features: [
       { desc: 'إعداد قادة شباب مؤثرين.', icon: 'Target', title: 'رؤية واضحة' },
       { desc: 'برامج تدريبية وتثقيفية.', icon: 'BookOpen', title: 'تعليم مستمر' },
@@ -90,15 +103,28 @@ const canonicalSite = {
 
 const trSite = {
   hero: {
-    badge: 'Öncü Öğrenci Birliği',
-    title: 'Yarının Liderlerini Bugün Yetiştiriyoruz',
-    subtitle: 'Akademik mükemmelliği, liderlik gelişimini ve anlamlı toplumsal çalışmayı birleştiren bir gençlik ve öğrenci platformu',
-    ctaPrimary: 'Bize Katılın',
-    ctaSecondary: 'Hakkımızda',
+    badge: 'Gençleri Güçlendiriyor, Geleceği İnşa Ediyoruz',
     image: canonicalSite.hero.image,
+    title: 'Ümmet Gençleri Birliği',
+    badge1: {
+      label: 'Onur Ödülü',
+      value: '12',
+    },
+    badge2: {
+      icon: 'TrendingUp',
+      label: 'Yıllık Büyüme',
+      value: '+%10',
+    },
+    subtitle: 'Bilinçli ve Sorumlu Bir Nesle Doğru',
+    primaryBtn: 'Programları İncele',
+    description: 'Üniversite öğrencilerini tek çatı altında buluşturan, kimliği güçlendiren, becerileri geliştiren ve kapsamlı eğitim, gelişim ve gönüllülük programlarıyla yarının liderlerini yetiştiren bir gençlik birliği.',
+    tertiaryBtn: 'Yönetim Kurulu',
+    secondaryBtn: 'Birliği Tanıyın',
   },
   about: {
-    title: 'Ümmet Gençleri Birliği Hakkında',
+    badge: 'Biz Kimiz',
+    image: canonicalSite.about.image,
+    title: 'Misyonumuz: Ümmetinin Derdiyle Dertlenen Bir Nesil Yetiştirmek',
     subtitle: 'Ümmet Gençleri Birliği Ailesine Katılın',
     features: [
       { desc: 'Etkili genç liderler yetiştirmek.', icon: 'Target', title: 'Net Vizyon' },
@@ -139,15 +165,28 @@ const trSite = {
 
 const enSite = {
   hero: {
-    badge: 'Leading Student Union',
-    title: "Building Tomorrow's Leaders, Today",
-    subtitle: 'A dynamic youth and student platform combining academic excellence, leadership development, and impactful community service',
-    ctaPrimary: 'Join Us',
-    ctaSecondary: 'About Us',
+    badge: 'Empowering Youth, Building the Future',
     image: canonicalSite.hero.image,
+    title: 'Ummah Youth Union',
+    badge1: {
+      label: 'Honor Awards',
+      value: '12',
+    },
+    badge2: {
+      icon: 'TrendingUp',
+      label: 'Annual Growth',
+      value: '+10%',
+    },
+    subtitle: 'Towards a Conscious and Responsible Generation',
+    primaryBtn: 'Explore Programs',
+    description: 'A youth union uniting university students under one umbrella to strengthen identity, develop skills, and build tomorrow’s leaders through integrated educational, training, and volunteer programs.',
+    tertiaryBtn: 'Executive Board',
+    secondaryBtn: 'Discover the Union',
   },
   about: {
-    title: 'About Ummah Youth Union',
+    badge: 'Who We Are',
+    image: canonicalSite.about.image,
+    title: 'Our Mission: Building a Generation Dedicated to Its Ummah',
     subtitle: 'Join the Ummah Youth Union Family',
     features: [
       { desc: 'Empowering influential youth leaders.', icon: 'Target', title: 'Clear Vision' },
@@ -784,6 +823,7 @@ const canonicalGuideSections = [
           'صورة شخصية حديثة (6 صور)',
           'كشف درجات التوفق (إن وُجد)',
           'خطاب قبول من الجامعة (إن وُجد)',
+          'be or not be',
         ],
       },
       {
@@ -803,6 +843,20 @@ const canonicalGuideSections = [
         heading: 'رسوم التسجيل',
         body: 'تختلف الرسوم حسب التخصص ونوع القبول. الطلاب الدوليون قد يستفيدون من منحة تقليل الرسوم. راجع صفحة الرسوم على موقع الجامعة لمعرفة التفاصيل.',
         tips: [],
+      },
+    ],
+    contacts: [
+      {
+        id: 'reg-c1',
+        type: 'phone',
+        label: 'قسم شؤون الطلاب الدوليين',
+        value: '+90 442 231 0000',
+      },
+      {
+        id: 'reg-c2',
+        type: 'link',
+        label: 'موقع التسجيل',
+        value: 'eru.edu.tr/ogrenci',
       },
     ],
   },
@@ -843,6 +897,20 @@ const canonicalGuideSections = [
         ],
       },
     ],
+    contacts: [
+      {
+        id: 'h-c1',
+        type: 'phone',
+        label: 'مركز KYK للسكن الطلابي',
+        value: '+90 442 213 0000',
+      },
+      {
+        id: 'h-c2',
+        type: 'link',
+        label: 'موقع KYK',
+        value: 'kyk.gov.tr',
+      },
+    ],
   },
   {
     id: 'transport',
@@ -876,6 +944,20 @@ const canonicalGuideSections = [
         heading: 'سيارات الأجرة',
         body: 'تتوفر سيارات الأجرة في جميع أنحاء المدينة. يفضل استخدام تطبيقات مثل BiTaksi للحصول على أسعار أفضل.',
         tips: ['السعر الأدنى: 30 ليرة', 'تطبيق BiTaksi متاح في أرضروم'],
+      },
+    ],
+    contacts: [
+      {
+        id: 't-c1',
+        type: 'phone',
+        label: 'شركة البلدية للمواصلات',
+        value: '+90 442 215 0000',
+      },
+      {
+        id: 't-c2',
+        type: 'link',
+        label: 'تطبيق BiTaksi',
+        value: 'bitaksi.com',
       },
     ],
   },
@@ -913,6 +995,20 @@ const canonicalGuideSections = [
         ],
       },
     ],
+    contacts: [
+      {
+        id: 'lib-c1',
+        type: 'phone',
+        label: 'المكتبة المركزية',
+        value: '+90 442 231 0000',
+      },
+      {
+        id: 'lib-c2',
+        type: 'link',
+        label: 'المكتبة الإلكترونية',
+        value: 'library.eru.edu.tr',
+      },
+    ],
   },
   {
     id: 'sec1787646993609',
@@ -927,6 +1023,7 @@ const canonicalGuideSections = [
         tips: ['MNG AVM', 'سوق تاشهان التاريخي', 'المحلات الطلابية في شارع الجمهورية'],
       },
     ],
+    contacts: [],
   },
 ];
 
@@ -947,6 +1044,7 @@ const trGuideSections = [
           'Güncel biyometrik fotoğraf (6 adet)',
           'Not döküm belgesi (transkript - varsa)',
           'Üniversite kabul mektubu (varsa)',
+          'Dil yeterlilik belgesi (TÖMER / YDS - varsa)',
         ],
       },
       {
@@ -967,6 +1065,10 @@ const trGuideSections = [
         body: 'Harçlar bölüme ve kabul türüne göre değişir. Uluslararası öğrenciler harç indirimlerinden faydalanabilir.',
         tips: [],
       },
+    ],
+    contacts: [
+      { id: 'reg-c1', label: 'Uluslararası Öğrenci İşleri Ofisi' },
+      { id: 'reg-c2', label: 'Kayıt Portalı Web Sitesi' },
     ],
   },
   {
@@ -1006,6 +1108,10 @@ const trGuideSections = [
         ],
       },
     ],
+    contacts: [
+      { id: 'h-c1', label: 'KYK Yurt Hizmetleri Merkezi' },
+      { id: 'h-c2', label: 'KYK Resmi Portalı' },
+    ],
   },
   {
     id: 'transport',
@@ -1041,6 +1147,10 @@ const trGuideSections = [
         tips: ['BiTaksi uygulaması Erzurum\'da aktiftir'],
       },
     ],
+    contacts: [
+      { id: 't-c1', label: 'Belediye Ulaşım Destek Hattı' },
+      { id: 't-c2', label: 'BiTaksi Uygulama Bağlantısı' },
+    ],
   },
   {
     id: 'libraries',
@@ -1075,6 +1185,10 @@ const trGuideSections = [
         ],
       },
     ],
+    contacts: [
+      { id: 'lib-c1', label: 'Merkez Kütüphane Danışma' },
+      { id: 'lib-c2', label: 'Dijital Kütüphane Portalı' },
+    ],
   },
   {
     id: 'sec1787646993609',
@@ -1089,6 +1203,7 @@ const trGuideSections = [
         tips: ['MNG Alışveriş Merkezi', 'Tarihi Taşhan Çarşısı', 'Cumhuriyet Caddesi öğrenci mağazaları'],
       },
     ],
+    contacts: [],
   },
 ];
 
@@ -1109,6 +1224,7 @@ const enGuideSections = [
           'Recent biometric photos (6 photos)',
           'Academic transcripts (if available)',
           'University acceptance letter (if available)',
+          'Language proficiency certificate (TOMER / YDS, if available)',
         ],
       },
       {
@@ -1129,6 +1245,10 @@ const enGuideSections = [
         body: 'Tuition fees vary by department and admission type. International students may qualify for fee reductions.',
         tips: [],
       },
+    ],
+    contacts: [
+      { id: 'reg-c1', label: 'International Student Affairs Office' },
+      { id: 'reg-c2', label: 'Registration Portal' },
     ],
   },
   {
@@ -1168,6 +1288,10 @@ const enGuideSections = [
         ],
       },
     ],
+    contacts: [
+      { id: 'h-c1', label: 'KYK Student Housing Center' },
+      { id: 'h-c2', label: 'KYK Portal' },
+    ],
   },
   {
     id: 'transport',
@@ -1203,6 +1327,10 @@ const enGuideSections = [
         tips: ['BiTaksi app is available in Erzurum'],
       },
     ],
+    contacts: [
+      { id: 't-c1', label: 'Municipal Transit Authority' },
+      { id: 't-c2', label: 'BiTaksi App' },
+    ],
   },
   {
     id: 'libraries',
@@ -1237,6 +1365,10 @@ const enGuideSections = [
         ],
       },
     ],
+    contacts: [
+      { id: 'lib-c1', label: 'Central Library Information Desk' },
+      { id: 'lib-c2', label: 'Digital Library Portal' },
+    ],
   },
   {
     id: 'sec1787646993609',
@@ -1251,6 +1383,7 @@ const enGuideSections = [
         tips: ['MNG Shopping Mall', 'Historic Tashan Bazaar', 'Student shops along Cumhuriyet Street'],
       },
     ],
+    contacts: [],
   },
 ];
 
@@ -1861,284 +1994,1242 @@ const enReports = [
 // 15. COMMITTEES (7 Real Production Committees from published_site_content)
 const canonicalCommittees = [
   {
-    id: 'presidency',
-    name: 'رئاسة الاتحاد',
-    shortName: 'الرئاسة',
-    description: 'القيادة العليا للاتحاد، تتولى رسم السياسات العامة وتمثيل الاتحاد داخليًا وخارجيًا، والإشراف على عمل جميع اللجان والمكاتب.',
-    responsibilities: [
-      'رسم الرؤية الاستراتيجية والسياسات العامة للاتحاد',
-      'تمثيل الاتحاد أمام المؤسسات والجهات الخارجية',
-      'الإشراف العام على أداء جميع اللجان',
-      'إقرار الخطط السنوية والموازنات',
-      'رئاسة الاجتماعات الدورية للهيئة التنفيذية',
+    "id": "presidency",
+    "head": {
+      "id": "11f9e6f2-828c-44a2-b05c-53400b3a9b9a",
+      "bio": "عضو في الهيئة التنفيذية لاتحاد شباب الأمة",
+      "name": "م. بشار الزريقي",
+      "role": "رئيس الاتحاد",
+      "year": "السنة الثالثة",
+      "email": "president@ummet.org",
+      "major": "Bilgisayar Mühendisliği",
+      "phone": "",
+      "photo": "11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-201de549-4ba6-4f14-b51d-5eb3e9c9d7f1.jpg",
+      "updatedAt": "2026-09-01T18:32:57.960684+00:00",
+      "university": "Atatürk"
+    },
+    "icon": "Crown",
+    "name": "رئاسة الاتحاد",
+    "color": "from-navy-700 to-navy-950",
+    "stats": [
+      {
+        "label": "قرارات صادرة",
+        "value": "47"
+      },
+      {
+        "label": "اجتماعات الهيئة ",
+        "value": "32"
+      },
+      {
+        "label": "شراكات خارجية",
+        "value": "18"
+      }
     ],
+    "members": [
+      {
+        "id": "pm1",
+        "name": "م. سلمى أردوغان",
+        "year": "دراسات عليا",
+        "major": "الهندسة المدنية",
+        "phone": "05313456789",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-272463e1-8969-464e-929d-a80d2151ae58.jpg",
+        "position": "مستشار أول",
+        "university": "جامعة إسطنبول التقنية"
+      },
+      {
+        "id": "pm2",
+        "name": "أ. خليل جوربوز",
+        "year": "ماجستير",
+        "major": "إدارة المؤسسات",
+        "phone": "05314567890",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-2db801f5-c6e9-4a4c-88ea-f143ffeef696.jpg",
+        "position": "منسق عام",
+        "university": "جامعة أنقرة"
+      }
+    ],
+    "shortName": "الرئاسة",
+    "description": "القيادة العليا للاتحاد، تتولى رسم السياسات العامة وتمثيل الاتحاد داخليًا وخارجيًا، والإشراف على عمل جميع اللجان والمكاتب.",
+    "responsibilities": [
+      "رسم الرؤية الاستراتيجية والسياسات العامة للاتحاد",
+      "تمثيل الاتحاد أمام المؤسسات والجهات الخارجية",
+      "الإشراف العام على أداء جميع اللجان",
+      "إقرار الخطط السنوية والموازنات",
+      "رئاسة الاجتماعات الدورية للهيئة التنفيذية"
+    ]
   },
   {
-    id: 'vice-presidency',
-    name: 'نائب الرئيس',
-    shortName: 'النائب',
-    description: 'المكتب التنفيذي لنائب الرئيس، يتولى متابعة تنفيذ القرارات وتنسيق العمل بين اللجان، ويتولى صلاحيات الرئيس في حال غيابه.',
-    responsibilities: [
-      'متابعة تنفيذ قرارات الرئيس والهيئة التنفيذية',
-      'تنسيق العمل بين اللجان المختلفة',
-      'الإشراف على الخطط التشغيلية',
-      'تولي صلاحيات الرئيس في حال غيابه',
-      'إعداد تقارير الأداء الدورية',
+    "id": "vice-presidency",
+    "head": {
+      "id": "5784c265-7b92-4f4f-bdb3-fd74a780a22d",
+      "bio": "عضو في الهيئة التنفيذية لاتحاد شباب الأمة",
+      "name": "أ. خليل جوربوز",
+      "role": "نائب الرئيس",
+      "year": "الهيئة التنفيذية",
+      "email": "vice.president@ummet.org",
+      "major": "نائب رئيس الاتحاد",
+      "phone": "",
+      "photo": "5784c265-7b92-4f4f-bdb3-fd74a780a22d/avatar-86df205b-f4ee-4631-91d6-77fd8474788d.jpg",
+      "updatedAt": "2026-08-24T21:06:51.488275+00:00",
+      "university": "اتحاد شباب الأمة"
+    },
+    "icon": "UserCog",
+    "name": "نائب الرئيس",
+    "color": "from-navy-600 to-navy-800",
+    "stats": [
+      {
+        "label": "متابعات تنفيذية",
+        "value": "64"
+      },
+      {
+        "label": "جلسات تنسيق",
+        "value": "28"
+      },
+      {
+        "label": "تقارير دورية",
+        "value": "12"
+      }
     ],
+    "members": [
+      {
+        "id": "vm1",
+        "name": "نور هاكان",
+        "year": "السنة الرابعة",
+        "major": "إدارة الأعمال",
+        "phone": "05316789012",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-272463e1-8969-464e-929d-a80d2151ae58.jpg",
+        "position": "منسق تنفيذي",
+        "university": "جامعة مرمرة"
+      }
+    ],
+    "shortName": "النائب",
+    "description": "المكتب التنفيذي لنائب الرئيس، يتولى متابعة تنفيذ القرارات وتنسيق العمل بين اللجان، ويتولى صلاحيات الرئيس في حال غيابه.",
+    "responsibilities": [
+      "متابعة تنفيذ قرارات الرئيس والهيئة التنفيذية",
+      "تنسيق العمل بين اللجان المختلفة",
+      "الإشراف على الخطط التشغيلية",
+      "تولي صلاحيات الرئيس في حال غيابه",
+      "إعداد تقارير الأداء الدورية"
+    ]
   },
   {
-    id: 'media',
-    name: 'اللجنة الإعلامية',
-    shortName: 'الإعلام',
-    description: 'تتولى اللجنة الإعلامية إدارة صورة الاتحاد وتواصله مع الجمهور عبر المنصات الرقمية والمواد الإعلامية والتغطيات.',
-    responsibilities: [
-      'إدارة حسابات التواصل الاجتماعي للاتحاد',
-      'تغطية الفعاليات والأنشطة إعلاميًا',
-      'إنتاج المحتوى الرقمي والمطبوع',
-      'التنسيق مع وسائل الإعلام الخارجية',
-      'إصدار النشرات والمطبوعات الدورية',
+    "id": "media",
+    "head": {
+      "id": "d2eb09bc-344b-408c-971e-a6293b54a471",
+      "bio": "عضو في الهيئة التنفيذية لاتحاد شباب الأمة",
+      "name": "مريم شاهين",
+      "role": "المسؤول الإعلامي",
+      "year": "الهيئة التنفيذية",
+      "email": "media@ummet.org",
+      "major": "رئيس اللجنة الإعلامية",
+      "phone": "",
+      "photo": "",
+      "updatedAt": "2026-08-23T23:57:01.714692+00:00",
+      "university": "اتحاد شباب الأمة"
+    },
+    "icon": "Megaphone",
+    "name": "اللجنة الإعلامية",
+    "color": "from-sky-600 to-sky-800",
+    "stats": [
+      {
+        "label": "منشورات سنوية",
+        "value": "320"
+      },
+      {
+        "label": "متابعون",
+        "value": "12.4K"
+      },
+      {
+        "label": "تغطيات إعلامية",
+        "value": "86"
+      }
     ],
+    "members": [
+      {
+        "id": "mm1",
+        "name": "يوسف أكسوي",
+        "year": "السنة الثالثة",
+        "major": "الهندسة المدنية",
+        "phone": "05318901234",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-2db801f5-c6e9-4a4c-88ea-f143ffeef696.jpg",
+        "position": "مصور صحفي",
+        "university": "جامعة إسطنبول التقنية"
+      },
+      {
+        "id": "mm2",
+        "name": "سارة أوزترك",
+        "year": "السنة الثانية",
+        "major": "الطب البشري",
+        "phone": "05319012345",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-272463e1-8969-464e-929d-a80d2151ae58.jpg",
+        "position": "كاتلة محتوى",
+        "university": "جامعة حاجي تبه"
+      }
+    ],
+    "shortName": "الإعلام",
+    "description": "تتولى اللجنة الإعلامية إدارة صورة الاتحاد وتواصله مع الجمهور عبر المنصات الرقمية والمواد الإعلامية والتغطيات.",
+    "responsibilities": [
+      "إدارة حسابات التواصل الاجتماعي للاتحاد",
+      "تغطية الفعاليات والأنشطة إعلاميًا",
+      "إنتاج المحتوى الرقمي والمطبوع",
+      "التنسيق مع وسائل الإعلام الخارجية",
+      "إصدار النشرات والمطبوعات الدورية"
+    ]
   },
   {
-    id: 'academic',
-    name: 'اللجنة الأكاديمية',
-    shortName: 'الأكاديمية',
-    description: 'تهتم اللجنة الأكاديمية بالشأن العلمي للطلاب، عبر تنظيم الدورات التدريبية والندوات وورش العمل ودعم المسار الأكاديمي.',
-    responsibilities: [
-      'تنظيم الدورات التدريبية وورش العمل',
-      'عقد الندوات والمحاضرات الأكاديمية',
-      'دعم الطلاب أكاديميًا وتوجيههم',
-      'الإشراف على المكتبة العلمية للاتحاد',
-      'تنسيق البرامج مع الجامعات الشريكة',
+    "id": "academic",
+    "head": {
+      "id": "6de4cc13-7fe3-4463-bbae-1b8f5ed2be5e",
+      "bio": "",
+      "name": "Aasim Altomy",
+      "role": "المسؤول الأكاديمي",
+      "year": "السنة الأولى",
+      "email": "atomy8774@gmail.com",
+      "major": "Bilgi ve belge yönetimi",
+      "phone": "",
+      "photo": "",
+      "updatedAt": "2026-08-24T01:11:16.818474+00:00",
+      "university": "Atatürk"
+    },
+    "icon": "GraduationCap",
+    "name": "اللجنة الأكاديمية",
+    "color": "from-emerald-600 to-emerald-800",
+    "stats": [
+      {
+        "label": "دورات منفذة",
+        "value": "24"
+      },
+      {
+        "label": "متدربون",
+        "value": "680"
+      },
+      {
+        "label": "شراكات جامعية",
+        "value": "24"
+      }
     ],
+    "members": [
+      {
+        "id": "am1",
+        "name": "أحمد يلدز",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-2db801f5-c6e9-4a4c-88ea-f143ffeef696.jpg",
+        "position": "منسق برامج"
+      },
+      {
+        "id": "am2",
+        "name": "فاطمة كايا",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-272463e1-8969-464e-929d-a80d2151ae58.jpg",
+        "position": "مدرّب"
+      }
+    ],
+    "shortName": "الأكاديمية",
+    "description": "تهتم اللجنة الأكاديمية بالشأن العلمي للطلاب، عبر تنظيم الدورات التدريبية والندوات وورش العمل ودعم المسار الأكاديمي.",
+    "responsibilities": [
+      "تنظيم الدورات التدريبية وورش العمل",
+      "عقد الندوات والمحاضرات الأكاديمية",
+      "دعم الطلاب أكاديميًا وتوجيههم",
+      "الإشراف على المكتبة العلمية للاتحاد",
+      "تنسيق البرامج مع الجامعات الشريكة",
+      "gogho"
+    ]
   },
   {
-    id: 'supervisory',
-    name: 'اللجنة الرقابية',
-    shortName: 'الرقابة',
-    description: 'اللجنة الرقابية هي الجهة المستقلة المسؤولة عن مراقبة الالتزام والشفافية داخل الاتحاد، وتقييم الأداء وضمان نزاهة العمل المؤسسي.',
-    responsibilities: [
-      'مراقبة الالتزام باللوائح والأنظمة',
-      'تدقيق التقارير المالية والإدارية',
-      'التحقيق في الشكاوى والمخالفات',
-      'تقييم أداء اللجان والأعضاء',
-      'إعداد تقارير الشفافية الدورية',
+    "id": "supervisory",
+    "head": {
+      "id": "e451c0a1-7470-4eb2-9787-48ce99916581",
+      "bio": "عضو في الهيئة التنفيذية لاتحاد شباب الأمة",
+      "name": "أ. خالد أرسلان",
+      "role": "مسؤول الرقابة والتفتيش",
+      "year": "الهيئة التنفيذية",
+      "email": "audit@ummet.org",
+      "major": "رئيس لجنة الرقابة",
+      "phone": "",
+      "photo": "",
+      "updatedAt": "2026-08-23T23:57:01.714692+00:00",
+      "university": "اتحاد شباب الأمة"
+    },
+    "icon": "ShieldCheck",
+    "name": "اللجنة الرقابية",
+    "color": "from-rose-600 to-rose-800",
+    "stats": [
+      {
+        "label": "تدقيقات منجزة",
+        "value": "18"
+      },
+      {
+        "label": "تقارير شفافية",
+        "value": "6"
+      },
+      {
+        "label": "شكاوى محلولة",
+        "value": "14"
+      }
     ],
+    "members": [
+      {
+        "id": "sm1",
+        "name": "عمر ديمير",
+        "year": "السنة الرابعة",
+        "major": "إدارة الأعمال",
+        "phone": "05323456789",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-2db801f5-c6e9-4a4c-88ea-f143ffeef696.jpg",
+        "position": "مراجع مالي",
+        "university": "جامعة بورصة التقنية"
+      }
+    ],
+    "shortName": "الرقابة",
+    "description": "اللجنة الرقابية هي الجهة المستقلة المسؤولة عن مراقبة الالتزام والشفافية داخل الاتحاد، وتقييم الأداء وضمان نزاهة العمل المؤسسي.",
+    "responsibilities": [
+      "مراقبة الالتزام باللوائح والأنظمة",
+      "تدقيق التقارير المالية والإدارية",
+      "التحقيق في الشكاوى والمخالفات",
+      "تقييم أداء اللجان والأعضاء",
+      "إعداد تقارير الشفافية الدورية"
+    ]
   },
   {
-    id: 'activities',
-    name: 'لجنة الأنشطة',
-    shortName: 'الأنشطة',
-    description: 'تنظيم وإدارة الفعاليات والأنشطة الشبابية المتنوعة، من رحلات وندوات وحملات تطوعية، وتفعيل المشاركة الطلابية.',
-    responsibilities: [
-      'تخطيط وتنظيم الفعاليات والأنشطة',
-      'إدارة الحملات التطوعية',
-      'تنظيم الرحلات التثقيفية والترفيهية',
-      'الإشراف على الأندية الطلابية',
-      'تفعيل المشاركة الطلابية في الأنشطة',
+    "id": "activities",
+    "head": {
+      "id": "f20918e9-851d-47e6-a102-b769be41b453",
+      "bio": "عضو في الهيئة التنفيذية لاتحاد شباب الأمة",
+      "name": "م. سلمى أردوغان",
+      "role": "مسؤول الأنشطة",
+      "year": "الهيئة التنفيذية",
+      "email": "activities@ummet.org",
+      "major": "رئيس لجنة الأنشطة",
+      "phone": "",
+      "photo": "",
+      "updatedAt": "2026-08-23T23:57:01.714692+00:00",
+      "university": "اتحاد شباب الأمة"
+    },
+    "icon": "CalendarDays",
+    "name": "لجنة الأنشطة",
+    "color": "from-gold-500 to-gold-700",
+    "stats": [
+      {
+        "label": "فعاليات منفذة",
+        "value": "86"
+      },
+      {
+        "label": "متطوعون",
+        "value": "540"
+      },
+      {
+        "label": "مستفيدون",
+        "value": "4.2K"
+      }
     ],
+    "members": [
+      {
+        "id": "acm1",
+        "name": "يوسف أكسوي",
+        "year": "السنة الثالثة",
+        "major": "الهندسة المدنية",
+        "phone": "05325678901",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-2db801f5-c6e9-4a4c-88ea-f143ffeef696.jpg",
+        "position": "منسق فعاليات",
+        "university": "جامعة إسطنبول التقنية"
+      },
+      {
+        "id": "acm2",
+        "name": "نور هاكان",
+        "year": "السنة الرابعة",
+        "major": "إدارة الأعمال",
+        "phone": "05316789012",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-272463e1-8969-464e-929d-a80d2151ae58.jpg",
+        "position": "منسق متطوعين",
+        "university": "جامعة مرمرة"
+      }
+    ],
+    "shortName": "الأنشطة",
+    "description": "تنظيم وإدارة الفعاليات والأنشطة الشبابية المتنوعة، من رحلات وندوات وحملات تطوعية، وتفعيل المشاركة الطلابية.",
+    "responsibilities": [
+      "تخطيط وتنظيم الفعاليات والأنشطة",
+      "إدارة الحملات التطوعية",
+      "تنظيم الرحلات التثقيفية والترفيهية",
+      "الإشراف على الأندية الطلابية",
+      "تفعيل المشاركة الطلابية في الأنشطة"
+    ]
   },
   {
-    id: 'finance',
-    name: 'اللجنة المالية',
-    shortName: 'المالية',
-    description: 'تتولى اللجنة المالية إدارة الموارد المالية للاتحاد، وإعداد الموازنات ومتابعة الإيرادات والمصروفات وضمان الاستدامة المالية.',
-    responsibilities: [
-      'إعداد الموازنة السنوية للاتحاد',
-      'متابعة الإيرادات والمصروفات',
-      'إدارة التبرعات والرعايات',
-      'إعداد التقارير المالية الدورية',
-      'التنسيق مع اللجنة الرقابية للتدقيق',
+    "id": "finance",
+    "head": {
+      "id": "73860832-acc1-4995-8918-dcdd5a1b3cac",
+      "bio": "عضو في الهيئة التنفيذية لاتحاد شباب الأمة",
+      "name": "أ. عمر ديمير",
+      "role": "المسؤول المالي",
+      "year": "الهيئة التنفيذية",
+      "email": "finance@ummet.org",
+      "major": "رئيس اللجنة المالية",
+      "phone": "",
+      "photo": "",
+      "updatedAt": "2026-08-23T23:57:01.714692+00:00",
+      "university": "اتحاد شباب الأمة"
+    },
+    "icon": "Wallet",
+    "name": "اللجنة المالية",
+    "color": "from-teal-600 to-teal-800",
+    "stats": [
+      {
+        "label": "موازنة 2026",
+        "value": "480K ₺"
+      },
+      {
+        "label": "تمويل مشاريع",
+        "value": "320K ₺"
+      },
+      {
+        "label": "رعاة",
+        "value": "11"
+      }
     ],
-  },
+    "members": [
+      {
+        "id": "fm1",
+        "name": "خالد أرسلان",
+        "year": "دكتوراه",
+        "major": "القانون العام",
+        "phone": "05313456789",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-2db801f5-c6e9-4a4c-88ea-f143ffeef696.jpg",
+        "position": "محاسب",
+        "university": "جامعة أنقرة"
+      }
+    ],
+    "shortName": "المالية",
+    "description": "تتولى اللجنة المالية إدارة الموارد المالية للاتحاد، وإعداد الموازنات ومتابعة الإيرادات والمصروفات وضمان الاستدامة المالية.",
+    "responsibilities": [
+      "إعداد الموازنة السنوية للاتحاد",
+      "متابعة الإيرادات والمصروفات",
+      "إدارة التبرعات والرعايات",
+      "إعداد التقارير المالية الدورية",
+      "التنسيق مع اللجنة الرقابية للتدقيق"
+    ]
+  }
 ];
 
 const trCommittees = [
   {
-    id: 'presidency',
-    name: 'Birlik Başkanlığı',
-    shortName: 'Birlik Başkanı',
-    description: 'Birliğin en üst liderlik organı olup Birlik Başkanı liderliğinde genel politikaları belirler, Birliği temsil eder ve tüm komitelerin çalışmalarını koordine eder.',
-    responsibilities: [
-      'Stratejik vizyon ve genel politikaları belirleme',
-      'Birliği kurumlar nezdinde temsil etme',
-      'Tüm komitelerin performansını genel gözetim',
-      'Yıllık plan ve bütçeleri onaylama',
-      'Yönetim Kurulu toplantılarına başkanlık etme',
+    "id": "presidency",
+    "head": {
+      "id": "11f9e6f2-828c-44a2-b05c-53400b3a9b9a",
+      "bio": "Ümmet Gençleri Birliği Yönetim Kurulu Üyesi",
+      "name": "م. بشار الزريقي",
+      "role": "رئيس الاتحاد",
+      "year": "السنة الثالثة",
+      "email": "president@ummet.org",
+      "major": "Bilgisayar Mühendisliği",
+      "phone": "",
+      "photo": "11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-201de549-4ba6-4f14-b51d-5eb3e9c9d7f1.jpg",
+      "updatedAt": "2026-09-01T18:32:57.960684+00:00",
+      "university": "Atatürk"
+    },
+    "icon": "Crown",
+    "name": "Birlik Başkanlığı",
+    "color": "from-navy-700 to-navy-950",
+    "stats": [
+      {
+        "label": "Alınan Kararlar",
+        "value": "47"
+      },
+      {
+        "label": "Yönetim Toplantıları",
+        "value": "32"
+      },
+      {
+        "label": "Dış Ortaklıklar",
+        "value": "18"
+      }
     ],
+    "members": [
+      {
+        "id": "pm1",
+        "name": "م. سلمى أردوغان",
+        "year": "دراسات عليا",
+        "major": "الهندسة المدنية",
+        "phone": "05313456789",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-272463e1-8969-464e-929d-a80d2151ae58.jpg",
+        "position": "Kıdemli Danışman",
+        "university": "جامعة إسطنبول التقنية"
+      },
+      {
+        "id": "pm2",
+        "name": "أ. خليل جوربوز",
+        "year": "ماجستير",
+        "major": "إدارة المؤسسات",
+        "phone": "05314567890",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-2db801f5-c6e9-4a4c-88ea-f143ffeef696.jpg",
+        "position": "Genel Koordinatör",
+        "university": "جامعة أنقرة"
+      }
+    ],
+    "shortName": "Birlik Başkanı",
+    "description": "Birliğin en üst liderlik organı olup Birlik Başkanı liderliğinde genel politikaları belirler, Birliği temsil eder ve tüm komitelerin çalışmalarını koordine eder.",
+    "responsibilities": [
+      "Stratejik vizyon ve genel politikaları belirleme",
+      "Birliği kurumlar nezdinde temsil etme",
+      "Tüm komitelerin performansını genel gözetim",
+      "Yıllık plan ve bütçeleri onaylama",
+      "Yönetim Kurulu toplantılarına başkanlık etme"
+    ]
   },
   {
-    id: 'vice-presidency',
-    name: 'Başkan Yardımcılığı',
-    shortName: 'Başkan Yardımcısı',
-    description: 'Kararların uygulanmasını takip eder, komiteler arası koordinasyonu sağlar ve Başkanın yokluğunda vekalet eder.',
-    responsibilities: [
-      'Yönetim Kurulu kararlarının uygulanmasını takip',
-      'Komiteler arası iş birliğini koordine etme',
-      'Operasyonel planları denetleme',
-      'Başkanın yokluğunda görev ve yetkileri üstlenme',
-      'Periyodik performans raporları hazırlama',
+    "id": "vice-presidency",
+    "head": {
+      "id": "5784c265-7b92-4f4f-bdb3-fd74a780a22d",
+      "bio": "Ümmet Gençleri Birliği Yönetim Kurulu Üyesi",
+      "name": "أ. خليل جوربوز",
+      "role": "نائب الرئيس",
+      "year": "الهيئة التنفيذية",
+      "email": "vice.president@ummet.org",
+      "major": "نائب رئيس الاتحاد",
+      "phone": "",
+      "photo": "5784c265-7b92-4f4f-bdb3-fd74a780a22d/avatar-86df205b-f4ee-4631-91d6-77fd8474788d.jpg",
+      "updatedAt": "2026-08-24T21:06:51.488275+00:00",
+      "university": "اتحاد شباب الأمة"
+    },
+    "icon": "UserCog",
+    "name": "Başkan Yardımcılığı",
+    "color": "from-navy-600 to-navy-800",
+    "stats": [
+      {
+        "label": "İcra Takipleri",
+        "value": "64"
+      },
+      {
+        "label": "Koordinasyon Oturumları",
+        "value": "28"
+      },
+      {
+        "label": "Periyodik Raporlar",
+        "value": "12"
+      }
     ],
+    "members": [
+      {
+        "id": "vm1",
+        "name": "نور هاكان",
+        "year": "السنة الرابعة",
+        "major": "إدارة الأعمال",
+        "phone": "05316789012",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-272463e1-8969-464e-929d-a80d2151ae58.jpg",
+        "position": "Yürütme Koordinatörü",
+        "university": "جامعة مرمرة"
+      }
+    ],
+    "shortName": "Başkan Yardımcısı",
+    "description": "Kararların uygulanmasını takip eder, komiteler arası koordinasyonu sağlar ve Başkanın yokluğunda vekalet eder.",
+    "responsibilities": [
+      "Yönetim Kurulu kararlarının uygulanmasını takip",
+      "Komiteler arası iş birliğini koordine etme",
+      "Operasyonel planları denetleme",
+      "Başkanın yokluğunda görev ve yetkileri üstlenme",
+      "Periyodik performans raporları hazırlama"
+    ]
   },
   {
-    id: 'media',
-    name: 'Medya Komitesi',
-    shortName: 'Medya',
-    description: 'Birliğin kurumsal kimliğini ve dijital platformlar, basın ve görsel materyaller üzerinden kamuoyu iletişimini yönetir.',
-    responsibilities: [
-      'Sosyal medya hesaplarını profesyonelce yönetme',
-      'Etkinlik ve faaliyetlerin medya kapsamını sağlama',
-      'Dijital ve basılı içerik üretimi',
-      'Basın kuruluşları ile koordinasyon',
-      'Periyodik bülten ve yayınlar çıkarma',
+    "id": "media",
+    "head": {
+      "id": "d2eb09bc-344b-408c-971e-a6293b54a471",
+      "bio": "Ümmet Gençleri Birliği Yönetim Kurulu Üyesi",
+      "name": "مريم شاهين",
+      "role": "المسؤول الإعلامي",
+      "year": "الهيئة التنفيذية",
+      "email": "media@ummet.org",
+      "major": "رئيس اللجنة الإعلامية",
+      "phone": "",
+      "photo": "",
+      "updatedAt": "2026-08-23T23:57:01.714692+00:00",
+      "university": "اتحاد شباب الأمة"
+    },
+    "icon": "Megaphone",
+    "name": "Medya Komitesi",
+    "color": "from-sky-600 to-sky-800",
+    "stats": [
+      {
+        "label": "Yıllık Gönderiler",
+        "value": "320"
+      },
+      {
+        "label": "Takipçi",
+        "value": "12.4K"
+      },
+      {
+        "label": "Medya Kapsamı",
+        "value": "86"
+      }
     ],
+    "members": [
+      {
+        "id": "mm1",
+        "name": "يوسف أكسوي",
+        "year": "السنة الثالثة",
+        "major": "الهندسة المدنية",
+        "phone": "05318901234",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-2db801f5-c6e9-4a4c-88ea-f143ffeef696.jpg",
+        "position": "Basın Fotoğrafçısı",
+        "university": "جامعة إسطنبول التقنية"
+      },
+      {
+        "id": "mm2",
+        "name": "سارة أوزترك",
+        "year": "السنة الثانية",
+        "major": "الطب البشري",
+        "phone": "05319012345",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-272463e1-8969-464e-929d-a80d2151ae58.jpg",
+        "position": "İçerik Yazarı",
+        "university": "جامعة حاجي تبه"
+      }
+    ],
+    "shortName": "Medya",
+    "description": "Birliğin kurumsal kimliğini ve dijital platformlar, basın ve görsel materyaller üzerinden kamuoyu iletişimini yönetir.",
+    "responsibilities": [
+      "Sosyal medya hesaplarını profesyonelce yönetme",
+      "Etkinlik ve faaliyetlerin medya kapsamını sağlama",
+      "Dijital ve basılı içerik üretimi",
+      "Basın kuruluşları ile koordinasyon",
+      "Periyodik bülten ve yayınlar çıkarma"
+    ]
   },
   {
-    id: 'academic',
-    name: 'Akademik Komite',
-    shortName: 'Akademik',
-    description: 'Kurslar, seminerler, paneller ve bilimsel rehberlik yoluyla öğrencilerin akademik gelişimini destekler.',
-    responsibilities: [
-      'Eğitim kursları ve atölyeler düzenleme',
-      'Akademik konferans ve seminerler tertipleme',
-      'Öğrencilere akademik danışmanlık sağlama',
-      'Birlik bilimsel kütüphanesini yönetme',
-      'Ortak üniversitelerle programları koordine etme',
+    "id": "academic",
+    "head": {
+      "id": "6de4cc13-7fe3-4463-bbae-1b8f5ed2be5e",
+      "bio": "",
+      "name": "Aasim Altomy",
+      "role": "المسؤول الأكاديمي",
+      "year": "السنة الأولى",
+      "email": "atomy8774@gmail.com",
+      "major": "Bilgi ve belge yönetimi",
+      "phone": "",
+      "photo": "",
+      "updatedAt": "2026-08-24T01:11:16.818474+00:00",
+      "university": "Atatürk"
+    },
+    "icon": "GraduationCap",
+    "name": "Akademik Komite",
+    "color": "from-emerald-600 to-emerald-800",
+    "stats": [
+      {
+        "label": "Tamamlanan Kurslar",
+        "value": "24"
+      },
+      {
+        "label": "Eğitim Alanlar",
+        "value": "680"
+      },
+      {
+        "label": "Üniversite Ortaklıkları",
+        "value": "24"
+      }
     ],
+    "members": [
+      {
+        "id": "am1",
+        "name": "أحمد يلدز",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-2db801f5-c6e9-4a4c-88ea-f143ffeef696.jpg",
+        "position": "Program Koordinatörü"
+      },
+      {
+        "id": "am2",
+        "name": "فاطمة كايا",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-272463e1-8969-464e-929d-a80d2151ae58.jpg",
+        "position": "Eğitmen"
+      }
+    ],
+    "shortName": "Akademik",
+    "description": "Kurslar, seminerler, paneller ve bilimsel rehberlik yoluyla öğrencilerin akademik gelişimini destekler.",
+    "responsibilities": [
+      "Eğitim kursları ve atölyeler düzenleme",
+      "Akademik konferans ve seminerler tertipleme",
+      "Öğrencilere akademik danışmanlık sağlama",
+      "Birlik bilimsel kütüphanesini yönetme",
+      "Ortak üniversitelerle programları koordine etme"
+    ]
   },
   {
-    id: 'supervisory',
-    name: 'Denetim ve Teftiş Komitesi',
-    shortName: 'Denetim',
-    description: 'Birlik içi mevzuata uyumu, şeffaflığı ve kurumsal işleyişin dürüstlüğünü denetleyen bağımsız organdır.',
-    responsibilities: [
-      'İç tüzük ve düzenlemelere uyumu denetleme',
-      'İdari ve mali raporları inceleme',
-      'Gelen bildirim ve şikayetleri değerlendirme',
-      'Komite ve üyelerin performansını değerlendirme',
-      'Periyodik şeffaflık raporları hazırlama',
+    "id": "supervisory",
+    "head": {
+      "id": "e451c0a1-7470-4eb2-9787-48ce99916581",
+      "bio": "Ümmet Gençleri Birliği Yönetim Kurulu Üyesi",
+      "name": "أ. خالد أرسلان",
+      "role": "مسؤول الرقابة والتفتيش",
+      "year": "الهيئة التنفيذية",
+      "email": "audit@ummet.org",
+      "major": "رئيس لجنة الرقابة",
+      "phone": "",
+      "photo": "",
+      "updatedAt": "2026-08-23T23:57:01.714692+00:00",
+      "university": "اتحاد شباب الأمة"
+    },
+    "icon": "ShieldCheck",
+    "name": "Denetim ve Teftiş Komitesi",
+    "color": "from-rose-600 to-rose-800",
+    "stats": [
+      {
+        "label": "Tamamlanan Denetimler",
+        "value": "18"
+      },
+      {
+        "label": "Şeffaflık Raporları",
+        "value": "6"
+      },
+      {
+        "label": "Çözülen Başvurular",
+        "value": "14"
+      }
     ],
+    "members": [
+      {
+        "id": "sm1",
+        "name": "عمر ديمير",
+        "year": "السنة الرابعة",
+        "major": "إدارة الأعمال",
+        "phone": "05323456789",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-2db801f5-c6e9-4a4c-88ea-f143ffeef696.jpg",
+        "position": "Mali Denetçi",
+        "university": "جامعة بورصة التقنية"
+      }
+    ],
+    "shortName": "Denetim",
+    "description": "Birlik içi mevzuata uyumu, şeffaflığı ve kurumsal işleyişin dürüstlüğünü denetleyen bağımsız organdır.",
+    "responsibilities": [
+      "İç tüzük ve düzenlemelere uyumu denetleme",
+      "İdari ve mali raporları inceleme",
+      "Gelen bildirim ve şikayetleri değerlendirme",
+      "Komite ve üyelerin performansını değerlendirme",
+      "Periyodik şeffaflık raporları hazırlama"
+    ]
   },
   {
-    id: 'activities',
-    name: 'Faaliyetler Komitesi',
-    shortName: 'Faaliyetler',
-    description: 'Geziler, seminerler, gönüllülük kampanyaları ve spor etkinlikleri ile öğrenci katılımını canlı tutar.',
-    responsibilities: [
-      'Sosyal ve kültürel faaliyetleri planlama ve yönetme',
-      'Gönüllülük kampanyalarını koordine etme',
-      'Kültür ve doğa gezileri düzenleme',
-      'Öğrenci kulüpleri ile iş birliği',
-      'Öğrenci katılımını aktif kılma',
+    "id": "activities",
+    "head": {
+      "id": "f20918e9-851d-47e6-a102-b769be41b453",
+      "bio": "Ümmet Gençleri Birliği Yönetim Kurulu Üyesi",
+      "name": "م. سلمى أردوغان",
+      "role": "مسؤول الأنشطة",
+      "year": "الهيئة التنفيذية",
+      "email": "activities@ummet.org",
+      "major": "رئيس لجنة الأنشطة",
+      "phone": "",
+      "photo": "",
+      "updatedAt": "2026-08-23T23:57:01.714692+00:00",
+      "university": "اتحاد شباب الأمة"
+    },
+    "icon": "CalendarDays",
+    "name": "Faaliyetler Komitesi",
+    "color": "from-gold-500 to-gold-700",
+    "stats": [
+      {
+        "label": "Düzenlenen Faaliyetler",
+        "value": "86"
+      },
+      {
+        "label": "Gönüllüler",
+        "value": "540"
+      },
+      {
+        "label": "Yararlanıcılar",
+        "value": "4.2K"
+      }
     ],
+    "members": [
+      {
+        "id": "acm1",
+        "name": "يوسف أكسوي",
+        "year": "السنة الثالثة",
+        "major": "الهندسة المدنية",
+        "phone": "05325678901",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-2db801f5-c6e9-4a4c-88ea-f143ffeef696.jpg",
+        "position": "Etkinlik Koordinatörü",
+        "university": "جامعة إسطنبول التقنية"
+      },
+      {
+        "id": "acm2",
+        "name": "نور هاكان",
+        "year": "السنة الرابعة",
+        "major": "إدارة الأعمال",
+        "phone": "05316789012",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-272463e1-8969-464e-929d-a80d2151ae58.jpg",
+        "position": "Gönüllü Koordinatörü",
+        "university": "جامعة مرمرة"
+      }
+    ],
+    "shortName": "Faaliyetler",
+    "description": "Geziler, seminerler, gönüllülük kampanyaları ve spor etkinlikleri ile öğrenci katılımını canlı tutar.",
+    "responsibilities": [
+      "Sosyal ve kültürel faaliyetleri planlama ve yönetme",
+      "Gönüllülük kampanyalarını koordine etme",
+      "Kültür ve doğa gezileri düzenleme",
+      "Öğrenci kulüpleri ile iş birliği",
+      "Öğrenci katılımını aktif kılma"
+    ]
   },
   {
-    id: 'finance',
-    name: 'Maliye Komitesi',
-    shortName: 'Maliye',
-    description: 'Birliğin mali kaynaklarını yönetir, bütçe tahminlerini hazırlar ve harcamaları şeffaflıkla denetler.',
-    responsibilities: [
-      'Yıllık bütçeyi hazırlama',
-      'Gelir ve giderleri düzenli takip etme',
-      'Bağış ve sponsorluk süreçlerini yönetme',
-      'Dönemsel mali raporları hazırlama',
-      'Denetim komitesi ile koordinasyon',
+    "id": "finance",
+    "head": {
+      "id": "73860832-acc1-4995-8918-dcdd5a1b3cac",
+      "bio": "Ümmet Gençleri Birliği Yönetim Kurulu Üyesi",
+      "name": "أ. عمر ديمير",
+      "role": "المسؤول المالي",
+      "year": "الهيئة التنفيذية",
+      "email": "finance@ummet.org",
+      "major": "رئيس اللجنة المالية",
+      "phone": "",
+      "photo": "",
+      "updatedAt": "2026-08-23T23:57:01.714692+00:00",
+      "university": "اتحاد شباب الأمة"
+    },
+    "icon": "Wallet",
+    "name": "Maliye Komitesi",
+    "color": "from-teal-600 to-teal-800",
+    "stats": [
+      {
+        "label": "2026 Bütçesi",
+        "value": "480K ₺"
+      },
+      {
+        "label": "Proje Fonu",
+        "value": "320K ₺"
+      },
+      {
+        "label": "Sponsorlar",
+        "value": "11"
+      }
     ],
-  },
+    "members": [
+      {
+        "id": "fm1",
+        "name": "خالد أرسلان",
+        "year": "دكتوراه",
+        "major": "القانون العام",
+        "phone": "05313456789",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-2db801f5-c6e9-4a4c-88ea-f143ffeef696.jpg",
+        "position": "Muhasebeci",
+        "university": "جامعة أنقرة"
+      }
+    ],
+    "shortName": "Maliye",
+    "description": "Birliğin mali kaynaklarını yönetir, bütçe tahminlerini hazırlar ve harcamaları şeffaflıkla denetler.",
+    "responsibilities": [
+      "Yıllık bütçeyi hazırlama",
+      "Gelir ve giderleri düzenli takip etme",
+      "Bağış ve sponsorluk süreçlerini yönetme",
+      "Dönemsel mali raporları hazırlama",
+      "Denetim komitesi ile koordinasyon"
+    ]
+  }
 ];
 
 const enCommittees = [
   {
-    id: 'presidency',
-    name: 'Union Presidency',
-    shortName: 'Union President',
-    description: 'The supreme executive leadership of the Union headed by the Union President, formulating general policies, representing the Union, and supervising all committees.',
-    responsibilities: [
-      'Formulating strategic vision and general policies',
-      'Representing the Union before external institutions',
-      'Overall supervision of all committee performances',
-      'Approving annual operational plans and budgets',
-      'Presiding over Executive Board meetings',
+    "id": "presidency",
+    "head": {
+      "id": "11f9e6f2-828c-44a2-b05c-53400b3a9b9a",
+      "bio": "Member of the Executive Board of the Ummah Youth Union",
+      "name": "م. بشار الزريقي",
+      "role": "رئيس الاتحاد",
+      "year": "السنة الثالثة",
+      "email": "president@ummet.org",
+      "major": "Bilgisayar Mühendisliği",
+      "phone": "",
+      "photo": "11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-201de549-4ba6-4f14-b51d-5eb3e9c9d7f1.jpg",
+      "updatedAt": "2026-09-01T18:32:57.960684+00:00",
+      "university": "Atatürk"
+    },
+    "icon": "Crown",
+    "name": "Union Presidency",
+    "color": "from-navy-700 to-navy-950",
+    "stats": [
+      {
+        "label": "Resolutions Issued",
+        "value": "47"
+      },
+      {
+        "label": "Board Meetings",
+        "value": "32"
+      },
+      {
+        "label": "External Partnerships",
+        "value": "18"
+      }
     ],
+    "members": [
+      {
+        "id": "pm1",
+        "name": "م. سلمى أردوغان",
+        "year": "دراسات عليا",
+        "major": "الهندسة المدنية",
+        "phone": "05313456789",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-272463e1-8969-464e-929d-a80d2151ae58.jpg",
+        "position": "Senior Advisor",
+        "university": "جامعة إسطنبول التقنية"
+      },
+      {
+        "id": "pm2",
+        "name": "أ. خليل جوربوز",
+        "year": "ماجستير",
+        "major": "إدارة المؤسسات",
+        "phone": "05314567890",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-2db801f5-c6e9-4a4c-88ea-f143ffeef696.jpg",
+        "position": "General Coordinator",
+        "university": "جامعة أنقرة"
+      }
+    ],
+    "shortName": "Union President",
+    "description": "The supreme executive leadership of the Union headed by the Union President, formulating general policies, representing the Union, and supervising all committees.",
+    "responsibilities": [
+      "Formulating strategic vision and general policies",
+      "Representing the Union before external institutions",
+      "Overall supervision of all committee performances",
+      "Approving annual operational plans and budgets",
+      "Presiding over Executive Board meetings"
+    ]
   },
   {
-    id: 'vice-presidency',
-    name: 'Vice Presidency',
-    shortName: 'Vice President',
-    description: 'Oversees decision execution, coordinates committee workflows, and assumes presidential duties when necessary.',
-    responsibilities: [
-      'Following up on Executive Board resolutions',
-      'Coordinating cross-committee workflows',
-      'Supervising operational implementation',
-      'Assuming presidential authority in the President\'s absence',
-      'Preparing periodic performance reviews',
+    "id": "vice-presidency",
+    "head": {
+      "id": "5784c265-7b92-4f4f-bdb3-fd74a780a22d",
+      "bio": "Member of the Executive Board of the Ummah Youth Union",
+      "name": "أ. خليل جوربوز",
+      "role": "نائب الرئيس",
+      "year": "الهيئة التنفيذية",
+      "email": "vice.president@ummet.org",
+      "major": "نائب رئيس الاتحاد",
+      "phone": "",
+      "photo": "5784c265-7b92-4f4f-bdb3-fd74a780a22d/avatar-86df205b-f4ee-4631-91d6-77fd8474788d.jpg",
+      "updatedAt": "2026-08-24T21:06:51.488275+00:00",
+      "university": "اتحاد شباب الأمة"
+    },
+    "icon": "UserCog",
+    "name": "Vice Presidency",
+    "color": "from-navy-600 to-navy-800",
+    "stats": [
+      {
+        "label": "Executive Follow-ups",
+        "value": "64"
+      },
+      {
+        "label": "Coordination Sessions",
+        "value": "28"
+      },
+      {
+        "label": "Periodic Reports",
+        "value": "12"
+      }
     ],
+    "members": [
+      {
+        "id": "vm1",
+        "name": "نور هاكان",
+        "year": "السنة الرابعة",
+        "major": "إدارة الأعمال",
+        "phone": "05316789012",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-272463e1-8969-464e-929d-a80d2151ae58.jpg",
+        "position": "Executive Coordinator",
+        "university": "جامعة مرمرة"
+      }
+    ],
+    "shortName": "Vice President",
+    "description": "Oversees decision execution, coordinates committee workflows, and assumes presidential duties when necessary.",
+    "responsibilities": [
+      "Following up on Executive Board resolutions",
+      "Coordinating cross-committee workflows",
+      "Supervising operational implementation",
+      "Assuming presidential authority in the President's absence",
+      "Preparing periodic performance reviews"
+    ]
   },
   {
-    id: 'media',
-    name: 'Media Committee',
-    shortName: 'Media',
-    description: 'Manages the Union\'s visual identity, digital platforms, public relations, and publication materials.',
-    responsibilities: [
-      'Managing official social media accounts',
-      'Providing media coverage for all events and campaigns',
-      'Producing digital and printed media content',
-      'Liaising with external media and news outlets',
-      'Publishing regular newsletters and bulletins',
+    "id": "media",
+    "head": {
+      "id": "d2eb09bc-344b-408c-971e-a6293b54a471",
+      "bio": "Member of the Executive Board of the Ummah Youth Union",
+      "name": "مريم شاهين",
+      "role": "المسؤول الإعلامي",
+      "year": "الهيئة التنفيذية",
+      "email": "media@ummet.org",
+      "major": "رئيس اللجنة الإعلامية",
+      "phone": "",
+      "photo": "",
+      "updatedAt": "2026-08-23T23:57:01.714692+00:00",
+      "university": "اتحاد شباب الأمة"
+    },
+    "icon": "Megaphone",
+    "name": "Media Committee",
+    "color": "from-sky-600 to-sky-800",
+    "stats": [
+      {
+        "label": "Annual Posts",
+        "value": "320"
+      },
+      {
+        "label": "Followers",
+        "value": "12.4K"
+      },
+      {
+        "label": "Media Coverages",
+        "value": "86"
+      }
     ],
+    "members": [
+      {
+        "id": "mm1",
+        "name": "يوسف أكسوي",
+        "year": "السنة الثالثة",
+        "major": "الهندسة المدنية",
+        "phone": "05318901234",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-2db801f5-c6e9-4a4c-88ea-f143ffeef696.jpg",
+        "position": "Press Photographer",
+        "university": "جامعة إسطنبول التقنية"
+      },
+      {
+        "id": "mm2",
+        "name": "سارة أوزترك",
+        "year": "السنة الثانية",
+        "major": "الطب البشري",
+        "phone": "05319012345",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-272463e1-8969-464e-929d-a80d2151ae58.jpg",
+        "position": "Content Writer",
+        "university": "جامعة حاجي تبه"
+      }
+    ],
+    "shortName": "Media",
+    "description": "Manages the Union's visual identity, digital platforms, public relations, and publication materials.",
+    "responsibilities": [
+      "Managing official social media accounts",
+      "Providing media coverage for all events and campaigns",
+      "Producing digital and printed media content",
+      "Liaising with external media and news outlets",
+      "Publishing regular newsletters and bulletins"
+    ]
   },
   {
-    id: 'academic',
-    name: 'Academic Committee',
-    shortName: 'Academic',
-    description: 'Supports student academic progression through training courses, symposiums, workshops, and scholarly mentorship.',
-    responsibilities: [
-      'Organizing training courses and practical workshops',
-      'Convening academic symposiums and guest lectures',
-      'Offering academic guidance and mentorship to students',
-      'Supervising the Union\'s scientific library',
-      'Coordinating joint programs with partner universities',
+    "id": "academic",
+    "head": {
+      "id": "6de4cc13-7fe3-4463-bbae-1b8f5ed2be5e",
+      "bio": "",
+      "name": "Aasim Altomy",
+      "role": "المسؤول الأكاديمي",
+      "year": "السنة الأولى",
+      "email": "atomy8774@gmail.com",
+      "major": "Bilgi ve belge yönetimi",
+      "phone": "",
+      "photo": "",
+      "updatedAt": "2026-08-24T01:11:16.818474+00:00",
+      "university": "Atatürk"
+    },
+    "icon": "GraduationCap",
+    "name": "Academic Committee",
+    "color": "from-emerald-600 to-emerald-800",
+    "stats": [
+      {
+        "label": "Completed Courses",
+        "value": "24"
+      },
+      {
+        "label": "Trainees",
+        "value": "680"
+      },
+      {
+        "label": "University Partnerships",
+        "value": "24"
+      }
     ],
+    "members": [
+      {
+        "id": "am1",
+        "name": "أحمد يلدز",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-2db801f5-c6e9-4a4c-88ea-f143ffeef696.jpg",
+        "position": "Program Coordinator"
+      },
+      {
+        "id": "am2",
+        "name": "فاطمة كايا",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-272463e1-8969-464e-929d-a80d2151ae58.jpg",
+        "position": "Trainer"
+      }
+    ],
+    "shortName": "Academic",
+    "description": "Supports student academic progression through training courses, symposiums, workshops, and scholarly mentorship.",
+    "responsibilities": [
+      "Organizing training courses and practical workshops",
+      "Convening academic symposiums and guest lectures",
+      "Offering academic guidance and mentorship to students",
+      "Supervising the Union's scientific library",
+      "Coordinating joint programs with partner universities"
+    ]
   },
   {
-    id: 'supervisory',
-    name: 'Supervisory and Inspection Committee',
-    shortName: 'Supervisory',
-    description: 'An independent body monitoring regulatory compliance, transparency, and institutional accountability across the Union.',
-    responsibilities: [
-      'Monitoring adherence to bylaws and regulations',
-      'Auditing administrative and financial records',
-      'Investigating grievances and irregularities',
-      'Evaluating performance of committees and members',
-      'Issuing regular transparency and audit reports',
+    "id": "supervisory",
+    "head": {
+      "id": "e451c0a1-7470-4eb2-9787-48ce99916581",
+      "bio": "Member of the Executive Board of the Ummah Youth Union",
+      "name": "أ. خالد أرسلان",
+      "role": "مسؤول الرقابة والتفتيش",
+      "year": "الهيئة التنفيذية",
+      "email": "audit@ummet.org",
+      "major": "رئيس لجنة الرقابة",
+      "phone": "",
+      "photo": "",
+      "updatedAt": "2026-08-23T23:57:01.714692+00:00",
+      "university": "اتحاد شباب الأمة"
+    },
+    "icon": "ShieldCheck",
+    "name": "Supervisory and Inspection Committee",
+    "color": "from-rose-600 to-rose-800",
+    "stats": [
+      {
+        "label": "Completed Audits",
+        "value": "18"
+      },
+      {
+        "label": "Transparency Reports",
+        "value": "6"
+      },
+      {
+        "label": "Resolved Grievances",
+        "value": "14"
+      }
     ],
+    "members": [
+      {
+        "id": "sm1",
+        "name": "عمر ديمير",
+        "year": "السنة الرابعة",
+        "major": "إدارة الأعمال",
+        "phone": "05323456789",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-2db801f5-c6e9-4a4c-88ea-f143ffeef696.jpg",
+        "position": "Financial Auditor",
+        "university": "جامعة بورصة التقنية"
+      }
+    ],
+    "shortName": "Supervisory",
+    "description": "An independent body monitoring regulatory compliance, transparency, and institutional accountability across the Union.",
+    "responsibilities": [
+      "Monitoring adherence to bylaws and regulations",
+      "Auditing administrative and financial records",
+      "Investigating grievances and irregularities",
+      "Evaluating performance of committees and members",
+      "Issuing regular transparency and audit reports"
+    ]
   },
   {
-    id: 'activities',
-    name: 'Activities Committee',
-    shortName: 'Activities',
-    description: 'Organizes vibrant student events, educational trips, volunteer initiatives, and cultural gatherings.',
-    responsibilities: [
-      'Planning and executing student events and programs',
-      'Managing volunteer and civic campaigns',
-      'Organizing educational and recreational excursions',
-      'Supporting and overseeing student interest clubs',
-      'Promoting active student engagement',
+    "id": "activities",
+    "head": {
+      "id": "f20918e9-851d-47e6-a102-b769be41b453",
+      "bio": "Member of the Executive Board of the Ummah Youth Union",
+      "name": "م. سلمى أردوغان",
+      "role": "مسؤول الأنشطة",
+      "year": "الهيئة التنفيذية",
+      "email": "activities@ummet.org",
+      "major": "رئيس لجنة الأنشطة",
+      "phone": "",
+      "photo": "",
+      "updatedAt": "2026-08-23T23:57:01.714692+00:00",
+      "university": "اتحاد شباب الأمة"
+    },
+    "icon": "CalendarDays",
+    "name": "Activities Committee",
+    "color": "from-gold-500 to-gold-700",
+    "stats": [
+      {
+        "label": "Executed Events",
+        "value": "86"
+      },
+      {
+        "label": "Volunteers",
+        "value": "540"
+      },
+      {
+        "label": "Beneficiaries",
+        "value": "4.2K"
+      }
     ],
+    "members": [
+      {
+        "id": "acm1",
+        "name": "يوسف أكسوي",
+        "year": "السنة الثالثة",
+        "major": "الهندسة المدنية",
+        "phone": "05325678901",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-2db801f5-c6e9-4a4c-88ea-f143ffeef696.jpg",
+        "position": "Events Coordinator",
+        "university": "جامعة إسطنبول التقنية"
+      },
+      {
+        "id": "acm2",
+        "name": "نور هاكان",
+        "year": "السنة الرابعة",
+        "major": "إدارة الأعمال",
+        "phone": "05316789012",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-272463e1-8969-464e-929d-a80d2151ae58.jpg",
+        "position": "Volunteer Coordinator",
+        "university": "جامعة مرمرة"
+      }
+    ],
+    "shortName": "Activities",
+    "description": "Organizes vibrant student events, educational trips, volunteer initiatives, and cultural gatherings.",
+    "responsibilities": [
+      "Planning and executing student events and programs",
+      "Managing volunteer and civic campaigns",
+      "Organizing educational and recreational excursions",
+      "Supporting and overseeing student interest clubs",
+      "Promoting active student engagement"
+    ]
   },
   {
-    id: 'finance',
-    name: 'Finance Committee',
-    shortName: 'Finance',
-    description: 'Administers financial resources, prepares annual budgets, monitors cash flow, and ensures financial sustainability.',
-    responsibilities: [
-      'Formulating the Union\'s annual operating budget',
-      'Tracking and accounting for revenues and expenses',
-      'Managing fundraising and institutional sponsorships',
-      'Preparing periodic financial statements',
-      'Coordinating with the Supervisory Committee for audits',
+    "id": "finance",
+    "head": {
+      "id": "73860832-acc1-4995-8918-dcdd5a1b3cac",
+      "bio": "Member of the Executive Board of the Ummah Youth Union",
+      "name": "أ. عمر ديمير",
+      "role": "المسؤول المالي",
+      "year": "الهيئة التنفيذية",
+      "email": "finance@ummet.org",
+      "major": "رئيس اللجنة المالية",
+      "phone": "",
+      "photo": "",
+      "updatedAt": "2026-08-23T23:57:01.714692+00:00",
+      "university": "اتحاد شباب الأمة"
+    },
+    "icon": "Wallet",
+    "name": "Finance Committee",
+    "color": "from-teal-600 to-teal-800",
+    "stats": [
+      {
+        "label": "2026 Budget",
+        "value": "480K ₺"
+      },
+      {
+        "label": "Project Funding",
+        "value": "320K ₺"
+      },
+      {
+        "label": "Sponsors",
+        "value": "11"
+      }
     ],
-  },
+    "members": [
+      {
+        "id": "fm1",
+        "name": "خالد أرسلان",
+        "year": "دكتوراه",
+        "major": "القانون العام",
+        "phone": "05313456789",
+        "photo": "https://rscunkzvbsdbjzhnuria.supabase.co/storage/v1/object/public/avatars/11f9e6f2-828c-44a2-b05c-53400b3a9b9a/avatar-2db801f5-c6e9-4a4c-88ea-f143ffeef696.jpg",
+        "position": "Accountant",
+        "university": "جامعة أنقرة"
+      }
+    ],
+    "shortName": "Finance",
+    "description": "Administers financial resources, prepares annual budgets, monitors cash flow, and ensures financial sustainability.",
+    "responsibilities": [
+      "Formulating the Union's annual operating budget",
+      "Tracking and accounting for revenues and expenses",
+      "Managing fundraising and institutional sponsorships",
+      "Preparing periodic financial statements",
+      "Coordinating with the Supervisory Committee for audits"
+    ]
+  }
 ];
 
 // ===========================================================================

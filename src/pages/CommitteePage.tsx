@@ -43,7 +43,7 @@ type SubmissionFeedback = { id: number; type: 'success' | 'error'; text: string 
 export default function CommitteePage({ committeeId }: { committeeId: CommitteeId }) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language;
-  const { committees, currentUser, setView, pendingProfileEdits, submitProfileEdit, updateBoardHead, uploadManagedFile, savePublishedSiteTarget } = useApp();
+  const { committees, canonicalCommittees, currentUser, setView, pendingProfileEdits, submitProfileEdit, updateBoardHead, uploadManagedFile, savePublishedSiteTarget } = useApp();
   const localizationRepo = useCmsLocalizationRepository();
 
   // Modals
@@ -85,6 +85,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
   const [reviewOpen, setReviewOpen] = useState(false);
 
   const committee = committees.find((c) => c.id === committeeId);
+  const canonicalCommittee = (canonicalCommittees ?? committees).find((c) => c.id === committeeId);
   if (!committee) return null;
 
   const allowedCommitteeManager = currentUser?.role === 'PRESIDENT' ||
@@ -179,7 +180,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
 
   // Head
   const openHead = () => {
-    const h = committee.head ?? {};
+    const h = canonicalCommittee?.head ?? committee.head ?? {};
     setHeadTranslations({ tr: {}, en: {} });
     setHeadForm({ name: h.name ?? '', role: h.role ?? '', bio: h.bio ?? '', photo: h.photo ?? '', email: h.email ?? '' });
     setHeadModal(true);
@@ -200,7 +201,12 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
 
   // Responsibilities
   const openAddResp = () => { setRespIdx(-1); setRespTranslations({ tr: {}, en: {} }); setRespText(''); setRespModal(true); };
-  const openEditResp = (i: number) => { setRespIdx(i); setRespTranslations({ tr: {}, en: {} }); setRespText(committee.responsibilities?.[i] ?? ''); setRespModal(true); };
+  const openEditResp = (i: number) => {
+    setRespIdx(i);
+    setRespTranslations({ tr: {}, en: {} });
+    setRespText(canonicalCommittee?.responsibilities?.[i] ?? committee.responsibilities?.[i] ?? '');
+    setRespModal(true);
+  };
   const saveResp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!respText.trim()) return;
@@ -219,7 +225,16 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
   };
 
   // Stats
-  const openEditStat = (i: number) => { setStatIdx(i); setStatTranslations({ tr: {}, en: {} }); setStatForm({ ...(committee.stats?.[i] ?? { value: '', label: '' }) }); setStatModal(true); };
+  const openEditStat = (i: number) => {
+    setStatIdx(i);
+    setStatTranslations({ tr: {}, en: {} });
+    const canonStat = canonicalCommittee?.stats?.[i];
+    setStatForm({
+      value: canonStat?.value ?? committee.stats?.[i]?.value ?? '',
+      label: canonStat?.label ?? committee.stats?.[i]?.label ?? '',
+    });
+    setStatModal(true);
+  };
   const saveStat = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateRequired(statForm, ['value', 'label'], setInvalid)) return;
@@ -241,7 +256,12 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
   const openEditMember = (m: CommitteeMember) => {
     setEditingMember(m);
     setMemberTranslations({ tr: {}, en: {} });
-    setMemberForm({ name: m.name ?? '', position: m.position ?? '', photo: m.photo ?? '' });
+    const canonMember = canonicalCommittee?.members?.find((x) => x.id === m.id);
+    setMemberForm({
+      name: m.name ?? '',
+      position: canonMember?.position ?? m.position ?? '',
+      photo: m.photo ?? '',
+    });
     setMemberModal(true);
   };
   const saveMember = async (e: React.FormEvent) => {
@@ -538,7 +558,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
             <CmsEntityTranslationTabs
               target="committees"
               recordId={committee.id}
-              canonicalPayload={committees}
+              canonicalPayload={canonicalCommittees ?? committees}
               fields={[
                 {
                   name: 'head.bio',
@@ -593,7 +613,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
             <CmsEntityTranslationTabs
               target="committees"
               recordId={committee.id}
-              canonicalPayload={committees}
+              canonicalPayload={canonicalCommittees ?? committees}
               fields={[
                 {
                   name: `responsibilities.${respIdx >= 0 ? respIdx : (committee.responsibilities?.length ?? 0)}`,
@@ -639,7 +659,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
             <CmsEntityTranslationTabs
               target="committees"
               recordId={committee.id ? `${committee.id}.stats.${statIdx}` : `stats.${statIdx}`}
-              canonicalPayload={committees}
+              canonicalPayload={canonicalCommittees ?? committees}
               fields={[
                 {
                   name: 'label',
@@ -685,7 +705,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
             <CmsEntityTranslationTabs
               target="committees"
               recordId={editingMember?.id ?? null}
-              canonicalPayload={committees}
+              canonicalPayload={canonicalCommittees ?? committees}
               fields={[
                 {
                   name: 'position',

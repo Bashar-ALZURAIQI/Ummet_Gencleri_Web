@@ -960,6 +960,8 @@ const ar = {
       entertainment: 'ترفيهي',
       visit: 'زيارات',
     },
+    enrolledCount: '{{count}} مسجل',
+    enrolledCapacity: '{{current}} / {{max}} مسجل',
   },
   executive: {
     sections: {

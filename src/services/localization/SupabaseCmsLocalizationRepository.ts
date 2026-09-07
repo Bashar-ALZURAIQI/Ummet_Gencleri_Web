@@ -21,7 +21,7 @@ export interface CmsLocalizationQueryClient {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   from(table: string): any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  rpc?(fn: string, args?: Record<string, unknown>): Promise<{ data: any; error: { message: string } | null }>;
+  rpc?(fn: string, args?: Record<string, unknown>): PromiseLike<{ data: any; error: { message: string } | null }>;
 }
 
 export class SupabaseCmsLocalizationRepository implements CmsLocalizationRepository {
@@ -34,7 +34,7 @@ export class SupabaseCmsLocalizationRepository implements CmsLocalizationReposit
   private async getClient(): Promise<CmsLocalizationQueryClient> {
     if (this.client) return this.client;
     const mod = await import('../../lib/supabase.ts');
-    this.client = mod.supabase;
+    this.client = mod.supabase as unknown as CmsLocalizationQueryClient;
     return this.client;
   }
 

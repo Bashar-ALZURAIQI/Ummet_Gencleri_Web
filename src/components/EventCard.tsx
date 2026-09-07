@@ -1,9 +1,11 @@
 import { CalendarDays, MapPin, Users, Clock, CheckCircle2, ExternalLink } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '../context/AppContext';
-import { categoryLabels, categoryColors, type UEvent } from '../data/mockData';
+import { categoryColors, type UEvent } from '../data/mockData';
 import type { StudentActivityBoardItem } from '../domain/internalEconomyTypes.ts';
 import { formatEnrollmentCount } from '../domain/internalEconomyInteraction.ts';
+import { getEventCategoryLabel } from '../domain/eventCategoryPresentation.ts';
+import { formatPublicDate, formatPublicTime } from '../domain/datePresentation.ts';
 import ActivityDecisionControls from './ActivityDecisionControls';
 
 export default function EventCard({ event, activity, activityLoading = false, activityBusy = false, onJoin, onDecline }: {
@@ -15,20 +17,16 @@ export default function EventCard({ event, activity, activityLoading = false, ac
   onDecline?: (activity: StudentActivityBoardItem) => void;
 }) {
   const { currentUser, setView, studentAccess } = useApp();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const registered = activity?.joiningCount ?? event.registered;
   const capacity = activity?.maxCapacity ?? event.capacity;
   const isFull = capacity !== null && registered >= capacity;
-  const date = new Date(event.date);
-  const dateStr = date.toLocaleDateString('ar-EG', {
+  const dateStr = formatPublicDate(event.date, i18n.language, {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
   });
-  const timeStr = date.toLocaleTimeString('ar-EG', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const timeStr = formatPublicTime(event.date, i18n.language);
 
   return (
     <article className="card group flex flex-col overflow-hidden transition-all hover:-translate-y-1 hover:shadow-xl">
@@ -41,9 +39,9 @@ export default function EventCard({ event, activity, activityLoading = false, ac
         />
         <div className="absolute inset-0 bg-gradient-to-t from-navy-950/70 via-navy-950/10 to-transparent" />
         <span
-          className={`absolute top-3 right-3 rounded-full px-3 py-1 text-xs font-bold ${categoryColors[event.category]}`}
+          className={`absolute top-3 right-3 rounded-full px-3 py-1 text-xs font-bold ${categoryColors[event.category] || 'bg-navy-50 text-navy-700'}`}
         >
-          {categoryLabels[event.category]}
+          {getEventCategoryLabel(event.category, t)}
         </span>
         {event.status === 'past' && (
           <span className="absolute top-3 left-3 rounded-full bg-navy-900/80 px-3 py-1 text-xs font-bold text-white backdrop-blur-sm">
@@ -74,7 +72,7 @@ export default function EventCard({ event, activity, activityLoading = false, ac
           <div className="flex items-center gap-2">
             <Users className="h-4 w-4 text-navy-500" />
             <span>
-              {formatEnrollmentCount(registered, capacity)}
+              {formatEnrollmentCount(registered, capacity, t)}
             </span>
           </div>
         </div>

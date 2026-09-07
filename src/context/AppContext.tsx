@@ -613,6 +613,7 @@ interface AppContextValue {
   canAccessCommittee: (committeeId: CommitteeId) => boolean;
   canAccessAdmin: () => boolean;
   canEditSection: (section: AdminSection) => boolean;
+  refreshPublishedLocalizations: () => Promise<void>;
   generalInfo: GeneralInfo;
   setGeneralInfo: React.Dispatch<React.SetStateAction<GeneralInfo>>;
   siteContent: SiteContent;
@@ -726,7 +727,6 @@ interface AppContextValue {
   canonicalContactCards?: ContactCardData[];
   canonicalContactMap?: ContactMapData;
   canonicalGeneralInfo?: GeneralInfo;
-  refreshPublishedLocalizations?: () => Promise<void>;
 }
 
 const EMPTY_OWN_PROFILE_OPERATION_RESULTS: OwnProfileOperationResults = {
@@ -1388,97 +1388,97 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const effectiveNews = useMemo(() => {
     if (activeLocale === 'ar' || view.kind === 'admin') return news;
     const localized = publishedLocalizations['news'];
-    return overlayLocalizedCmsPayload(news, localized) as NewsItem[];
+    return overlayLocalizedCmsPayload(news, localized, 'news') as NewsItem[];
   }, [activeLocale, view.kind, news, publishedLocalizations]);
 
   const effectiveEvents = useMemo(() => {
     if (activeLocale === 'ar' || view.kind === 'admin') return events;
     const localized = publishedLocalizations['events'];
-    return overlayLocalizedCmsPayload(events, localized) as UEvent[];
+    return overlayLocalizedCmsPayload(events, localized, 'events') as UEvent[];
   }, [activeLocale, view.kind, events, publishedLocalizations]);
 
   const effectiveSiteContent = useMemo(() => {
     if (activeLocale === 'ar' || view.kind === 'admin') return siteContent;
     const localized = publishedLocalizations['site'];
-    return overlayLocalizedCmsPayload(siteContent, localized) as SiteContent;
+    return overlayLocalizedCmsPayload(siteContent, localized, 'site') as SiteContent;
   }, [activeLocale, view.kind, siteContent, publishedLocalizations]);
 
   const effectiveAboutContent = useMemo(() => {
     if (activeLocale === 'ar' || view.kind === 'admin') return aboutContent;
     const localized = publishedLocalizations['about'];
-    return overlayLocalizedCmsPayload(aboutContent, localized) as AboutContent;
+    return overlayLocalizedCmsPayload(aboutContent, localized, 'about') as AboutContent;
   }, [activeLocale, view.kind, aboutContent, publishedLocalizations]);
 
   const effectiveFaqCategories = useMemo(() => {
     if (activeLocale === 'ar' || view.kind === 'admin') return faqCategories;
     const localized = publishedLocalizations['faqCategories'];
-    return overlayLocalizedCmsPayload(faqCategories, localized) as FAQCategoryData[];
+    return overlayLocalizedCmsPayload(faqCategories, localized, 'faqCategories') as FAQCategoryData[];
   }, [activeLocale, view.kind, faqCategories, publishedLocalizations]);
 
   const effectiveGuideSections = useMemo(() => {
     if (activeLocale === 'ar' || view.kind === 'admin') return guideSections;
     const localized = publishedLocalizations['guideSections'];
-    return overlayLocalizedCmsPayload(guideSections, localized) as GuideSectionData[];
+    return overlayLocalizedCmsPayload(guideSections, localized, 'guideSections') as GuideSectionData[];
   }, [activeLocale, view.kind, guideSections, publishedLocalizations]);
 
   const effectiveGuideQuickInfo = useMemo(() => {
     if (activeLocale === 'ar' || view.kind === 'admin') return guideQuickInfo;
     const localized = publishedLocalizations['guideQuickInfo'];
-    return overlayLocalizedCmsPayload(guideQuickInfo, localized) as string;
+    return overlayLocalizedCmsPayload(guideQuickInfo, localized, 'guideQuickInfo') as string;
   }, [activeLocale, view.kind, guideQuickInfo, publishedLocalizations]);
 
   const effectiveGalleryAlbums = useMemo(() => {
     if (activeLocale === 'ar' || view.kind === 'admin') return galleryAlbums;
     const localized = publishedLocalizations['galleryAlbums'];
-    return overlayLocalizedCmsPayload(galleryAlbums, localized) as GalleryAlbum[];
+    return overlayLocalizedCmsPayload(galleryAlbums, localized, 'galleryAlbums') as GalleryAlbum[];
   }, [activeLocale, view.kind, galleryAlbums, publishedLocalizations]);
 
   const effectiveGalleryCategories = useMemo(() => {
     if (activeLocale === 'ar' || view.kind === 'admin') return galleryCategories;
     const localized = publishedLocalizations['galleryCategories'];
-    return overlayLocalizedCmsPayload(galleryCategories, localized) as GalleryCategory[];
+    return overlayLocalizedCmsPayload(galleryCategories, localized, 'galleryCategories') as GalleryCategory[];
   }, [activeLocale, view.kind, galleryCategories, publishedLocalizations]);
 
   const effectiveCommittees = useMemo(() => {
     if (activeLocale === 'ar' || view.kind === 'admin') return committees;
     const localized = publishedLocalizations['committees'];
-    return overlayLocalizedCmsPayload(committees, localized) as typeof mockCommittees;
+    return overlayLocalizedCmsPayload(committees, localized, 'committees') as typeof mockCommittees;
   }, [activeLocale, view.kind, committees, publishedLocalizations]);
 
   const effectivePlans = useMemo(() => {
     if (activeLocale === 'ar' || view.kind === 'admin') return plans;
     const localized = publishedLocalizations['plans'];
-    return overlayLocalizedCmsPayload(plans, localized) as AdminPlan[];
+    return overlayLocalizedCmsPayload(plans, localized, 'plans') as AdminPlan[];
   }, [activeLocale, view.kind, plans, publishedLocalizations]);
 
   const effectiveReports = useMemo(() => {
     if (activeLocale === 'ar' || view.kind === 'admin') return reports;
     const localized = publishedLocalizations['reports'];
-    return overlayLocalizedCmsPayload(reports, localized) as AdminReport[];
+    return overlayLocalizedCmsPayload(reports, localized, 'reports') as AdminReport[];
   }, [activeLocale, view.kind, reports, publishedLocalizations]);
 
   const effectiveProgramsContent = useMemo(() => {
     if (activeLocale === 'ar' || view.kind === 'admin') return programsContent;
     const localized = publishedLocalizations['programsContent'];
-    return overlayLocalizedCmsPayload(programsContent, localized) as ProgramsContent;
+    return overlayLocalizedCmsPayload(programsContent, localized, 'programsContent') as ProgramsContent;
   }, [activeLocale, view.kind, programsContent, publishedLocalizations]);
 
   const effectiveContactCards = useMemo(() => {
     if (activeLocale === 'ar' || view.kind === 'admin') return contactCards;
     const localized = publishedLocalizations['contactCards'];
-    return overlayLocalizedCmsPayload(contactCards, localized) as ContactCardData[];
+    return overlayLocalizedCmsPayload(contactCards, localized, 'contactCards') as ContactCardData[];
   }, [activeLocale, view.kind, contactCards, publishedLocalizations]);
 
   const effectiveContactMap = useMemo(() => {
     if (activeLocale === 'ar' || view.kind === 'admin') return contactMap;
     const localized = publishedLocalizations['contactMap'];
-    return overlayLocalizedCmsPayload(contactMap, localized) as ContactMapData;
+    return overlayLocalizedCmsPayload(contactMap, localized, 'contactMap') as ContactMapData;
   }, [activeLocale, view.kind, contactMap, publishedLocalizations]);
 
   const effectiveGeneralInfo = useMemo(() => {
     if (activeLocale === 'ar' || view.kind === 'admin') return generalInfo;
     const localized = publishedLocalizations['generalInfo'];
-    return overlayLocalizedCmsPayload(generalInfo, localized) as GeneralInfo;
+    return overlayLocalizedCmsPayload(generalInfo, localized, 'generalInfo') as GeneralInfo;
   }, [activeLocale, view.kind, generalInfo, publishedLocalizations]);
 
   const applyPublishedContentBundle = useCallback((bundle: SiteContentBundle) => {
@@ -3739,6 +3739,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       canAccessCommittee,
       canAccessAdmin,
       canEditSection,
+      refreshPublishedLocalizations,
       generalInfo: effectiveGeneralInfo,
       setGeneralInfo,
       siteContent: effectiveSiteContent,
@@ -3777,7 +3778,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       canonicalContactCards: contactCards,
       canonicalContactMap: contactMap,
       canonicalGeneralInfo: generalInfo,
-      refreshPublishedLocalizations,
       members,
       setMembers,
       updateMemberProfile,

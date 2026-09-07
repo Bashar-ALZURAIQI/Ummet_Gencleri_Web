@@ -41,7 +41,7 @@ const colorOptions = [
 
 export default function StudentGuide() {
   const { t } = useTranslation();
-  const { currentUser, guideSections, guideQuickInfo, submitSiteEdit, savePublishedSiteTarget } = useApp();
+  const { currentUser, guideSections, guideQuickInfo, canonicalGuideSections, submitSiteEdit, savePublishedSiteTarget } = useApp();
   const localizationRepo = useCmsLocalizationRepository();
   const [activeSectionId, setActiveSectionId] = useState(guideSections[0]?.id ?? '');
   const [sectionModalOpen, setSectionModalOpen] = useState(false);
@@ -58,6 +58,10 @@ export default function StudentGuide() {
   });
   const [contactModalOpen, setContactModalOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<GuideContact | null>(null);
+  const [contactTranslations, setContactTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
+    tr: {},
+    en: {},
+  });
   const [quickInfo, setQuickInfo] = useState(guideQuickInfo);
   const [editingQuickInfo, setEditingQuickInfo] = useState(false);
   const [invalid, setInvalid] = useState<string[]>([]);
@@ -93,9 +97,10 @@ export default function StudentGuide() {
   };
 
   const openEditSection = (s: GuideSectionData) => {
-    setEditingSection(s);
+    const canon = canonicalGuideSections?.find((sec) => sec.id === s.id) ?? s;
+    setEditingSection(canon);
     setSecTranslations({ tr: {}, en: {} });
-    setSectionForm({ label: s.label, icon: s.icon, color: s.color, bg: s.bg, title: s.title, intro: s.intro });
+    setSectionForm({ label: canon.label, icon: canon.icon, color: canon.color, bg: canon.bg, title: canon.title, intro: canon.intro });
     setSectionModalOpen(true);
   };
 
@@ -254,9 +259,15 @@ export default function StudentGuide() {
   };
 
   const openEditItem = (item: GuideItem) => {
-    setEditingItem(item);
+    const canonSec = canonicalGuideSections?.find((sec) => sec.id === activeSectionId);
+    const canonItem = canonSec?.items?.find((it) => it.id === item.id);
+    setEditingItem(canonItem ?? item);
     setItemTranslations({ tr: {}, en: {} });
-    setItemForm({ heading: item.heading, body: item.body, tips: item.tips.length ? [...item.tips] : [''] });
+    setItemForm({
+      heading: canonItem?.heading ?? item.heading,
+      body: canonItem?.body ?? item.body,
+      tips: (canonItem?.tips ?? item.tips).length ? [...(canonItem?.tips ?? item.tips)] : [''],
+    });
     setItemModalOpen(true);
   };
 
@@ -391,8 +402,15 @@ export default function StudentGuide() {
   };
 
   const openEditContact = (c: GuideContact) => {
-    setEditingContact(c);
-    setContactForm({ label: c.label, value: c.value, type: c.type });
+    const canonSec = canonicalGuideSections?.find((sec) => sec.id === activeSectionId);
+    const canonContact = canonSec?.contacts?.find((ct) => ct.id === c.id);
+    setEditingContact(canonContact ?? c);
+    setContactTranslations({ tr: {}, en: {} });
+    setContactForm({
+      label: canonContact?.label ?? c.label,
+      value: canonContact?.value ?? c.value,
+      type: canonContact?.type ?? c.type,
+    });
     setContactModalOpen(true);
   };
 
@@ -755,7 +773,7 @@ export default function StudentGuide() {
           <CmsEntityTranslationTabs
             target="guideSections"
             recordId={editingSection?.id ?? null}
-            canonicalPayload={editingSection ? guideSections.map((s) => s.id === editingSection.id ? { ...s, ...sectionForm } : s) : guideSections}
+            canonicalPayload={canonicalGuideSections ?? guideSections}
             fields={[
               {
                 name: 'label',
@@ -854,7 +872,7 @@ export default function StudentGuide() {
           <CmsEntityTranslationTabs
             target="guideSections"
             recordId={editingItem?.id ?? null}
-            canonicalPayload={editingItem ? guideSections.map((s) => s.id === activeSectionId ? { ...s, items: s.items.map((it) => it.id === editingItem.id ? { ...it, heading: itemForm.heading, body: itemForm.body, tips: itemForm.tips.filter(Boolean) } : it) } : s) : guideSections}
+            canonicalPayload={canonicalGuideSections ?? guideSections}
             fields={[
               {
                 name: 'heading',
@@ -938,10 +956,34 @@ export default function StudentGuide() {
       {/* Contact Modal */}
       <Modal open={contactModalOpen} onClose={() => setContactModalOpen(false)} title={editingContact ? 'تعديل جهة اتصال' : 'إضافة جهة اتصال'} maxWidth="max-w-md">
         <form onSubmit={saveContact} className="space-y-4">
-          <div>
-            <label htmlFor={fieldId('contactLabel')} className="label-field">الاسم <RequiredMark /></label>
-            <input id={fieldId('contactLabel')} required className={`input-field ${isInvalid(invalid, 'contactLabel')}`} value={contactForm.label} onChange={(e) => { setContactForm({ ...contactForm, label: e.target.value }); clearInvalid(setInvalid, 'contactLabel'); }} placeholder="مثال: قسم شؤون الطلاب" />
-          </div>
+          <CmsEntityTranslationTabs
+            target="guideSections"
+            recordId={editingContact?.id ?? null}
+            canonicalPayload={canonicalGuideSections ?? guideSections}
+            fields={[
+              {
+                name: 'label',
+                label: 'الاسم',
+                kind: 'title',
+                canonicalValue: contactForm.label,
+                placeholder: 'مثال: قسم شؤون الطلاب',
+              },
+            ]}
+            canEdit={Boolean(isPresidentOrMedia)}
+            canPublish={Boolean(isPresident)}
+            translations={contactTranslations}
+            onTranslationChange={(loc, name, val) => {
+              setContactTranslations((prev) => ({
+                ...prev,
+                [loc]: { ...prev[loc], [name]: val },
+              }));
+            }}
+          >
+            <div>
+              <label htmlFor={fieldId('contactLabel')} className="label-field">الاسم <RequiredMark /></label>
+              <input id={fieldId('contactLabel')} required className={`input-field ${isInvalid(invalid, 'contactLabel')}`} value={contactForm.label} onChange={(e) => { setContactForm({ ...contactForm, label: e.target.value }); clearInvalid(setInvalid, 'contactLabel'); }} placeholder="مثال: قسم شؤون الطلاب" />
+            </div>
+          </CmsEntityTranslationTabs>
           <div>
             <label htmlFor={fieldId('contactValue')} className="label-field">القيمة <RequiredMark /></label>
             <input id={fieldId('contactValue')} required className={`input-field ${isInvalid(invalid, 'contactValue')}`} dir="ltr" value={contactForm.value} onChange={(e) => { setContactForm({ ...contactForm, value: e.target.value }); clearInvalid(setInvalid, 'contactValue'); }} placeholder="+90 442 231 0000" />

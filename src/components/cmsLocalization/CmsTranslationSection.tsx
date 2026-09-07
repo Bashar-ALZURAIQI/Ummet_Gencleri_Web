@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronDown, ChevronUp, Save, Globe } from 'lucide-react';
+import { ChevronDown, ChevronUp, Save, Globe, CheckCircle2 } from 'lucide-react';
 import {
   type CmsTarget,
   type LocalizedCmsLocale,
@@ -15,6 +15,7 @@ import {
   recordManualPath,
   updateNestedPayload,
   resolveDraftBasePayload,
+  executeCmsPublish,
 } from '../../domain/cmsLocalizationEditor.ts';
 import {
   useCmsLocalizationRepository,
@@ -30,6 +31,7 @@ export interface CmsTranslationSectionProps {
   canonicalValue: string;
   canonicalPayload: JsonValue;
   canEdit: boolean;
+  canPublish?: boolean;
   onDraftSaved?: (locale: LocalizedCmsLocale) => void;
   onPublished?: (locale: LocalizedCmsLocale) => void;
 }
@@ -44,8 +46,11 @@ interface LocaleFieldState {
   record: CmsLocalizationRecord | null;
   draftRecord: CmsLocalizationRecord | null;
   publishedRecord: CmsLocalizationRecord | null;
+  hasDraft: boolean;
   saving: boolean;
   saveError: string | null;
+  publishing: boolean;
+  publishError: string | null;
 }
 
 const createInitialLocaleState = (): LocaleFieldState => ({
@@ -58,8 +63,11 @@ const createInitialLocaleState = (): LocaleFieldState => ({
   record: null,
   draftRecord: null,
   publishedRecord: null,
+  hasDraft: false,
   saving: false,
   saveError: null,
+  publishing: false,
+  publishError: null,
 });
 
 export function CmsTranslationSection({
@@ -69,10 +77,16 @@ export function CmsTranslationSection({
   kind,
   canonicalPayload,
   canEdit,
+  canPublish,
   onDraftSaved,
+  onPublished,
 }: CmsTranslationSectionProps) {
   const { t } = useTranslation();
   const repository = useCmsLocalizationRepository();
+
+  const isAuthorizedToPublish = canPublish !== undefined
+    ? canPublish
+    : Boolean(canEdit);
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [trState, setTrState] = useState<LocaleFieldState>(createInitialLocaleState);
@@ -89,10 +103,23 @@ export function CmsTranslationSection({
           repository.getPublished(target, locale),
         ]);
 
-        // Precedence: draftRecord > publishedRecord
-        const activeRecord = draftRecord ?? publishedRecord;
+        const isDraftStaleComparedToPublished = Boolean(
+          publishedRecord &&
+          publishedRecord.status === 'fresh' &&
+          draftRecord &&
+          (!draftRecord.updatedAt || !publishedRecord.updatedAt || new Date(draftRecord.updatedAt) <= new Date(publishedRecord.updatedAt))
+        );
+
+        const hasDraft = Boolean(draftRecord && !isDraftStaleComparedToPublished);
+        // Precedence: draftRecord > publishedRecord (unless superseded by fresh publish)
+        const activeRecord = isDraftStaleComparedToPublished ? publishedRecord : (draftRecord ?? publishedRecord);
         if (!activeRecord) {
-          return createInitialLocaleState();
+          return {
+            ...createInitialLocaleState(),
+            draftRecord,
+            publishedRecord,
+            hasDraft,
+          };
         }
 
         const derived = deriveFieldLocalizationState(path, activeRecord);
@@ -106,8 +133,11 @@ export function CmsTranslationSection({
           record: activeRecord,
           draftRecord,
           publishedRecord,
+          hasDraft,
           saving: false,
           saveError: null,
+          publishing: false,
+          publishError: null,
         };
       } catch {
         return createInitialLocaleState();
@@ -194,6 +224,7 @@ export function CmsTranslationSection({
         status: 'draft',
         record: saved,
         draftRecord: saved,
+        hasDraft: true,
         saveError: null,
       }));
 
@@ -203,6 +234,67 @@ export function CmsTranslationSection({
         ...prev,
         saving: false,
         saveError: t('cmsLocalization.saveFailed', 'تعذر حفظ المسودة.'),
+      }));
+    }
+  };
+
+  const handlePublish = async (locale: LocalizedCmsLocale) => {
+    if (!canEdit || !isAuthorizedToPublish) return;
+    const currentState = locale === 'tr' ? trState : enState;
+    const updater = locale === 'tr' ? setTrState : setEnState;
+
+    updater((prev) => ({ ...prev, publishing: true, publishError: null }));
+
+    try {
+      const [latestDraft, latestPublished] = await Promise.all([
+        repository.getDraft(target, locale),
+        repository.getPublished(target, locale),
+      ]);
+
+      const basePayload = resolveDraftBasePayload(
+        latestDraft,
+        latestPublished,
+        canonicalPayload,
+      );
+      const updatedPayload = updateNestedPayload(basePayload, path, currentState.value);
+
+      const latestActive = latestDraft ?? latestPublished ?? currentState.record;
+      const mergedManualPaths = [
+        ...(latestActive?.manualPaths ?? []),
+        ...currentState.manualPaths,
+      ];
+      const updatedManualPaths = recordManualPath(mergedManualPaths, path);
+
+      const saved = await executeCmsPublish({
+        repository,
+        target,
+        locale,
+        canonicalPayload,
+        payload: updatedPayload,
+        manualPaths: updatedManualPaths,
+        sourceVersion: latestActive?.sourceVersion ?? currentState.record?.sourceVersion,
+      });
+
+      updater((prev) => ({
+        ...prev,
+        publishing: false,
+        isDirty: false,
+        status: 'fresh',
+        isStale: false,
+        record: saved,
+        publishedRecord: saved,
+        draftRecord: null,
+        hasDraft: false,
+        publishError: null,
+      }));
+
+      onDraftSaved?.(locale);
+      if (onPublished) onPublished(locale);
+    } catch {
+      updater((prev) => ({
+        ...prev,
+        publishing: false,
+        publishError: t('cmsLocalization.publishFailed', 'تعذر نشر الترجمة.'),
       }));
     }
   };
@@ -246,6 +338,11 @@ export function CmsTranslationSection({
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-navy-900">Türkçe</span>
                 <TranslationStatusBadge status={trState.status} size="sm" />
+                {trState.hasDraft && (
+                  <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                    {t('cmsLocalization.draftIndicator', 'مسودة')}
+                  </span>
+                )}
               </div>
             </div>
             <LocalizedFieldEditor
@@ -265,16 +362,32 @@ export function CmsTranslationSection({
                 {trState.saveError}
               </div>
             )}
+            {trState.publishError && (
+              <div role="alert" className="rounded bg-rose-50 px-2 py-1 text-xs text-rose-700 border border-rose-200">
+                {trState.publishError}
+              </div>
+            )}
             <div className="flex justify-end gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => void handleSaveDraft('tr')}
-                disabled={!canEdit || trState.saving}
+                disabled={!canEdit || trState.saving || trState.publishing}
                 className="inline-flex items-center gap-1 rounded border border-navy-300 bg-white px-2.5 py-1 text-xs font-medium text-navy-700 hover:bg-navy-50 disabled:opacity-50 transition-colors"
               >
                 <Save className="h-3 w-3" />
                 {trState.saving ? t('cmsLocalization.saving', 'جاري الحفظ...') : t('cmsLocalization.saveDraft', 'حفظ كمسودة')}
               </button>
+              {isAuthorizedToPublish && (
+                <button
+                  type="button"
+                  onClick={() => void handlePublish('tr')}
+                  disabled={!canEdit || trState.saving || trState.publishing}
+                  className="inline-flex items-center gap-1 rounded bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                >
+                  <CheckCircle2 className="h-3 w-3" />
+                  {trState.publishing ? t('cmsLocalization.publishing', 'جارٍ النشر...') : t('cmsLocalization.publishChanges', 'نشر الترجمة')}
+                </button>
+              )}
             </div>
           </div>
 
@@ -284,6 +397,11 @@ export function CmsTranslationSection({
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-navy-900">English</span>
                 <TranslationStatusBadge status={enState.status} size="sm" />
+                {enState.hasDraft && (
+                  <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                    {t('cmsLocalization.draftIndicator', 'مسودة')}
+                  </span>
+                )}
               </div>
             </div>
             <LocalizedFieldEditor
@@ -295,7 +413,7 @@ export function CmsTranslationSection({
               kind={kind}
               isStale={enState.isStale}
               isManual={enState.isManual}
-              disabled={!canEdit || enState.saving}
+              disabled={!canEdit || enState.saving || enState.publishing}
               onChange={(val) => handleFieldChange('en', val)}
             />
             {enState.saveError && (
@@ -303,16 +421,32 @@ export function CmsTranslationSection({
                 {enState.saveError}
               </div>
             )}
+            {enState.publishError && (
+              <div role="alert" className="rounded bg-rose-50 px-2 py-1 text-xs text-rose-700 border border-rose-200">
+                {enState.publishError}
+              </div>
+            )}
             <div className="flex justify-end gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => void handleSaveDraft('en')}
-                disabled={!canEdit || enState.saving}
+                disabled={!canEdit || enState.saving || enState.publishing}
                 className="inline-flex items-center gap-1 rounded border border-navy-300 bg-white px-2.5 py-1 text-xs font-medium text-navy-700 hover:bg-navy-50 disabled:opacity-50 transition-colors"
               >
                 <Save className="h-3 w-3" />
                 {enState.saving ? t('cmsLocalization.saving', 'جاري الحفظ...') : t('cmsLocalization.saveDraft', 'حفظ كمسودة')}
               </button>
+              {isAuthorizedToPublish && (
+                <button
+                  type="button"
+                  onClick={() => void handlePublish('en')}
+                  disabled={!canEdit || enState.saving || enState.publishing}
+                  className="inline-flex items-center gap-1 rounded bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                >
+                  <CheckCircle2 className="h-3 w-3" />
+                  {enState.publishing ? t('cmsLocalization.publishing', 'جارٍ النشر...') : t('cmsLocalization.publishChanges', 'نشر الترجمة')}
+                </button>
+              )}
             </div>
           </div>
         </div>

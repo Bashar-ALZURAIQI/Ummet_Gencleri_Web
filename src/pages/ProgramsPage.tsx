@@ -532,7 +532,7 @@ export default function ProgramsPage() {
                 cat === c ? 'bg-navy-800 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
               }`}
             >
-              {categoryLabels[c]}
+              {getEventCategoryLabel(c, t)}
             </button>
           ))}
         </div>

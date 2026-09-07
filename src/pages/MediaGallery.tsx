@@ -14,6 +14,7 @@ import ManagedFileField from '../components/ManagedFileField';
 import { CmsEntityTranslationTabs } from '../components/cmsLocalization/CmsEntityTranslationTabs';
 import { useCmsLocalizationRepository } from '../context/CmsLocalizationContext';
 import { computeSourceHash, type LocalizedCmsLocale, type JsonValue } from '../domain/cmsLocalization';
+import { formatPublicDate } from '../domain/datePresentation';
 
 export default function MediaGallery() {
   const {
@@ -594,7 +595,7 @@ export default function MediaGallery() {
                 <div className="flex items-center gap-4 text-xs text-gray-500">
                   <span className="flex items-center gap-1">
                     <Calendar className="h-3.5 w-3.5" />
-                    {new Date(album.date).toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    {formatPublicDate(album.date, i18n.language, { day: 'numeric', month: 'long', year: 'numeric' })}
                   </span>
                   <span className="flex items-center gap-1">
                     <MapPin className="h-3.5 w-3.5" />
@@ -645,7 +646,7 @@ export default function MediaGallery() {
                 <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-gray-200">
                   <span className="flex items-center gap-1">
                     <Calendar className="h-4 w-4" />
-                    {new Date(selectedAlbum.date).toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    {formatPublicDate(selectedAlbum.date, i18n.language, { day: 'numeric', month: 'long', year: 'numeric' })}
                   </span>
                   <span className="flex items-center gap-1">
                     <MapPin className="h-4 w-4" />

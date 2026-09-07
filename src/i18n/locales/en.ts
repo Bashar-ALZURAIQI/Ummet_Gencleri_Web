@@ -958,6 +958,8 @@ const en: TranslationSchema = {
       entertainment: 'Entertainment',
       visit: 'Visit',
     },
+    enrolledCount: '{{count}} registered',
+    enrolledCapacity: '{{current}} / {{max}} registered',
   },
   executive: {
     sections: {

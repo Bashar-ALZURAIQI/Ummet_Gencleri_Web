@@ -12,11 +12,15 @@
 import {
   type LocalizationStatus,
   type CmsLocalizationRecord,
+  type CmsTarget,
+  type LocalizedCmsLocale,
   type JsonValue,
+  computeSourceHash,
   normalizeLocalizationPaths,
   isLocalizationPathStale,
   isLocalizationPathManual,
 } from './cmsLocalization.ts';
+import type { CmsLocalizationRepository } from './cmsLocalizationRepository.ts';
 
 // ---------------------------------------------------------------------------
 // 1. Location Value Safety Guard
@@ -238,4 +242,67 @@ export function resolveDraftBasePayload(
     return candidate as JsonValue;
   }
   return {};
+}
+
+// ---------------------------------------------------------------------------
+// 6. Shared Publish Execution
+// ---------------------------------------------------------------------------
+
+export interface ExecuteCmsPublishParams {
+  repository: Pick<CmsLocalizationRepository, 'savePublished' | 'deleteDraft'>;
+  target: CmsTarget | string;
+  locale: LocalizedCmsLocale;
+  canonicalPayload: unknown;
+  payload: JsonValue;
+  manualPaths: readonly string[];
+  sourceVersion?: string | number;
+}
+
+/**
+ * Shared publish execution behavior used across both entity tabs (CmsEntityTranslationTabs)
+ * and inline field editors (CmsTranslationSection).
+ *
+ * Rules:
+ * - Persists record to published partition with status = 'fresh'.
+ * - Sets current canonical sourceHash = computeSourceHash(canonicalPayload).
+ * - Normalizes and preserves manualPaths.
+ * - Clears stalePaths.
+ * - Deletes the consumed draft via repository.deleteDraft(target, locale).
+ * - Returns the saved published record.
+ */
+export async function executeCmsPublish(
+  params: ExecuteCmsPublishParams,
+): Promise<CmsLocalizationRecord> {
+  const {
+    repository,
+    target,
+    locale,
+    canonicalPayload,
+    payload,
+    manualPaths,
+    sourceVersion,
+  } = params;
+
+  const recordToSave: CmsLocalizationRecord = {
+    target,
+    locale,
+    payload,
+    status: 'fresh',
+    manualPaths: normalizeLocalizationPaths(manualPaths),
+    stalePaths: [],
+    sourceHash: computeSourceHash(canonicalPayload),
+    sourceVersion,
+    updatedAt: new Date().toISOString(),
+  };
+
+  const saved = await repository.savePublished(recordToSave);
+
+  // Consume/delete draft so it never overrides fresh published record
+  try {
+    await repository.deleteDraft(target, locale);
+  } catch {
+    // Safe fallback if draft does not exist or delete is not permitted
+  }
+
+  return saved;
 }

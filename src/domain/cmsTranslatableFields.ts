@@ -74,6 +74,7 @@ export const CMS_TRANSLATABLE_SCHEMA: Record<string, readonly CmsTranslatableFie
     { pathPattern: 'stats.*.label', kind: 'text' },
     { pathPattern: 'about.badge', kind: 'title' },
     { pathPattern: 'about.title', kind: 'title' },
+    { pathPattern: 'about.subtitle', kind: 'title' },
     { pathPattern: 'about.description', kind: 'description' },
     { pathPattern: 'about.imageBadge.label', kind: 'text' },
     { pathPattern: 'about.features.*.title', kind: 'title' },
@@ -161,6 +162,8 @@ export const CMS_TRANSLATABLE_SCHEMA: Record<string, readonly CmsTranslatableFie
     { pathPattern: '*.tips.*', kind: 'text' },
     { pathPattern: 'items.*.tips.*', kind: 'text' },
     { pathPattern: '*.items.*.tips.*', kind: 'text' },
+    { pathPattern: 'contacts.*.label', kind: 'text' },
+    { pathPattern: '*.contacts.*.label', kind: 'text' },
   ],
 
   // 8. Student Guide Quick Info
@@ -184,6 +187,8 @@ export const CMS_TRANSLATABLE_SCHEMA: Record<string, readonly CmsTranslatableFie
     { pathPattern: '*.items.*.body', kind: 'richText' },
     { pathPattern: 'items.*.tips.*', kind: 'text' },
     { pathPattern: '*.items.*.tips.*', kind: 'text' },
+    { pathPattern: 'contacts.*.label', kind: 'text' },
+    { pathPattern: '*.contacts.*.label', kind: 'text' },
     { pathPattern: 'items.*.title', kind: 'title' },
     { pathPattern: 'items.*.description', kind: 'description' },
   ],
@@ -214,6 +219,10 @@ export const CMS_TRANSLATABLE_SCHEMA: Record<string, readonly CmsTranslatableFie
     { pathPattern: '*.title', kind: 'title' },
     { pathPattern: 'sub', kind: 'description' },
     { pathPattern: '*.sub', kind: 'description' },
+    { pathPattern: 'address.value', kind: 'text' },
+    { pathPattern: '*.address.value', kind: 'text' },
+    { pathPattern: 'hours.value', kind: 'text' },
+    { pathPattern: '*.hours.value', kind: 'text' },
   ],
 
   // 11. Contact Map
@@ -309,16 +318,62 @@ export function matchPathPattern(pattern: string, path: string): boolean {
 }
 
 /**
+ * Distinguishes human contact card fields (address, working hours) from
+ * technical invariants (email addresses, phone numbers).
+ */
+export function isTranslatableContactCardValue(cardId: string | undefined, value: unknown): boolean {
+  if (cardId === 'email' || cardId === 'phone') return false;
+  if (cardId === 'address' || cardId === 'hours') return true;
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  // Exclude emails
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return false;
+  // Exclude phone numbers
+  if (/^\+?[\d\s\-().]{7,}$/.test(trimmed) && (trimmed.startsWith('+') || /^\d/.test(trimmed))) return false;
+  return true;
+}
+
+/**
  * Pure allowlist checker. Returns true only if the given target has an explicitly
  * allowlisted pattern matching the requested path. Unknown targets/paths fail closed.
  */
-export function isCmsPathTranslatable(target: CmsTarget | string, path: string): boolean {
+export function isCmsPathTranslatable(
+  target: CmsTarget | string,
+  path: string,
+  context?: { cardId?: string; value?: unknown },
+): boolean {
   if (!target || !path) return false;
-  const rules = CMS_TRANSLATABLE_SCHEMA[target];
-  if (!rules || rules.length === 0) return false;
-
   const cleanPath = path.trim();
   if (!cleanPath) return false;
+
+  if (target === 'contactCards') {
+    // Explicit technical exclusions
+    if (
+      cleanPath === 'email.value' ||
+      cleanPath.endsWith('.email.value') ||
+      cleanPath === 'phone.value' ||
+      cleanPath.endsWith('.phone.value')
+    ) {
+      return false;
+    }
+    // If checking a value path, enforce entity guard
+    if (cleanPath.endsWith('.value') || cleanPath === 'value') {
+      if (context?.cardId === 'email' || context?.cardId === 'phone') {
+        return false;
+      }
+      if (context?.cardId === 'address' || context?.cardId === 'hours') {
+        return true;
+      }
+      if (context?.value !== undefined && isTranslatableContactCardValue(context.cardId, context.value)) {
+        return true;
+      }
+      return false;
+    }
+  }
+
+  const rules = CMS_TRANSLATABLE_SCHEMA[target];
+  if (!rules || rules.length === 0) return false;
 
   return rules.some((rule) => matchPathPattern(rule.pathPattern, cleanPath));
 }
@@ -355,9 +410,15 @@ export function extractTranslatableCmsFields(
     }
 
     if (typeof value === 'object') {
-      for (const key of Object.keys(value)) {
+      const obj = value as Record<string, unknown>;
+      const cardId = target === 'contactCards' && typeof obj.id === 'string' ? obj.id : undefined;
+      for (const key of Object.keys(obj)) {
+        if (target === 'contactCards' && key === 'value' && cardId && !isTranslatableContactCardValue(cardId, obj.value)) {
+          // Strictly skip technical invariants (email/phone) in contactCards
+          continue;
+        }
         const nextPath = currentPath ? `${currentPath}.${key}` : key;
-        traverse((value as Record<string, unknown>)[key], nextPath);
+        traverse(obj[key], nextPath);
       }
       return;
     }

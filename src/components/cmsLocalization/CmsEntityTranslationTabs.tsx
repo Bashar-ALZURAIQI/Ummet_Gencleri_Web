@@ -13,6 +13,7 @@ import type { CmsFieldKind } from '../../domain/cmsTranslatableFields.ts';
 import {
   recordManualPath,
   isTranslatableLocationValue,
+  executeCmsPublish,
 } from '../../domain/cmsLocalizationEditor.ts';
 import {
   useCmsLocalizationRepository,
@@ -39,6 +40,7 @@ export interface CmsEntityTranslationTabsProps {
   translations: Record<LocalizedCmsLocale, Record<string, string>>;
   onTranslationChange: (locale: LocalizedCmsLocale, fieldName: string, value: string) => void;
   onDraftSaved?: (locale: LocalizedCmsLocale) => void;
+  onPublished?: (locale: LocalizedCmsLocale) => void;
   children: ReactNode;
 }
 
@@ -222,6 +224,7 @@ export function CmsEntityTranslationTabs({
   translations,
   onTranslationChange,
   onDraftSaved,
+  onPublished,
   children,
 }: CmsEntityTranslationTabsProps) {
   const { t } = useTranslation();
@@ -249,7 +252,15 @@ export function CmsEntityTranslationTabs({
           repository.getPublished(target, locale),
         ]);
 
-        const activeRecord = draftRecord ?? publishedRecord;
+        // If published is fresh and equal or newer than draft, prefer publishedRecord
+        const isDraftStaleComparedToPublished = Boolean(
+          publishedRecord &&
+          publishedRecord.status === 'fresh' &&
+          draftRecord &&
+          (!draftRecord.updatedAt || !publishedRecord.updatedAt || new Date(draftRecord.updatedAt) <= new Date(publishedRecord.updatedAt))
+        );
+
+        const activeRecord = (isDraftStaleComparedToPublished ? publishedRecord : draftRecord) ?? publishedRecord;
         if (!activeRecord || !recordId) {
           return { statusState: createInitialStatusState(), loadedFields: {} };
         }
@@ -461,28 +472,27 @@ export function CmsEntityTranslationTabs({
         }
       }
 
-      const recordToSave: CmsLocalizationRecord = {
+      // Shared publish execution: delegates to executeCmsPublish (which calls repository.savePublished and repository.deleteDraft)
+      await executeCmsPublish({
+        repository,
         target,
         locale,
+        canonicalPayload,
         payload: nextPayload,
-        status: 'fresh',
         manualPaths: updatedManual,
-        stalePaths: [],
-        sourceHash: computeSourceHash(canonicalPayload),
         sourceVersion: activeRecord?.sourceVersion,
-        updatedAt: new Date().toISOString(),
-      };
-
-      await repository.savePublished(recordToSave);
+      });
 
       updater((prev) => ({
         ...prev,
         publishing: false,
         status: 'fresh',
+        isStale: false,
         publishError: null,
       }));
 
       onDraftSaved?.(locale);
+      onPublished?.(locale);
     } catch {
       updater((prev) => ({
         ...prev,
@@ -649,7 +659,7 @@ export function CmsEntityTranslationTabs({
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   {(activeTab === 'tr' ? trStatus.publishing : enStatus.publishing)
                     ? t('cmsLocalization.publishing', 'جارٍ النشر...')
-                    : t('cmsLocalization.publish', 'نشر مباشر')}
+                    : t('cmsLocalization.publishChanges', 'نشر الترجمة')}
                 </button>
               )}
             </div>

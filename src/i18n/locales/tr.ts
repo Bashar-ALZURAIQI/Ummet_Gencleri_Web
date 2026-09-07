@@ -958,6 +958,8 @@ const tr: TranslationSchema = {
       entertainment: 'Eğlence',
       visit: 'Ziyaretler',
     },
+    enrolledCount: '{{count}} kayıtlı',
+    enrolledCapacity: '{{current}} / {{max}} kayıtlı',
   },
   executive: {
     sections: {

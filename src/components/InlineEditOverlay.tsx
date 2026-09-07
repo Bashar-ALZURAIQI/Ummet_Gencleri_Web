@@ -38,7 +38,6 @@ interface InlineAboutFieldUpdate {
   label?: string;
 }
 
-
 const InlineEditContext = createContext<InlineEditContextValue | null>(null);
 
 export function InlineEditProvider({ value, children }: { value: InlineEditContextValue; children: ReactNode }) {
@@ -59,34 +58,78 @@ const ICON_OPTIONS = [
   'Globe', 'Mail', 'Phone', 'MapPin', 'CheckCircle2', 'Clock', 'FileText',
 ] as const;
 
+/**
+ * Pure dot-notation getter to extract canonical Arabic values regardless of public locale.
+ */
+export function getCanonicalFieldValue(payload: unknown, path: string): string | number {
+  if (!payload || typeof payload !== 'object') return '';
+  const cleanPath = path.replace(/\[(\d+)\]/g, '.$1.');
+  const segments = cleanPath.split('.').map((s) => s.trim()).filter(Boolean);
+  let current: unknown = payload;
+  for (const seg of segments) {
+    if (current === null || current === undefined || typeof current !== 'object') {
+      return '';
+    }
+    current = (current as Record<string, unknown>)[seg];
+  }
+  if (typeof current === 'string' || typeof current === 'number') {
+    return current;
+  }
+  return '';
+}
+
 // Single-field edit button + centered modal
 export function EditableField({
   config,
   currentValue,
   canEdit,
+  canPublish: canPublishProp,
   children,
 }: {
   config: InlineEditConfig;
   currentValue: string;
   canEdit: boolean;
+  canPublish?: boolean;
   children: ReactNode;
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState(currentValue);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  const { updateSiteField, updateAboutField } = useInlineEditContext();
+  const {
+    uploadManagedFile,
+    siteContent,
+    aboutContent,
+    canonicalSiteContent,
+    canonicalAboutContent,
+    currentUser,
+    refreshPublishedLocalizations,
+  } = useApp();
+
+  const canPublish = canPublishProp !== undefined
+    ? canPublishProp
+    : currentUser?.role === 'PRESIDENT';
+
+  const canonicalBasePayload = config.target === 'site'
+    ? (canonicalSiteContent ?? siteContent)
+    : (canonicalAboutContent ?? aboutContent);
+
+  const getCanonicalValue = () => {
+    const canon = getCanonicalFieldValue(canonicalBasePayload, config.path);
+    return canon !== '' ? String(canon) : currentValue;
+  };
+
+  const [draft, setDraft] = useState(getCanonicalValue);
 
   const openModal = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setDraft(currentValue);
+    setDraft(getCanonicalValue());
     setSaveError(null);
     setOpen(true);
   };
-
-  const { updateSiteField, updateAboutField } = useInlineEditContext();
-  const { uploadManagedFile, siteContent, aboutContent } = useApp();
 
   const isTranslatable =
     config.type !== 'image' &&
@@ -95,8 +138,7 @@ export function EditableField({
     isCmsPathTranslatable(config.target, config.path);
 
   const fieldKind: CmsFieldKind = config.type === 'textarea' ? 'description' : 'text';
-  const baseTargetPayload = config.target === 'site' ? siteContent : aboutContent;
-  const canonicalPayload = updateNestedPayload(baseTargetPayload, config.path, draft);
+  const canonicalPayload = updateNestedPayload(canonicalBasePayload, config.path, draft);
 
   const save = async () => {
     const val = config.type === 'number' ? Number(draft) || 0 : draft;
@@ -141,8 +183,9 @@ export function EditableField({
         <div className="space-y-4">
           {isTranslatable && (
             <div className="flex items-center justify-between pb-1">
-              <span className="text-xs font-semibold text-gray-500">
-                {t('cmsLocalization.canonicalSource')}
+              <span className="text-xs font-bold text-navy-900 flex items-center gap-1.5">
+                <span className="inline-block h-2 w-2 rounded-full bg-emerald-500"></span>
+                {t('cmsLocalization.canonicalSource', 'العربية — المصدر (الأصل)')}
               </span>
             </div>
           )}
@@ -184,6 +227,10 @@ export function EditableField({
               canonicalValue={draft}
               canonicalPayload={canonicalPayload}
               canEdit={canEdit}
+              canPublish={canPublish}
+              onPublished={() => {
+                void refreshPublishedLocalizations();
+              }}
             />
           )}
           {saveError && (
@@ -216,34 +263,61 @@ export function EditableCard({
   config,
   currentValues,
   canEdit,
+  canPublish: canPublishProp,
   children,
   className,
 }: {
   config: MultiFieldConfig;
   currentValues: Record<string, string>;
   canEdit: boolean;
+  canPublish?: boolean;
   children: ReactNode;
   className?: string;
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState<Record<string, string>>(currentValues);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  const { updateSiteFields, updateAboutFields } = useInlineEditContext();
+  const {
+    uploadManagedFile,
+    siteContent,
+    aboutContent,
+    canonicalSiteContent,
+    canonicalAboutContent,
+    currentUser,
+    refreshPublishedLocalizations,
+  } = useApp();
+
+  const canPublish = canPublishProp !== undefined
+    ? canPublishProp
+    : currentUser?.role === 'PRESIDENT';
+
+  const canonicalBasePayload = config.target === 'site'
+    ? (canonicalSiteContent ?? siteContent)
+    : (canonicalAboutContent ?? aboutContent);
+
+  const getCanonicalCardValues = (): Record<string, string> => {
+    const values: Record<string, string> = {};
+    for (const f of config.fields) {
+      const canon = getCanonicalFieldValue(canonicalBasePayload, f.path);
+      values[f.path] = canon !== '' ? String(canon) : (currentValues[f.path] ?? '');
+    }
+    return values;
+  };
+
+  const [draft, setDraft] = useState<Record<string, string>>(getCanonicalCardValues);
 
   const openModal = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setDraft(currentValues);
+    setDraft(getCanonicalCardValues());
     setSaveError(null);
     setOpen(true);
   };
 
-  const { updateSiteFields, updateAboutFields } = useInlineEditContext();
-  const { uploadManagedFile, siteContent, aboutContent } = useApp();
-
-  const baseTargetPayload = config.target === 'site' ? siteContent : aboutContent;
-  let cardCanonicalPayload: JsonValue = baseTargetPayload as unknown as JsonValue;
+  let cardCanonicalPayload: JsonValue = canonicalBasePayload as unknown as JsonValue;
   for (const f of config.fields) {
     const currentFieldVal = f.type === 'number' ? Number(draft[f.path]) || 0 : draft[f.path] ?? '';
     cardCanonicalPayload = updateNestedPayload(cardCanonicalPayload, f.path, currentFieldVal);
@@ -310,8 +384,9 @@ export function EditableCard({
                 <div className="flex items-center justify-between">
                   <label className="label-field">{field.label}</label>
                   {isFieldTranslatable && (
-                    <span className="text-xs font-semibold text-gray-500">
-                      {t('cmsLocalization.canonicalSource')}
+                    <span className="text-xs font-bold text-navy-900 flex items-center gap-1.5">
+                      <span className="inline-block h-2 w-2 rounded-full bg-emerald-500"></span>
+                      {t('cmsLocalization.canonicalSource', 'العربية — المصدر (الأصل)')}
                     </span>
                   )}
                 </div>
@@ -353,6 +428,10 @@ export function EditableCard({
                     canonicalValue={draft[field.path] ?? ''}
                     canonicalPayload={cardCanonicalPayload}
                     canEdit={canEdit}
+                    canPublish={canPublish}
+                    onPublished={() => {
+                      void refreshPublishedLocalizations();
+                    }}
                   />
                 )}
               </div>

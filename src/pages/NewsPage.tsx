@@ -4,10 +4,11 @@ import { Newspaper, CalendarDays, ChevronLeft, ExternalLink } from 'lucide-react
 import { useApp } from '../context/AppContext';
 import Modal from '../components/Modal';
 import type { NewsItem } from '../data/mockData';
+import { formatPublicDate } from '../domain/datePresentation';
 
 export default function NewsPage() {
   const { news } = useApp();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [active, setActive] = useState<NewsItem | null>(null);
 
   const sorted = [...news].sort((a, b) => (a.date < b.date ? 1 : -1));
@@ -46,7 +47,7 @@ export default function NewsPage() {
                 <div className="flex flex-1 flex-col p-5">
                   <div className="flex items-center gap-1.5 text-xs text-gray-400">
                     <CalendarDays className="h-3.5 w-3.5" />
-                    {new Date(n.date).toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    {formatPublicDate(n.date, i18n.language, { day: 'numeric', month: 'long', year: 'numeric' })}
                   </div>
                   <h3 className="mt-2 text-lg font-bold leading-snug text-navy-900 transition-colors group-hover:text-navy-700">{n.title}</h3>
                   <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-gray-500">{n.excerpt}</p>
@@ -86,7 +87,7 @@ export default function NewsPage() {
               <span className="rounded-full bg-navy-50 px-3 py-1 font-bold text-navy-700">{active.category}</span>
               <span className="flex items-center gap-1">
                 <CalendarDays className="h-3.5 w-3.5" />
-                {new Date(active.date).toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' })}
+                {formatPublicDate(active.date, i18n.language, { day: 'numeric', month: 'long', year: 'numeric' })}
               </span>
             </div>
             <h3 className="text-xl font-extrabold text-navy-900">{active.title}</h3>
