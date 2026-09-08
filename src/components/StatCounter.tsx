@@ -74,7 +74,7 @@ export default function StatCounter({
         </div>
       )}
       <div className="text-3xl font-extrabold text-navy-900 lg:text-4xl">
-        {display.toLocaleString('ar-EG')}
+        {display.toLocaleString('en-US')}
         {suffix}
       </div>
       <div className="text-sm font-medium text-gray-500">{label}</div>
