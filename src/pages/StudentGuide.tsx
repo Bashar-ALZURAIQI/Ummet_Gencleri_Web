@@ -637,6 +637,7 @@ export default function StudentGuide() {
                 <div>
                   <h2 className="text-xl font-extrabold text-navy-900">{activeSection.title}</h2>
                   <p className="mt-1 text-sm leading-relaxed text-gray-600">{activeSection.intro}</p>
+                  <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3060.9859395229514!2d41.246907724498755!3d39.89694708711196!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x406e5ee67b622b83%3A0x96e5a3bfe2878c6c!2zw5bUQCYdXT16Xxzr1qCSVxxntce0-UYXmcqJ_aodkoq39Fv2E6f!5e0!3m2!1sar!2str!4v1788899697602!5m2!1sar!2str" width="400" height="300" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>
                 </div>
               </div>
             </div>
