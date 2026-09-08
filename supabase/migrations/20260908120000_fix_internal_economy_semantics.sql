@@ -515,7 +515,12 @@ $function$;
 -- 6. List Activity Evaluations: Support Ignored & Zero Joiners
 -- ===========================================================================
 
-CREATE OR REPLACE FUNCTION public.list_activity_evaluations()
+-- The return table shape changed (a decision column was added).
+-- PostgreSQL cannot change OUT/RETURNS TABLE columns with CREATE OR REPLACE,
+-- so drop the old zero-argument function first, then recreate it below.
+DROP FUNCTION IF EXISTS public.list_activity_evaluations();
+
+CREATE FUNCTION public.list_activity_evaluations()
 RETURNS TABLE (
   activity_id uuid,
   activity_title text,
