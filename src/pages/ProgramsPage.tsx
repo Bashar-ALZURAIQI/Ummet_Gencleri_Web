@@ -32,16 +32,19 @@ export default function ProgramsPage() {
     events,
     currentUser,
     programsContent,
+    canonicalEvents,
+    canonicalProgramsContent,
     submitSiteEdit,
     uploadManagedFile,
     savePublishedSiteTarget,
     createPublishedEvent,
+    refreshPublishedLocalizations,
   } = useApp();
   const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>('upcoming');
   const [cat, setCat] = useState<EventCategory | 'all'>('all');
   const [editingHeader, setEditingHeader] = useState(false);
-  const [headerForm, setHeaderForm] = useState<ProgramsContent>(programsContent);
+  const [headerForm, setHeaderForm] = useState<ProgramsContent>(canonicalProgramsContent ?? programsContent);
   const [headerTranslations, setHeaderTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
     tr: { badge: '', title: '', description: '' },
     en: { badge: '', title: '', description: '' },
@@ -246,7 +249,7 @@ export default function ProgramsPage() {
       }
       const saved = await savePublishedSiteTarget(
         'events',
-        events.map((ev) => (ev.id === editId ? next : ev)),
+        (canonicalEvents ?? events).map((ev) => (ev.id === editId ? next : ev)),
       );
       if (!saved.ok) return;
     } else {
@@ -317,7 +320,7 @@ export default function ProgramsPage() {
       mediaNotice();
       return;
     }
-    await savePublishedSiteTarget('events', events.filter((event) => event.id !== id));
+    await savePublishedSiteTarget('events', (canonicalEvents ?? events).filter((event) => event.id !== id));
   };
 
   const saveHeader = async (e: React.FormEvent) => {
@@ -376,6 +379,7 @@ export default function ProgramsPage() {
           {editingHeader ? (
             <form onSubmit={saveHeader} className="mx-auto max-w-2xl space-y-3 text-right">
               <CmsEntityTranslationTabs
+                onPublished={refreshPublishedLocalizations}
                 target="programsContent"
                 recordId="header"
                 canonicalPayload={headerForm}
@@ -674,9 +678,10 @@ export default function ProgramsPage() {
           </label>
 
           <CmsEntityTranslationTabs
+            onPublished={refreshPublishedLocalizations}
             target="events"
             recordId={editId}
-            canonicalPayload={editId ? events.map((ev) => (ev.id === editId ? { ...ev, title: form.title, description: form.description, location: form.location } : ev)) : events}
+            canonicalPayload={editId ? (canonicalEvents ?? events).map((ev) => (ev.id === editId ? { ...ev, title: form.title, description: form.description, location: form.location } : ev)) : (canonicalEvents ?? events)}
             fields={[
               {
                 name: 'title',

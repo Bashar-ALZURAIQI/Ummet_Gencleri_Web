@@ -21,9 +21,12 @@ export default function MediaGallery() {
     currentUser,
     galleryAlbums,
     galleryCategories,
+    canonicalGalleryAlbums,
+    canonicalGalleryCategories,
     submitSiteEdit,
     uploadManagedFile,
     savePublishedSiteTarget,
+    refreshPublishedLocalizations,
   } = useApp();
   const { t, i18n } = useTranslation();
   const [filter, setFilter] = useState<string>('all');
@@ -189,7 +192,7 @@ export default function MediaGallery() {
       }
       const saved = await savePublishedSiteTarget(
         'galleryAlbums',
-        galleryAlbums.map((album) => album.id === editingAlbum.id ? next : album),
+        (canonicalGalleryAlbums ?? galleryAlbums).map((album) => album.id === editingAlbum.id ? next : album),
       );
       if (!saved.ok) return;
     } else {
@@ -210,7 +213,7 @@ export default function MediaGallery() {
         setAlbumModalOpen(false);
         return;
       }
-      const saved = await savePublishedSiteTarget('galleryAlbums', [newAlbum, ...galleryAlbums]);
+      const saved = await savePublishedSiteTarget('galleryAlbums', [newAlbum, ...(canonicalGalleryAlbums ?? galleryAlbums)]);
       if (!saved.ok) return;
 
       // Bind drafted translations to authoritative new album ID
@@ -229,7 +232,7 @@ export default function MediaGallery() {
               payload: list as unknown as JsonValue,
               status: 'draft',
               manualPaths: [`${newAlbumId}.title`],
-              sourceHash: computeSourceHash([newAlbum, ...galleryAlbums]),
+              sourceHash: computeSourceHash([newAlbum, ...(canonicalGalleryAlbums ?? galleryAlbums)]),
               updatedAt: new Date().toISOString(),
             });
           } catch {
@@ -254,7 +257,7 @@ export default function MediaGallery() {
       mediaNotice();
       return;
     }
-    const saved = await savePublishedSiteTarget('galleryAlbums', galleryAlbums.filter((album) => album.id !== id));
+    const saved = await savePublishedSiteTarget('galleryAlbums', (canonicalGalleryAlbums ?? galleryAlbums).filter((album) => album.id !== id));
     if (!saved.ok) return;
     if (selectedAlbumId === id) setSelectedAlbumId(null);
   };
@@ -295,7 +298,7 @@ export default function MediaGallery() {
       }
       const saved = await savePublishedSiteTarget(
         'galleryCategories',
-        galleryCategories.map((category) => category.id === editingCategory.id ? next : category),
+        (canonicalGalleryCategories ?? galleryCategories).map((category) => category.id === editingCategory.id ? next : category),
       );
       if (!saved.ok) return;
     } else {
@@ -314,7 +317,7 @@ export default function MediaGallery() {
         setCategoryModalOpen(false);
         return;
       }
-      const saved = await savePublishedSiteTarget('galleryCategories', [...galleryCategories, newCat]);
+      const saved = await savePublishedSiteTarget('galleryCategories', [...(canonicalGalleryCategories ?? galleryCategories), newCat]);
       if (!saved.ok) return;
 
       // Bind drafted translations to authoritative new category ID
@@ -333,7 +336,7 @@ export default function MediaGallery() {
               payload: list as unknown as JsonValue,
               status: 'draft',
               manualPaths: [`${newCatId}.label`],
-              sourceHash: computeSourceHash([...galleryCategories, newCat]),
+              sourceHash: computeSourceHash([...(canonicalGalleryCategories ?? galleryCategories), newCat]),
               updatedAt: new Date().toISOString(),
             });
           } catch {
@@ -362,7 +365,7 @@ export default function MediaGallery() {
       mediaNotice();
       return;
     }
-    const saved = await savePublishedSiteTarget('galleryCategories', galleryCategories.filter((category) => category.id !== id));
+    const saved = await savePublishedSiteTarget('galleryCategories', (canonicalGalleryCategories ?? galleryCategories).filter((category) => category.id !== id));
     if (!saved.ok) return;
     if (filter === id) setFilter('all');
   };
@@ -429,7 +432,7 @@ export default function MediaGallery() {
     }
     const saved = await savePublishedSiteTarget(
       'galleryAlbums',
-      galleryAlbums.map((album) => album.id === selectedAlbumId ? buildNext(album) : album),
+      (canonicalGalleryAlbums ?? galleryAlbums).map((album) => album.id === selectedAlbumId ? buildNext(album) : album),
     );
     if (!saved.ok) return;
     setMediaModalOpen(false);
@@ -461,7 +464,7 @@ export default function MediaGallery() {
     }
     await savePublishedSiteTarget(
       'galleryAlbums',
-      galleryAlbums.map((album) => album.id === selectedAlbum.id ? buildNext(album) : album),
+      (canonicalGalleryAlbums ?? galleryAlbums).map((album) => album.id === selectedAlbum.id ? buildNext(album) : album),
     );
   };
 
@@ -830,9 +833,10 @@ export default function MediaGallery() {
           </div>
 
           <CmsEntityTranslationTabs
+            onPublished={refreshPublishedLocalizations}
             target="galleryAlbums"
             recordId={editingAlbum?.id ?? null}
-            canonicalPayload={editingAlbum ? galleryAlbums.map((a) => a.id === editingAlbum.id ? { ...a, ...albumForm } : a) : galleryAlbums}
+            canonicalPayload={editingAlbum ? (canonicalGalleryAlbums ?? galleryAlbums).map((a) => a.id === editingAlbum.id ? { ...a, ...albumForm } : a) : (canonicalGalleryAlbums ?? galleryAlbums)}
             fields={[
               {
                 name: 'title',
@@ -894,9 +898,10 @@ export default function MediaGallery() {
       <Modal open={categoryModalOpen} onClose={() => setCategoryModalOpen(false)} title={editingCategory ? 'تعديل التصنيف' : 'إضافة تصنيف جديد'} maxWidth="max-w-sm">
         <form onSubmit={saveCategory} className="space-y-4">
           <CmsEntityTranslationTabs
+            onPublished={refreshPublishedLocalizations}
             target="galleryCategories"
             recordId={editingCategory?.id ?? null}
-            canonicalPayload={editingCategory ? galleryCategories.map((c) => c.id === editingCategory.id ? { ...c, ...categoryForm } : c) : galleryCategories}
+            canonicalPayload={editingCategory ? (canonicalGalleryCategories ?? galleryCategories).map((c) => c.id === editingCategory.id ? { ...c, ...categoryForm } : c) : (canonicalGalleryCategories ?? galleryCategories)}
             fields={[
               {
                 name: 'label',
@@ -1012,9 +1017,10 @@ export default function MediaGallery() {
             />
           )}
           <CmsEntityTranslationTabs
+            onPublished={refreshPublishedLocalizations}
             target="galleryAlbums"
             recordId={editingMediaId || null}
-            canonicalPayload={galleryAlbums}
+            canonicalPayload={canonicalGalleryAlbums ?? galleryAlbums}
             fields={[
               {
                 name: 'caption',

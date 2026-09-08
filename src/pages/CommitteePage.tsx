@@ -43,7 +43,7 @@ type SubmissionFeedback = { id: number; type: 'success' | 'error'; text: string 
 export default function CommitteePage({ committeeId }: { committeeId: CommitteeId }) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language;
-  const { committees, canonicalCommittees, currentUser, setView, pendingProfileEdits, submitProfileEdit, updateBoardHead, uploadManagedFile, savePublishedSiteTarget } = useApp();
+  const { committees, canonicalCommittees, currentUser, setView, pendingProfileEdits, submitProfileEdit, updateBoardHead, uploadManagedFile, savePublishedSiteTarget, refreshPublishedLocalizations } = useApp();
   const localizationRepo = useCmsLocalizationRepository();
 
   // Modals
@@ -121,7 +121,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
       try {
         const result = await persistPresidentCommitteeEdit({
           publishCommittees: (nextCommittees) => savePublishedSiteTarget('committees', nextCommittees),
-        }, committees, committeeId, next);
+        }, canonicalCommittees ?? committees, committeeId, next);
         if (!result.ok) {
           const message = result.error ?? 'تعذر حفظ بيانات الهيئة في قاعدة البيانات.';
           console.error('[ExecutiveBoardEditModal] Supabase president publication failed', message);
@@ -556,6 +556,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               <input id={fieldId('role')} readOnly className="input-field bg-gray-100 text-gray-500" value={getExecutiveRoleLabel(headForm.role, t) || headForm.role} />
             </div>
             <CmsEntityTranslationTabs
+              onPublished={refreshPublishedLocalizations}
               target="committees"
               recordId={committee.id}
               canonicalPayload={canonicalCommittees ?? committees}
@@ -611,6 +612,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
         <Modal open={respModal} onClose={() => setRespModal(false)} title={respIdx >= 0 ? t('committee.respModal.editTitle', 'تعديل البند') : t('committee.respModal.addTitle', 'إضافة بند جديد')} maxWidth="max-w-md">
           <form onSubmit={saveResp} className="space-y-4">
             <CmsEntityTranslationTabs
+              onPublished={refreshPublishedLocalizations}
               target="committees"
               recordId={committee.id}
               canonicalPayload={canonicalCommittees ?? committees}
@@ -657,6 +659,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               <input id={fieldId('value')} required className={`input-field ${isInvalid(invalid, 'value')}`} value={statForm.value} onChange={(e) => { setStatForm({ ...statForm, value: e.target.value }); clearInvalid(setInvalid, 'value'); }} />
             </div>
             <CmsEntityTranslationTabs
+              onPublished={refreshPublishedLocalizations}
               target="committees"
               recordId={committee.id ? `${committee.id}.stats.${statIdx}` : `stats.${statIdx}`}
               canonicalPayload={canonicalCommittees ?? committees}
@@ -703,6 +706,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               <input id={fieldId('name')} required className={`input-field ${isInvalid(invalid, 'name')}`} value={memberForm.name} onChange={(e) => { setMemberForm({ ...memberForm, name: e.target.value }); clearInvalid(setInvalid, 'name'); }} />
             </div>
             <CmsEntityTranslationTabs
+              onPublished={refreshPublishedLocalizations}
               target="committees"
               recordId={editingMember?.id ?? null}
               canonicalPayload={canonicalCommittees ?? committees}

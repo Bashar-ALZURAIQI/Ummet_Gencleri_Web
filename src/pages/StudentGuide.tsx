@@ -41,7 +41,7 @@ const colorOptions = [
 
 export default function StudentGuide() {
   const { t } = useTranslation();
-  const { currentUser, guideSections, guideQuickInfo, canonicalGuideSections, submitSiteEdit, savePublishedSiteTarget } = useApp();
+  const { currentUser, guideSections, guideQuickInfo, canonicalGuideSections, canonicalGuideQuickInfo, submitSiteEdit, savePublishedSiteTarget, refreshPublishedLocalizations } = useApp();
   const localizationRepo = useCmsLocalizationRepository();
   const [activeSectionId, setActiveSectionId] = useState(guideSections[0]?.id ?? '');
   const [sectionModalOpen, setSectionModalOpen] = useState(false);
@@ -179,7 +179,7 @@ export default function StudentGuide() {
       }
       const saved = await savePublishedSiteTarget(
         'guideSections',
-        guideSections.map((s) => s.id === editingSection.id ? next : s),
+        (canonicalGuideSections ?? guideSections).map((s) => s.id === editingSection.id ? next : s),
       );
       if (!saved.ok) { alert(saved.error); return; }
     } else {
@@ -199,7 +199,7 @@ export default function StudentGuide() {
         setSectionModalOpen(false);
         return;
       }
-      const nextSections = [...guideSections, newSection];
+      const nextSections = [...(canonicalGuideSections ?? guideSections), newSection];
       const saved = await savePublishedSiteTarget('guideSections', nextSections);
       if (!saved.ok) { alert(saved.error); return; }
       setActiveSectionId(newSection.id);
@@ -243,7 +243,7 @@ export default function StudentGuide() {
       mediaNotice();
       return;
     }
-    const remaining = guideSections.filter((s) => s.id !== id);
+    const remaining = (canonicalGuideSections ?? guideSections).filter((s) => s.id !== id);
     const saved = await savePublishedSiteTarget('guideSections', remaining);
     if (!saved.ok) { alert(saved.error); return; }
     if (activeSectionId === id) {
@@ -301,12 +301,12 @@ export default function StudentGuide() {
     }
     let nextSections: GuideSectionData[];
     if (editingItem) {
-      nextSections = guideSections.map((s) => s.id === activeSectionId ? {
+      nextSections = (canonicalGuideSections ?? guideSections).map((s) => s.id === activeSectionId ? {
         ...s, items: s.items.map((it) => it.id === editingItem.id ? { ...it, heading: itemForm.heading, body: itemForm.body, tips } : it),
       } : s);
     } else {
       const newItem: GuideItem = { id: newItemId, heading: itemForm.heading, body: itemForm.body, tips };
-      nextSections = guideSections.map((s) => s.id === activeSectionId ? { ...s, items: [...s.items, newItem] } : s);
+      nextSections = (canonicalGuideSections ?? guideSections).map((s) => s.id === activeSectionId ? { ...s, items: [...s.items, newItem] } : s);
     }
     const saved = await savePublishedSiteTarget('guideSections', nextSections);
     if (!saved.ok) { alert(saved.error); return; }
@@ -365,7 +365,7 @@ export default function StudentGuide() {
     }
     const saved = await savePublishedSiteTarget(
       'guideSections',
-      guideSections.map((s) => s.id === activeSectionId ? { ...s, items: s.items.filter((it) => it.id !== itemId) } : s),
+      (canonicalGuideSections ?? guideSections).map((s) => s.id === activeSectionId ? { ...s, items: s.items.filter((it) => it.id !== itemId) } : s),
     );
     if (!saved.ok) alert(saved.error);
   };
@@ -390,7 +390,7 @@ export default function StudentGuide() {
     }
     const saved = await savePublishedSiteTarget(
       'guideSections',
-      guideSections.map((s) => s.id === activeSectionId ? { ...s, items } : s),
+      (canonicalGuideSections ?? guideSections).map((s) => s.id === activeSectionId ? { ...s, items } : s),
     );
     if (!saved.ok) alert(saved.error);
   };
@@ -443,12 +443,12 @@ export default function StudentGuide() {
     }
     let nextSections: GuideSectionData[];
     if (editingContact) {
-      nextSections = guideSections.map((s) => s.id === activeSectionId ? {
+      nextSections = (canonicalGuideSections ?? guideSections).map((s) => s.id === activeSectionId ? {
         ...s, contacts: s.contacts.map((c) => c.id === editingContact.id ? { ...c, ...contactForm } : c),
       } : s);
     } else {
       const newContact: GuideContact = { id: 'ct' + Date.now(), ...contactForm };
-      nextSections = guideSections.map((s) => s.id === activeSectionId ? { ...s, contacts: [...s.contacts, newContact] } : s);
+      nextSections = (canonicalGuideSections ?? guideSections).map((s) => s.id === activeSectionId ? { ...s, contacts: [...s.contacts, newContact] } : s);
     }
     const saved = await savePublishedSiteTarget('guideSections', nextSections);
     if (!saved.ok) { alert(saved.error); return; }
@@ -472,7 +472,7 @@ export default function StudentGuide() {
     }
     const saved = await savePublishedSiteTarget(
       'guideSections',
-      guideSections.map((s) => s.id === activeSectionId ? { ...s, contacts: s.contacts.filter((contact) => contact.id !== contactId) } : s),
+      (canonicalGuideSections ?? guideSections).map((s) => s.id === activeSectionId ? { ...s, contacts: s.contacts.filter((contact) => contact.id !== contactId) } : s),
     );
     if (!saved.ok) alert(saved.error);
   };
@@ -486,7 +486,7 @@ export default function StudentGuide() {
       return;
     }
     if (currentUser?.role === 'MEDIA_HEAD') {
-      if (quickInfo !== guideQuickInfo) {
+      if (quickInfo !== (canonicalGuideQuickInfo ?? guideQuickInfo)) {
         const submitted = await submitSiteEdit({
           pageId: 'guide', pageLabel: 'دليل الطالب', sectionLabel: 'المعلومة السريعة',
           target: 'guideQuickInfo', op: 'update', recordId: 'quick', recordValue: quickInfo,
@@ -771,6 +771,7 @@ export default function StudentGuide() {
       <Modal open={sectionModalOpen} onClose={() => setSectionModalOpen(false)} title={editingSection ? 'تعديل القسم' : 'إضافة قسم جديد'} maxWidth="max-w-lg">
         <form onSubmit={saveSection} className="space-y-4">
           <CmsEntityTranslationTabs
+            onPublished={refreshPublishedLocalizations}
             target="guideSections"
             recordId={editingSection?.id ?? null}
             canonicalPayload={canonicalGuideSections ?? guideSections}
@@ -870,6 +871,7 @@ export default function StudentGuide() {
       <Modal open={itemModalOpen} onClose={() => setItemModalOpen(false)} title={editingItem ? 'تعديل المعلومة' : 'إضافة معلومة/دليل جديد'} maxWidth="max-w-lg">
         <form onSubmit={saveItem} className="space-y-4">
           <CmsEntityTranslationTabs
+            onPublished={refreshPublishedLocalizations}
             target="guideSections"
             recordId={editingItem?.id ?? null}
             canonicalPayload={canonicalGuideSections ?? guideSections}
@@ -957,6 +959,7 @@ export default function StudentGuide() {
       <Modal open={contactModalOpen} onClose={() => setContactModalOpen(false)} title={editingContact ? 'تعديل جهة اتصال' : 'إضافة جهة اتصال'} maxWidth="max-w-md">
         <form onSubmit={saveContact} className="space-y-4">
           <CmsEntityTranslationTabs
+            onPublished={refreshPublishedLocalizations}
             target="guideSections"
             recordId={editingContact?.id ?? null}
             canonicalPayload={canonicalGuideSections ?? guideSections}

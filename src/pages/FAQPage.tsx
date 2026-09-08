@@ -22,7 +22,8 @@ const iconNames = Object.keys(iconMap);
 
 export default function FAQPage() {
   const { t } = useTranslation();
-  const { currentUser, faqCategories, setView, submitSiteEdit, savePublishedSiteTarget } = useApp();
+  const { currentUser, faqCategories, canonicalFaqCategories, setView, submitSiteEdit, savePublishedSiteTarget, refreshPublishedLocalizations } = useApp();
+  const canonicalCategories = canonicalFaqCategories ?? faqCategories;
   const localizationRepo = useCmsLocalizationRepository();
   const [openItems, setOpenItems] = useState<Set<string>>(new Set());
 
@@ -135,8 +136,8 @@ export default function FAQPage() {
       return;
     }
     const nextCategories = editingCat
-      ? faqCategories.map((c) => c.id === editingCat.id ? { ...c, ...catForm } : c)
-      : [...faqCategories, { id: newCatId, ...catForm, items: [] }];
+      ? canonicalCategories.map((c) => c.id === editingCat.id ? { ...c, ...catForm } : c)
+      : [...canonicalCategories, { id: newCatId, ...catForm, items: [] }];
     const saved = await savePublishedSiteTarget('faqCategories', nextCategories);
     if (!saved.ok) { alert(saved.error); return; }
 
@@ -181,7 +182,7 @@ export default function FAQPage() {
       mediaNotice();
       return;
     }
-    const saved = await savePublishedSiteTarget('faqCategories', faqCategories.filter((c) => c.id !== id));
+    const saved = await savePublishedSiteTarget('faqCategories', canonicalCategories.filter((c) => c.id !== id));
     if (!saved.ok) alert(saved.error);
   };
 
@@ -221,7 +222,7 @@ export default function FAQPage() {
     const validation = validateFaqItem(qForm);
     if (!validateChecks(validation.invalid.map((key) => ({ key, ok: false })), setInvalid)) return;
     if (!qForm.question.trim() || !qForm.answer.trim() || !qTargetCat) return;
-    const cat = faqCategories.find((c) => c.id === qTargetCat);
+    const cat = canonicalCategories.find((c) => c.id === qTargetCat);
     const newItemId = editingQ?.id ?? 'faq' + Date.now();
     if (currentUser?.role === 'MEDIA_HEAD') {
       if (!cat) return;
@@ -245,13 +246,13 @@ export default function FAQPage() {
     }
     let nextCategories: FAQCategoryData[];
     if (editingQ) {
-      nextCategories = faqCategories.map((c) => {
+      nextCategories = canonicalCategories.map((c) => {
         if (c.id !== qTargetCat) return c;
         return { ...c, items: c.items.map((it) => it.id === editingQ.id ? { ...it, ...qForm } : it) };
       });
     } else {
       const newItem: FAQItem = { id: newItemId, ...qForm };
-      nextCategories = faqCategories.map((c) => {
+      nextCategories = canonicalCategories.map((c) => {
         if (c.id !== qTargetCat) return c;
         return { ...c, items: [...c.items, newItem] };
       });
@@ -298,7 +299,8 @@ export default function FAQPage() {
 
   const deleteQ = async (catId: string, itemId: string) => {
     if (!confirm('هل أنت متأكد من حذف هذا السؤال؟')) return;
-    const cat = faqCategories.find((c) => c.id === catId);
+    // Always look up from canonical source to avoid reading localized text as Arabic
+    const cat = canonicalCategories.find((c) => c.id === catId);
     if (currentUser?.role === 'MEDIA_HEAD') {
       if (!cat) return;
       const item = cat.items.find((it) => it.id === itemId);
@@ -312,7 +314,7 @@ export default function FAQPage() {
       mediaNotice();
       return;
     }
-    const nextCategories = faqCategories.map((c) => {
+    const nextCategories = canonicalCategories.map((c) => {
       if (c.id !== catId) return c;
       return { ...c, items: c.items.filter((it) => it.id !== itemId) };
     });
@@ -480,9 +482,10 @@ export default function FAQPage() {
       <Modal open={catModalOpen} onClose={() => setCatModalOpen(false)} title={editingCat ? 'تعديل الفئة' : 'إضافة فئة أسئلة جديدة'} maxWidth="max-w-md">
         <form onSubmit={saveCat} className="space-y-4">
           <CmsEntityTranslationTabs
+            onPublished={refreshPublishedLocalizations}
             target="faqCategories"
             recordId={editingCat?.id ?? null}
-            canonicalPayload={editingCat ? faqCategories.map((c) => c.id === editingCat.id ? { ...c, ...catForm } : c) : faqCategories}
+            canonicalPayload={editingCat ? canonicalCategories.map((c) => c.id === editingCat.id ? { ...c, ...catForm } : c) : canonicalCategories}
             fields={[
               {
                 name: 'title',
@@ -557,9 +560,10 @@ export default function FAQPage() {
       <Modal open={qModalOpen} onClose={() => setQModalOpen(false)} title={editingQ ? 'تعديل السؤال' : 'إضافة سؤال جديد'} maxWidth="max-w-lg">
         <form onSubmit={saveQ} className="space-y-4">
           <CmsEntityTranslationTabs
+            onPublished={refreshPublishedLocalizations}
             target="faqCategories"
             recordId={editingQ?.id ?? null}
-            canonicalPayload={editingQ ? faqCategories.map((c) => c.id === qTargetCat ? { ...c, items: c.items.map((it) => it.id === editingQ.id ? { ...it, ...qForm } : it) } : c) : faqCategories}
+            canonicalPayload={editingQ ? canonicalCategories.map((c) => c.id === qTargetCat ? { ...c, items: c.items.map((it) => it.id === editingQ.id ? { ...it, ...qForm } : it) } : c) : canonicalCategories}
             fields={[
               {
                 name: 'question',
