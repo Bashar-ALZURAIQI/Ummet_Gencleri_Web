@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Images, Filter, Play, Calendar, MapPin, Camera, Video, X,
   Plus, Edit3, Trash2, Save, Link as LinkIcon, Image as ImageIcon, Film, ExternalLink,
@@ -10,6 +11,10 @@ import RequiredMark from '../components/RequiredMark';
 import { validateRequired, clearInvalid, isInvalid, fieldId } from '../utils/formValidation';
 import type { GalleryAlbum, GalleryCategory, GalleryMedia, SiteEditDiff } from '../data/mockData';
 import ManagedFileField from '../components/ManagedFileField';
+import { CmsEntityTranslationTabs } from '../components/cmsLocalization/CmsEntityTranslationTabs';
+import { useCmsLocalizationRepository } from '../context/CmsLocalizationContext';
+import { computeSourceHash, type LocalizedCmsLocale, type JsonValue } from '../domain/cmsLocalization';
+import { formatPublicDate } from '../domain/datePresentation';
 
 export default function MediaGallery() {
   const {
@@ -20,13 +25,19 @@ export default function MediaGallery() {
     uploadManagedFile,
     savePublishedSiteTarget,
   } = useApp();
+  const { t, i18n } = useTranslation();
   const [filter, setFilter] = useState<string>('all');
   const [selectedAlbumId, setSelectedAlbumId] = useState<string | null>(null);
   const [lightboxMedia, setLightboxMedia] = useState<GalleryMedia | null>(null);
 
   // Album modal
+  const localizationRepo = useCmsLocalizationRepository();
   const [albumModalOpen, setAlbumModalOpen] = useState(false);
   const [editingAlbum, setEditingAlbum] = useState<GalleryAlbum | null>(null);
+  const [albumTranslations, setAlbumTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
+    tr: {},
+    en: {},
+  });
   const [albumForm, setAlbumForm] = useState({
     title: '', categoryId: '', date: '', location: '',
     coverImage: '', photoCount: 0, videoCount: 0, description: '',
@@ -35,10 +46,44 @@ export default function MediaGallery() {
   // Category modal
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<GalleryCategory | null>(null);
+  const [categoryTranslations, setCategoryTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
+    tr: {},
+    en: {},
+  });
   const [categoryForm, setCategoryForm] = useState({ label: '' });
 
   // Media modal (add media to album)
   const [mediaModalOpen, setMediaModalOpen] = useState(false);
+  const [editingMediaId, setEditingMediaId] = useState<string>('');
+  const [mediaTranslations, setMediaTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
+    tr: {},
+    en: {},
+  });
+  const [localizedCategories, setLocalizedCategories] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (i18n.language === 'ar') {
+      setLocalizedCategories({});
+      return;
+    }
+    const loc = (i18n.language === 'tr' ? 'tr' : 'en') as LocalizedCmsLocale;
+    void Promise.all([
+      localizationRepo.getDraft('galleryCategories', loc),
+      localizationRepo.getPublished('galleryCategories', loc),
+    ]).then(([draft, pub]) => {
+      const rec = draft ?? pub;
+      if (rec && Array.isArray(rec.payload)) {
+        const map: Record<string, string> = {};
+        for (const item of rec.payload as Record<string, unknown>[]) {
+          if (item && typeof item.id === 'string' && typeof item.label === 'string' && item.label.trim()) {
+            map[item.id] = item.label;
+          }
+        }
+        setLocalizedCategories(map);
+      }
+    });
+  }, [i18n.language, localizationRepo, galleryCategories]);
+
   const [mediaForm, setMediaForm] = useState({
     type: 'photo' as 'photo' | 'video',
     source: 'upload' as 'upload' | 'external',
@@ -47,6 +92,7 @@ export default function MediaGallery() {
 
   const [invalid, setInvalid] = useState<string[]>([]);
 
+  const isPresident = currentUser?.role === 'PRESIDENT';
   const isPresidentOrMedia =
     currentUser &&
     (currentUser.role === 'PRESIDENT' || currentUser.role === 'MEDIA_HEAD');
@@ -96,6 +142,7 @@ export default function MediaGallery() {
   // === Album CRUD ===
   const openAddAlbum = () => {
     setEditingAlbum(null);
+    setAlbumTranslations({ tr: {}, en: {} });
     setAlbumForm({
       title: '', categoryId: galleryCategories[0]?.id ?? '', date: new Date().toISOString().slice(0, 10),
       location: '', coverImage: '', photoCount: 0, videoCount: 0, description: '',
@@ -105,6 +152,7 @@ export default function MediaGallery() {
 
   const openEditAlbum = (album: GalleryAlbum) => {
     setEditingAlbum(album);
+    setAlbumTranslations({ tr: {}, en: {} });
     setAlbumForm({
       title: album.title, categoryId: album.categoryId, date: album.date,
       location: album.location, coverImage: album.coverImage,
@@ -145,8 +193,9 @@ export default function MediaGallery() {
       );
       if (!saved.ok) return;
     } else {
+      const newAlbumId = 'album' + Date.now();
       const newAlbum: GalleryAlbum = {
-        id: 'album' + Date.now(), ...albumForm, media: [], createdByRole: currentUser?.role,
+        id: newAlbumId, ...albumForm, media: [], createdByRole: currentUser?.role,
       };
       if (currentUser?.role === 'MEDIA_HEAD') {
         const diffs = albumDiffs('add', null, newAlbum);
@@ -163,6 +212,31 @@ export default function MediaGallery() {
       }
       const saved = await savePublishedSiteTarget('galleryAlbums', [newAlbum, ...galleryAlbums]);
       if (!saved.ok) return;
+
+      // Bind drafted translations to authoritative new album ID
+      for (const loc of ['tr', 'en'] as const) {
+        const trData = albumTranslations[loc];
+        if (trData.title?.trim() || trData.location?.trim() || trData.description?.trim()) {
+          try {
+            const latest = await localizationRepo.getDraft('galleryAlbums', loc);
+            const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
+              ? JSON.parse(JSON.stringify(latest.payload))
+              : [];
+            list.push({ id: newAlbumId, ...trData });
+            await localizationRepo.saveDraft({
+              target: 'galleryAlbums',
+              locale: loc,
+              payload: list as unknown as JsonValue,
+              status: 'draft',
+              manualPaths: [`${newAlbumId}.title`],
+              sourceHash: computeSourceHash([newAlbum, ...galleryAlbums]),
+              updatedAt: new Date().toISOString(),
+            });
+          } catch {
+            // non-blocking
+          }
+        }
+      }
     }
     setAlbumModalOpen(false);
   };
@@ -188,12 +262,14 @@ export default function MediaGallery() {
   // === Category CRUD ===
   const openAddCategory = () => {
     setEditingCategory(null);
+    setCategoryTranslations({ tr: {}, en: {} });
     setCategoryForm({ label: '' });
     setCategoryModalOpen(true);
   };
 
   const openEditCategory = (cat: GalleryCategory) => {
     setEditingCategory(cat);
+    setCategoryTranslations({ tr: {}, en: {} });
     setCategoryForm({ label: cat.label });
     setCategoryModalOpen(true);
   };
@@ -223,7 +299,8 @@ export default function MediaGallery() {
       );
       if (!saved.ok) return;
     } else {
-      const newCat: GalleryCategory = { id: 'cat' + Date.now(), label: categoryForm.label };
+      const newCatId = 'cat' + Date.now();
+      const newCat: GalleryCategory = { id: newCatId, label: categoryForm.label };
       if (currentUser?.role === 'MEDIA_HEAD') {
         const diffs = categoryDiffs('add', null, newCat);
         if (diffs.length) {
@@ -239,6 +316,31 @@ export default function MediaGallery() {
       }
       const saved = await savePublishedSiteTarget('galleryCategories', [...galleryCategories, newCat]);
       if (!saved.ok) return;
+
+      // Bind drafted translations to authoritative new category ID
+      for (const loc of ['tr', 'en'] as const) {
+        const trData = categoryTranslations[loc];
+        if (trData.label?.trim()) {
+          try {
+            const latest = await localizationRepo.getDraft('galleryCategories', loc);
+            const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
+              ? JSON.parse(JSON.stringify(latest.payload))
+              : [];
+            list.push({ id: newCatId, ...trData });
+            await localizationRepo.saveDraft({
+              target: 'galleryCategories',
+              locale: loc,
+              payload: list as unknown as JsonValue,
+              status: 'draft',
+              manualPaths: [`${newCatId}.label`],
+              sourceHash: computeSourceHash([...galleryCategories, newCat]),
+              updatedAt: new Date().toISOString(),
+            });
+          } catch {
+            // non-blocking
+          }
+        }
+      }
     }
     setCategoryModalOpen(false);
   };
@@ -267,7 +369,10 @@ export default function MediaGallery() {
 
   // === Media CRUD ===
   const openAddMedia = () => {
+    const newMediaId = 'media' + Date.now();
+    setEditingMediaId(newMediaId);
     setMediaForm({ type: 'photo', source: 'upload', url: '', thumbnail: '', caption: '', photoUrl: '' });
+    setMediaTranslations({ tr: {}, en: {} });
     setMediaModalOpen(true);
   };
 
@@ -284,7 +389,7 @@ export default function MediaGallery() {
     }, mediaFields, setInvalid)) return;
     if (!mediaForm.url.trim() || !selectedAlbumId) return;
     const newMedia: GalleryMedia = {
-      id: 'media' + Date.now(),
+      id: editingMediaId || ('media' + Date.now()),
       type: mediaForm.type,
       url: mediaForm.url,
       thumbnail: mediaForm.thumbnail || undefined,
@@ -368,11 +473,11 @@ export default function MediaGallery() {
         <div className="container-app relative">
           <div className="flex items-center gap-3 text-gold-400">
             <Images className="h-6 w-6" />
-            <span className="text-sm font-bold tracking-wide">معرض الصور والذاكرة</span>
+            <span className="text-sm font-bold tracking-wide">{t('gallery.badge')}</span>
           </div>
-          <h1 className="mt-3 text-3xl font-extrabold text-white sm:text-4xl">لحظات من تاريخ الاتحاد</h1>
+          <h1 className="mt-3 text-3xl font-extrabold text-white sm:text-4xl">{t('gallery.title')}</h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-gray-300">
-            أرشيف بصري يحفظ ذكريات أنشطتنا وفعالياتنا المختلفة، من المباريات الرياضية إلى الرحلات والمؤتمرات الأكاديمية والأمسيات الاحتفالية.
+            {t('gallery.description')}
           </p>
         </div>
       </div>
@@ -383,7 +488,7 @@ export default function MediaGallery() {
         <div className="mb-8 flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2 text-sm font-bold text-gray-500">
             <Filter className="h-4 w-4" />
-            تصفية:
+            {t('gallery.filter')}
           </div>
           <button
             onClick={() => setFilter('all')}
@@ -394,7 +499,7 @@ export default function MediaGallery() {
             }`}
           >
             <Images className="h-4 w-4" />
-            الكل
+            {t('common.all')}
           </button>
           {galleryCategories.map((cat) => (
             <div key={cat.id} className="group relative">
@@ -407,21 +512,21 @@ export default function MediaGallery() {
                 }`}
               >
                 <Images className="h-4 w-4" />
-                {cat.label}
+                {localizedCategories[cat.id] || cat.label}
               </button>
               {isPresidentOrMedia && (
                 <div className="absolute -top-2 -left-2 flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
                   <button
                     onClick={(e) => { e.stopPropagation(); openEditCategory(cat); }}
                     className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-navy-700 shadow ring-1 ring-gray-200 hover:bg-navy-50"
-                    title="تعديل التصنيف"
+                    title={t('common.edit')}
                   >
                     <Edit3 className="h-3 w-3" />
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); deleteCategory(cat.id); }}
                     className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-rose-600 shadow ring-1 ring-gray-200 hover:bg-rose-50"
-                    title="حذف التصنيف"
+                    title={t('common.delete')}
                   >
                     <Trash2 className="h-3 w-3" />
                   </button>
@@ -434,7 +539,7 @@ export default function MediaGallery() {
               onClick={openAddCategory}
               className="flex items-center gap-1.5 rounded-xl border border-dashed border-navy-300 px-3 py-2 text-xs font-bold text-navy-600 transition-colors hover:bg-navy-50"
             >
-              <Plus className="h-3.5 w-3.5" /> إضافة تصنيف
+              <Plus className="h-3.5 w-3.5" /> {t('gallery.addCategory')}
             </button>
           )}
         </div>
@@ -452,14 +557,14 @@ export default function MediaGallery() {
                   <button
                     onClick={(e) => { e.stopPropagation(); openEditAlbum(album); }}
                     className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-navy-700 shadow backdrop-blur-sm hover:bg-white"
-                    title="تعديل الألبوم"
+                    title={t('common.edit')}
                   >
                     <Edit3 className="h-4 w-4" />
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); deleteAlbum(album.id); }}
                     className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-rose-600 shadow backdrop-blur-sm hover:bg-white"
-                    title="حذف الألبوم"
+                    title={t('common.delete')}
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -475,12 +580,12 @@ export default function MediaGallery() {
                 {album.videoCount > 0 && (
                   <div className="absolute left-3 top-3 flex items-center gap-1 rounded-full bg-black/60 px-2.5 py-1 text-xs font-bold text-white backdrop-blur-sm">
                     <Play className="h-3 w-3" />
-                    {album.videoCount} فيديو
+                    {t('gallery.videoCount', { count: album.videoCount })}
                   </div>
                 )}
                 <div className="absolute bottom-3 right-3 flex items-center gap-1 rounded-full bg-black/60 px-2.5 py-1 text-xs font-bold text-white backdrop-blur-sm">
                   <Camera className="h-3 w-3" />
-                  {album.photoCount} صورة
+                  {t('gallery.photoCount', { count: album.photoCount })}
                 </div>
                 <div className="absolute bottom-0 right-0 left-0 p-4">
                   <h3 className="text-lg font-bold text-white drop-shadow-lg">{album.title}</h3>
@@ -490,7 +595,7 @@ export default function MediaGallery() {
                 <div className="flex items-center gap-4 text-xs text-gray-500">
                   <span className="flex items-center gap-1">
                     <Calendar className="h-3.5 w-3.5" />
-                    {new Date(album.date).toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    {formatPublicDate(album.date, i18n.language, { day: 'numeric', month: 'long', year: 'numeric' })}
                   </span>
                   <span className="flex items-center gap-1">
                     <MapPin className="h-3.5 w-3.5" />
@@ -508,12 +613,12 @@ export default function MediaGallery() {
             onClick={openAddAlbum}
             className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-navy-200 px-4 py-4 text-sm font-bold text-navy-600 transition-colors hover:border-navy-300 hover:bg-navy-50"
           >
-            <Plus className="h-5 w-5" /> إضافة ألبوم جديد
+            <Plus className="h-5 w-5" /> {t('gallery.addNewAlbum')}
           </button>
         )}
 
         {filtered.length === 0 && (
-          <div className="py-16 text-center text-sm text-gray-400">لا توجد ألبومات في هذا التصنيف بعد.</div>
+          <div className="py-16 text-center text-sm text-gray-400">{t('gallery.noAlbums')}</div>
         )}
       </div>
 
@@ -541,7 +646,7 @@ export default function MediaGallery() {
                 <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-gray-200">
                   <span className="flex items-center gap-1">
                     <Calendar className="h-4 w-4" />
-                    {new Date(selectedAlbum.date).toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    {formatPublicDate(selectedAlbum.date, i18n.language, { day: 'numeric', month: 'long', year: 'numeric' })}
                   </span>
                   <span className="flex items-center gap-1">
                     <MapPin className="h-4 w-4" />
@@ -555,12 +660,12 @@ export default function MediaGallery() {
               <div className="mt-4 flex flex-wrap gap-3">
                 <div className="flex items-center gap-2 rounded-xl bg-navy-50 px-4 py-2 text-sm font-bold text-navy-700">
                   <Camera className="h-4 w-4" />
-                  {selectedAlbum.photoCount} صورة
+                  {t('gallery.photoCount', { count: selectedAlbum.photoCount })}
                 </div>
                 {selectedAlbum.videoCount > 0 && (
                   <div className="flex items-center gap-2 rounded-xl bg-sky-50 px-4 py-2 text-sm font-bold text-sky-700">
                     <Video className="h-4 w-4" />
-                    {selectedAlbum.videoCount} فيديو
+                    {t('gallery.videoCount', { count: selectedAlbum.videoCount })}
                   </div>
                 )}
                 {isPresidentOrMedia && (
@@ -568,7 +673,7 @@ export default function MediaGallery() {
                     onClick={openAddMedia}
                     className="mr-auto inline-flex items-center gap-1.5 rounded-xl bg-navy-700 px-4 py-2 text-sm font-bold text-white hover:bg-navy-800"
                   >
-                    <Plus className="h-4 w-4" /> إضافة صور/فيديوهات
+                    <Plus className="h-4 w-4" /> {t('gallery.addMedia')}
                   </button>
                 )}
               </div>
@@ -680,10 +785,6 @@ export default function MediaGallery() {
       {/* Album Modal */}
       <Modal open={albumModalOpen} onClose={() => setAlbumModalOpen(false)} title={editingAlbum ? 'تعديل الألبوم' : 'إضافة ألبوم جديد'} maxWidth="max-w-lg">
         <form onSubmit={saveAlbum} className="space-y-4">
-          <div>
-            <label htmlFor={fieldId('albumTitle')} className="label-field">عنوان الألبوم <RequiredMark /></label>
-            <input id={fieldId('albumTitle')} required className={`input-field ${isInvalid(invalid, 'albumTitle')}`} value={albumForm.title} onChange={(e) => { setAlbumForm({ ...albumForm, title: e.target.value }); clearInvalid(setInvalid, 'albumTitle'); }} />
-          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor={fieldId('albumCategory')} className="label-field">التصنيف <RequiredMark /></label>
@@ -696,7 +797,7 @@ export default function MediaGallery() {
               >
                 <option value="">اختر تصنيفًا</option>
                 {galleryCategories.map((c) => (
-                  <option key={c.id} value={c.id}>{c.label}</option>
+                  <option key={c.id} value={c.id}>{localizedCategories[c.id] || c.label}</option>
                 ))}
               </select>
             </div>
@@ -704,10 +805,6 @@ export default function MediaGallery() {
               <label htmlFor={fieldId('albumDate')} className="label-field">التاريخ <RequiredMark /></label>
               <input id={fieldId('albumDate')} required type="date" className={`input-field ${isInvalid(invalid, 'albumDate')}`} value={albumForm.date} onChange={(e) => { setAlbumForm({ ...albumForm, date: e.target.value }); clearInvalid(setInvalid, 'albumDate'); }} />
             </div>
-          </div>
-          <div>
-            <label htmlFor={fieldId('albumLocation')} className="label-field">المكان <RequiredMark /></label>
-            <input id={fieldId('albumLocation')} required className={`input-field ${isInvalid(invalid, 'albumLocation')}`} value={albumForm.location} onChange={(e) => { setAlbumForm({ ...albumForm, location: e.target.value }); clearInvalid(setInvalid, 'albumLocation'); }} />
           </div>
           <ManagedFileField
             usage="gallery-image"
@@ -731,10 +828,59 @@ export default function MediaGallery() {
               <input id={fieldId('albumVideoCount')} required type="number" min="0" className={`input-field ${isInvalid(invalid, 'albumVideoCount')}`} value={albumForm.videoCount} onChange={(e) => { setAlbumForm({ ...albumForm, videoCount: parseInt(e.target.value) || 0 }); clearInvalid(setInvalid, 'albumVideoCount'); }} />
             </div>
           </div>
-          <div>
-            <label htmlFor={fieldId('albumDescription')} className="label-field">الوصف <RequiredMark /></label>
-            <textarea id={fieldId('albumDescription')} required rows={2} className={`input-field resize-none ${isInvalid(invalid, 'albumDescription')}`} value={albumForm.description} onChange={(e) => { setAlbumForm({ ...albumForm, description: e.target.value }); clearInvalid(setInvalid, 'albumDescription'); }} />
-          </div>
+
+          <CmsEntityTranslationTabs
+            target="galleryAlbums"
+            recordId={editingAlbum?.id ?? null}
+            canonicalPayload={editingAlbum ? galleryAlbums.map((a) => a.id === editingAlbum.id ? { ...a, ...albumForm } : a) : galleryAlbums}
+            fields={[
+              {
+                name: 'title',
+                label: 'عنوان الألبوم',
+                kind: 'title',
+                canonicalValue: albumForm.title,
+                placeholder: 'عنوان الألبوم',
+              },
+              {
+                name: 'location',
+                label: 'المكان',
+                kind: 'text',
+                isLocation: true,
+                canonicalValue: albumForm.location,
+                placeholder: 'المكان',
+              },
+              {
+                name: 'description',
+                label: 'الوصف',
+                kind: 'description',
+                canonicalValue: albumForm.description,
+                placeholder: 'الوصف',
+              },
+            ]}
+            canEdit={Boolean(isPresidentOrMedia)}
+            canPublish={Boolean(isPresident)}
+            translations={albumTranslations}
+            onTranslationChange={(loc, name, val) => {
+              setAlbumTranslations((prev) => ({
+                ...prev,
+                [loc]: { ...prev[loc], [name]: val },
+              }));
+            }}
+          >
+            <div>
+              <label htmlFor={fieldId('albumTitle')} className="label-field">عنوان الألبوم <RequiredMark /></label>
+              <input id={fieldId('albumTitle')} required className={`input-field ${isInvalid(invalid, 'albumTitle')}`} value={albumForm.title} onChange={(e) => { setAlbumForm({ ...albumForm, title: e.target.value }); clearInvalid(setInvalid, 'albumTitle'); }} />
+            </div>
+            <div>
+              <label htmlFor={fieldId('albumLocation')} className="label-field">المكان <RequiredMark /></label>
+              <input id={fieldId('albumLocation')} required className={`input-field ${isInvalid(invalid, 'albumLocation')}`} value={albumForm.location} onChange={(e) => { setAlbumForm({ ...albumForm, location: e.target.value }); clearInvalid(setInvalid, 'albumLocation'); }} />
+            </div>
+            <div>
+              <label htmlFor={fieldId('albumDescription')} className="label-field">الوصف <RequiredMark /></label>
+              <textarea id={fieldId('albumDescription')} required rows={2} className={`input-field resize-none ${isInvalid(invalid, 'albumDescription')}`} value={albumForm.description} onChange={(e) => { setAlbumForm({ ...albumForm, description: e.target.value }); clearInvalid(setInvalid, 'albumDescription'); }} />
+            </div>
+          </CmsEntityTranslationTabs>
+
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setAlbumModalOpen(false)} className="btn-ghost">إلغاء</button>
             <button type="submit" className="btn-primary">
@@ -747,10 +893,34 @@ export default function MediaGallery() {
       {/* Category Modal */}
       <Modal open={categoryModalOpen} onClose={() => setCategoryModalOpen(false)} title={editingCategory ? 'تعديل التصنيف' : 'إضافة تصنيف جديد'} maxWidth="max-w-sm">
         <form onSubmit={saveCategory} className="space-y-4">
-          <div>
-            <label htmlFor={fieldId('catLabel')} className="label-field">اسم التصنيف <RequiredMark /></label>
-            <input id={fieldId('catLabel')} required className={`input-field ${isInvalid(invalid, 'catLabel')}`} value={categoryForm.label} onChange={(e) => { setCategoryForm({ label: e.target.value }); clearInvalid(setInvalid, 'catLabel'); }} placeholder="مثال: الأنشطة الرياضية" />
-          </div>
+          <CmsEntityTranslationTabs
+            target="galleryCategories"
+            recordId={editingCategory?.id ?? null}
+            canonicalPayload={editingCategory ? galleryCategories.map((c) => c.id === editingCategory.id ? { ...c, ...categoryForm } : c) : galleryCategories}
+            fields={[
+              {
+                name: 'label',
+                label: 'اسم التصنيف',
+                kind: 'title',
+                canonicalValue: categoryForm.label,
+                placeholder: 'اسم التصنيف',
+              },
+            ]}
+            canEdit={Boolean(isPresidentOrMedia)}
+            canPublish={Boolean(isPresident)}
+            translations={categoryTranslations}
+            onTranslationChange={(loc, name, val) => {
+              setCategoryTranslations((prev) => ({
+                ...prev,
+                [loc]: { ...prev[loc], [name]: val },
+              }));
+            }}
+          >
+            <div>
+              <label htmlFor={fieldId('catLabel')} className="label-field">اسم التصنيف <RequiredMark /></label>
+              <input id={fieldId('catLabel')} required className={`input-field ${isInvalid(invalid, 'catLabel')}`} value={categoryForm.label} onChange={(e) => { setCategoryForm({ label: e.target.value }); clearInvalid(setInvalid, 'catLabel'); }} placeholder="مثال: الأنشطة الرياضية" />
+            </div>
+          </CmsEntityTranslationTabs>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setCategoryModalOpen(false)} className="btn-ghost">إلغاء</button>
             <button type="submit" className="btn-primary">
@@ -841,10 +1011,34 @@ export default function MediaGallery() {
               }}
             />
           )}
-          <div>
-            <label htmlFor={fieldId('mediaCaption')} className="label-field">تعليق / وصف <RequiredMark /></label>
-            <input id={fieldId('mediaCaption')} required className={`input-field ${isInvalid(invalid, 'mediaCaption')}`} value={mediaForm.caption} onChange={(e) => { setMediaForm({ ...mediaForm, caption: e.target.value }); clearInvalid(setInvalid, 'mediaCaption'); }} />
-          </div>
+          <CmsEntityTranslationTabs
+            target="galleryAlbums"
+            recordId={editingMediaId || null}
+            canonicalPayload={galleryAlbums}
+            fields={[
+              {
+                name: 'caption',
+                label: 'تعليق / وصف',
+                kind: 'description',
+                canonicalValue: mediaForm.caption,
+                placeholder: 'تعليق / وصف',
+              },
+            ]}
+            canEdit={Boolean(isPresidentOrMedia)}
+            canPublish={Boolean(isPresident)}
+            translations={mediaTranslations}
+            onTranslationChange={(loc, name, val) => {
+              setMediaTranslations((prev) => ({
+                ...prev,
+                [loc]: { ...prev[loc], [name]: val },
+              }));
+            }}
+          >
+            <div>
+              <label htmlFor={fieldId('mediaCaption')} className="label-field">تعليق / وصف <RequiredMark /></label>
+              <input id={fieldId('mediaCaption')} required className={`input-field ${isInvalid(invalid, 'mediaCaption')}`} value={mediaForm.caption} onChange={(e) => { setMediaForm({ ...mediaForm, caption: e.target.value }); clearInvalid(setInvalid, 'mediaCaption'); }} />
+            </div>
+          </CmsEntityTranslationTabs>
           <div>
             <label htmlFor={fieldId('mediaPhotoUrl')} className="label-field">رابط المنشور (انستغرام / فيسبوك) {mediaForm.type === 'photo' ? <RequiredMark /> : <span className="text-gray-400">(اختياري للفيديو)</span>}</label>
             <div className="relative">

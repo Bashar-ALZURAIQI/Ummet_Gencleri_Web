@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   CalendarDays, CheckCircle2, History, Sparkles, Plus, Edit3, Trash2, Save,
   CheckCircle2 as Check, X,
@@ -19,6 +20,10 @@ import {
   setOwnActivityDecision,
 } from '../services/internalEconomyService';
 import { canCreateExecutiveContent } from '../domain/phaseThreeEconomy.ts';
+import { CmsEntityTranslationTabs } from '../components/cmsLocalization/CmsEntityTranslationTabs';
+import { useCmsLocalizationRepository } from '../context/CmsLocalizationContext';
+import { computeSourceHash, type JsonValue, type LocalizedCmsLocale } from '../domain/cmsLocalization';
+import { getEventCategoryLabel } from '../domain/eventCategoryPresentation';
 
 type Tab = 'upcoming' | 'past';
 
@@ -32,10 +37,15 @@ export default function ProgramsPage() {
     savePublishedSiteTarget,
     createPublishedEvent,
   } = useApp();
+  const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>('upcoming');
   const [cat, setCat] = useState<EventCategory | 'all'>('all');
   const [editingHeader, setEditingHeader] = useState(false);
   const [headerForm, setHeaderForm] = useState<ProgramsContent>(programsContent);
+  const [headerTranslations, setHeaderTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
+    tr: { badge: '', title: '', description: '' },
+    en: { badge: '', title: '', description: '' },
+  });
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [invalid, setInvalid] = useState<string[]>([]);
@@ -46,6 +56,11 @@ export default function ProgramsPage() {
   const [excuseActivity, setExcuseActivity] = useState<StudentActivityBoardItem | null>(null);
   const [excuseText, setExcuseText] = useState('');
   const [toast, setToast] = useState<ToastMessage | null>(null);
+  const repository = useCmsLocalizationRepository();
+  const [translations, setTranslations] = useState<Record<'tr' | 'en', Record<string, string>>>({
+    tr: { title: '', description: '', location: '' },
+    en: { title: '', description: '', location: '' },
+  });
   const [form, setForm] = useState({
     title: '', category: '' as EventCategory, date: '', time: '16:00',
     location: '', description: '', capacity: 50, registered: 0,
@@ -134,6 +149,10 @@ export default function ProgramsPage() {
     setEditId(null);
     setDraftEventId(crypto.randomUUID());
     setForm({ title: '', category: '' as EventCategory, date: '', time: '16:00', location: '', description: '', capacity: 50, registered: 0, status: '' as 'upcoming' | 'past', image: '', showOnHomepage: false, activityType: 'OPTIONAL', pointsValue: 0, registrationDeadline: '' });
+    setTranslations({
+      tr: { title: '', description: '', location: '' },
+      en: { title: '', description: '', location: '' },
+    });
     setModalOpen(true);
   };
 
@@ -147,6 +166,10 @@ export default function ProgramsPage() {
       activityType: e.activityType ?? 'OPTIONAL',
       pointsValue: e.pointsValue ?? 0,
       registrationDeadline: toDateTimeLocalValue(e.registrationDeadline ?? e.date),
+    });
+    setTranslations({
+      tr: { title: '', description: '', location: '' },
+      en: { title: '', description: '', location: '' },
     });
     setModalOpen(true);
   };
@@ -239,6 +262,43 @@ export default function ProgramsPage() {
         notify('error', saved.error ?? 'تعذر إنشاء الفعالية.');
         return;
       }
+      // Bind and publish entered translations to authoritative event ID
+      for (const loc of ['tr', 'en'] as const) {
+        const trData = translations[loc];
+        if (trData.title?.trim() || trData.description?.trim() || trData.location?.trim()) {
+          try {
+            const nextEvents = [newEvent, ...events];
+            const sourceHash = computeSourceHash(nextEvents);
+
+            // 1. Publish translation for the new published event via scoped publication
+            await repository.publishEventLocalization(publicEventId, loc, trData);
+
+            // 2. Keep draft partition synchronized
+            const latestDraft = await repository.getDraft('events', loc);
+            const draftList: Record<string, unknown>[] = Array.isArray(latestDraft?.payload)
+              ? JSON.parse(JSON.stringify(latestDraft.payload))
+              : [];
+            const dIdx = draftList.findIndex((d) => d && typeof d === 'object' && (d as Record<string, unknown>).id === publicEventId);
+            if (dIdx >= 0) {
+              draftList[dIdx] = { ...draftList[dIdx], ...trData, id: publicEventId };
+            } else {
+              draftList.push({ id: publicEventId, ...trData });
+            }
+            await repository.saveDraft({
+              target: 'events',
+              locale: loc,
+              payload: draftList as unknown as JsonValue,
+              status: 'draft',
+              manualPaths: [`${publicEventId}.title`],
+              stalePaths: [],
+              sourceHash,
+              updatedAt: new Date().toISOString(),
+            });
+          } catch {
+            // non-blocking
+          }
+        }
+      }
     }
     setModalOpen(false);
     notify('success', editId ? 'تم حفظ الفعالية وإعدادات التسجيل.' : 'تمت إضافة الفعالية وربطها بالتسجيل الدائم.');
@@ -282,6 +342,27 @@ export default function ProgramsPage() {
     }
     const saved = await savePublishedSiteTarget('programsContent', headerForm);
     if (!saved.ok) return;
+    for (const loc of ['tr', 'en'] as const) {
+      const trData = headerTranslations[loc];
+      if (trData.badge?.trim() || trData.title?.trim() || trData.description?.trim()) {
+        try {
+          const latest = await repository.getDraft('programsContent', loc);
+          const prevObj = (latest?.payload && typeof latest.payload === 'object') ? (latest.payload as Record<string, unknown>) : {};
+          const nextObj = { ...prevObj, ...trData };
+          await repository.saveDraft({
+            target: 'programsContent',
+            locale: loc,
+            payload: nextObj as unknown as JsonValue,
+            status: 'draft',
+            manualPaths: Object.keys(trData).filter((k) => trData[k]?.trim()),
+            sourceHash: computeSourceHash(headerForm),
+            updatedAt: new Date().toISOString(),
+          });
+        } catch {
+          // non-blocking
+        }
+      }
+    }
     setEditingHeader(false);
   };
 
@@ -294,37 +375,74 @@ export default function ProgramsPage() {
         <div className="container-app relative">
           {editingHeader ? (
             <form onSubmit={saveHeader} className="mx-auto max-w-2xl space-y-3 text-right">
-              <div>
-                <label className="mb-1.5 block text-right text-xs font-bold text-gold-300">الشارة <RequiredMark /></label>
-                <input
-                  id={fieldId('badge')}
-                  className={`${isInvalid(invalid, 'badge') ? 'input-field-dark-error' : 'w-full rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm text-white placeholder:text-gray-400 focus:border-gold-400 focus:outline-none'}`}
-                  value={headerForm.badge}
-                  onChange={(e) => { setHeaderForm({ ...headerForm, badge: e.target.value }); clearInvalid(setInvalid, 'badge'); }}
-                  placeholder="الشارة"
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-right text-xs font-bold text-gold-300">العنوان الرئيسي <RequiredMark /></label>
-                <input
-                  id={fieldId('title')}
-                  className={`${isInvalid(invalid, 'title') ? 'input-field-dark-error' : 'w-full rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-lg font-bold text-white placeholder:text-gray-400 focus:border-gold-400 focus:outline-none'}`}
-                  value={headerForm.title}
-                  onChange={(e) => { setHeaderForm({ ...headerForm, title: e.target.value }); clearInvalid(setInvalid, 'title'); }}
-                  placeholder="العنوان الرئيسي"
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-right text-xs font-bold text-gold-300">النص الوصفي <RequiredMark /></label>
-                <textarea
-                  id={fieldId('description')}
-                  rows={2}
-                  className={`${isInvalid(invalid, 'description') ? 'input-field-dark-error resize-none' : 'w-full resize-none rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm text-white placeholder:text-gray-400 focus:border-gold-400 focus:outline-none'}`}
-                  value={headerForm.description}
-                  onChange={(e) => { setHeaderForm({ ...headerForm, description: e.target.value }); clearInvalid(setInvalid, 'description'); }}
-                  placeholder="النص الوصفي"
-                />
-              </div>
+              <CmsEntityTranslationTabs
+                target="programsContent"
+                recordId="header"
+                canonicalPayload={headerForm}
+                fields={[
+                  {
+                    name: 'badge',
+                    label: t('programs.headerModal.badge', 'الشارة'),
+                    kind: 'title',
+                    canonicalValue: headerForm.badge,
+                    placeholder: 'الشارة',
+                  },
+                  {
+                    name: 'title',
+                    label: t('programs.headerModal.title', 'العنوان الرئيسي'),
+                    kind: 'title',
+                    canonicalValue: headerForm.title,
+                    placeholder: 'العنوان الرئيسي',
+                  },
+                  {
+                    name: 'description',
+                    label: t('programs.headerModal.description', 'النص الوصفي'),
+                    kind: 'description',
+                    canonicalValue: headerForm.description,
+                    placeholder: 'النص الوصفي',
+                  },
+                ]}
+                canEdit={Boolean(isPresident)}
+                translations={headerTranslations}
+                onTranslationChange={(loc, name, val) => {
+                  setHeaderTranslations((prev) => ({
+                    ...prev,
+                    [loc]: { ...prev[loc], [name]: val },
+                  }));
+                }}
+              >
+                <div>
+                  <label className="mb-1.5 block text-right text-xs font-bold text-gold-300">الشارة <RequiredMark /></label>
+                  <input
+                    id={fieldId('badge')}
+                    className={`${isInvalid(invalid, 'badge') ? 'input-field-dark-error' : 'w-full rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm text-white placeholder:text-gray-400 focus:border-gold-400 focus:outline-none'}`}
+                    value={headerForm.badge}
+                    onChange={(e) => { setHeaderForm({ ...headerForm, badge: e.target.value }); clearInvalid(setInvalid, 'badge'); }}
+                    placeholder="الشارة"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-right text-xs font-bold text-gold-300">العنوان الرئيسي <RequiredMark /></label>
+                  <input
+                    id={fieldId('title')}
+                    className={`${isInvalid(invalid, 'title') ? 'input-field-dark-error' : 'w-full rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-lg font-bold text-white placeholder:text-gray-400 focus:border-gold-400 focus:outline-none'}`}
+                    value={headerForm.title}
+                    onChange={(e) => { setHeaderForm({ ...headerForm, title: e.target.value }); clearInvalid(setInvalid, 'title'); }}
+                    placeholder="العنوان الرئيسي"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-right text-xs font-bold text-gold-300">النص الوصفي <RequiredMark /></label>
+                  <textarea
+                    id={fieldId('description')}
+                    rows={2}
+                    className={`${isInvalid(invalid, 'description') ? 'input-field-dark-error resize-none' : 'w-full resize-none rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm text-white placeholder:text-gray-400 focus:border-gold-400 focus:outline-none'}`}
+                    value={headerForm.description}
+                    onChange={(e) => { setHeaderForm({ ...headerForm, description: e.target.value }); clearInvalid(setInvalid, 'description'); }}
+                    placeholder="النص الوصفي"
+                  />
+                </div>
+              </CmsEntityTranslationTabs>
               <div className="flex justify-center gap-2">
                 <button type="submit" className="inline-flex items-center gap-1.5 rounded-lg bg-gold-400 px-4 py-2 text-sm font-bold text-navy-950 hover:bg-gold-300">
                   <Save className="h-4 w-4" /> حفظ
@@ -340,7 +458,14 @@ export default function ProgramsPage() {
                 <span className="text-sm font-bold uppercase tracking-wider text-gold-300">{programsContent.badge}</span>
                 {isPresident && (
                   <button
-                    onClick={() => { setHeaderForm(programsContent); setEditingHeader(true); }}
+                    onClick={() => {
+                      setHeaderForm(programsContent);
+                      setHeaderTranslations({
+                        tr: { badge: '', title: '', description: '' },
+                        en: { badge: '', title: '', description: '' },
+                      });
+                      setEditingHeader(true);
+                    }}
                     className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 text-gold-300 transition-colors hover:bg-white/20"
                     title="تعديل الترويسة"
                   >
@@ -367,7 +492,7 @@ export default function ProgramsPage() {
               }`}
             >
               <Sparkles className="h-4 w-4" />
-              البرامج القادمة
+              {t('programs.upcomingTab')}
               <span className={`rounded-full px-2 py-0.5 text-xs ${tab === 'upcoming' ? 'bg-white/20' : 'bg-gray-100'}`}>{upcomingCount}</span>
             </button>
             <button
@@ -377,14 +502,14 @@ export default function ProgramsPage() {
               }`}
             >
               <History className="h-4 w-4" />
-              البرامج السابقة
+              {t('programs.pastTab')}
               <span className={`rounded-full px-2 py-0.5 text-xs ${tab === 'past' ? 'bg-white/20' : 'bg-gray-100'}`}>{pastCount}</span>
             </button>
           </div>
 
           {canAddEvent && (
             <button onClick={openAdd} className="btn-primary">
-              <Plus className="h-4 w-4" /> إضافة فعالية جديدة
+              <Plus className="h-4 w-4" /> {t('programs.addNewEvent')}
             </button>
           )}
         </div>
@@ -397,7 +522,7 @@ export default function ProgramsPage() {
               cat === 'all' ? 'bg-navy-800 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
             }`}
           >
-            الكل
+            {t('common.all')}
           </button>
           {(Object.keys(categoryLabels) as EventCategory[]).map((c) => (
             <button
@@ -407,7 +532,7 @@ export default function ProgramsPage() {
                 cat === c ? 'bg-navy-800 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
               }`}
             >
-              {categoryLabels[c]}
+              {getEventCategoryLabel(c, t)}
             </button>
           ))}
         </div>
@@ -415,7 +540,7 @@ export default function ProgramsPage() {
         {filtered.length === 0 ? (
           <div className="card flex flex-col items-center justify-center py-20 text-center">
             <CalendarDays className="h-12 w-12 text-gray-300" />
-            <p className="mt-4 text-gray-500">لا توجد فعاليات في هذا التصنيف حاليًا.</p>
+            <p className="mt-4 text-gray-500">{t('programs.noEvents')}</p>
           </div>
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -434,14 +559,14 @@ export default function ProgramsPage() {
                     <button
                       onClick={() => openEdit(e)}
                       className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/90 text-navy-700 shadow-md backdrop-blur-sm transition-colors hover:bg-white"
-                      title="تعديل"
+                      title={t('common.edit')}
                     >
                       <Edit3 className="h-4 w-4" />
                     </button>
                     <button
                       onClick={() => removeEvent(e.id)}
                       className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/90 text-rose-600 shadow-md backdrop-blur-sm transition-colors hover:bg-white"
-                      title="حذف"
+                      title={t('common.delete')}
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -460,11 +585,9 @@ export default function ProgramsPage() {
                 <CheckCircle2 className="h-6 w-6" />
               </div>
               <div>
-                <h3 className="text-xl font-bold text-navy-900">إنجازات نفخر بها</h3>
+                <h3 className="text-xl font-bold text-navy-900">{t('programs.achievementsTitle')}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-gray-600">
-                  نظّمنا حتى الآن أكثر من 86 فعالية شملت ورش عمل ومحاضرات وبرامج
-                  تدريبية وحملات تطوعية، استفاد منها أكثر من 1200 طالب من 24 جامعة
-                  مختلفة. ونواصل العمل على توسيع أثرنا عامًا بعد عام.
+                  {t('programs.achievementsText')}
                 </p>
               </div>
             </div>
@@ -475,10 +598,6 @@ export default function ProgramsPage() {
       {/* Add/Edit Event Modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editId ? 'تعديل فعالية' : 'إضافة فعالية جديدة'} maxWidth="max-w-xl">
         <form onSubmit={saveEvent} className="space-y-4">
-          <div>
-            <label className="label-field">عنوان الفعالية <RequiredMark /></label>
-            <input id={fieldId('title')} className={`${isInvalid(invalid, 'title') ? 'input-field-error' : 'input-field'}`} value={form.title} onChange={(e) => { setForm({ ...form, title: e.target.value }); clearInvalid(setInvalid, 'title'); }} />
-          </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="label-field">النوع <RequiredMark /></label>
@@ -493,7 +612,7 @@ export default function ProgramsPage() {
               <select id={fieldId('category')} className={`${isInvalid(invalid, 'category') ? 'input-field-error' : 'input-field'}`} value={form.category} onChange={(e) => { setForm({ ...form, category: e.target.value as EventCategory }); clearInvalid(setInvalid, 'category'); }}>
                 <option value="">اختر الفئة...</option>
                 {(Object.keys(categoryLabels) as EventCategory[]).map((c) => (
-                  <option key={c} value={c}>{categoryLabels[c]}</option>
+                  <option key={c} value={c}>{getEventCategoryLabel(c, t)}</option>
                 ))}
               </select>
             </div>
@@ -527,14 +646,6 @@ export default function ProgramsPage() {
               <input id={fieldId('time')} type="time" className={`${isInvalid(invalid, 'time') ? 'input-field-error' : 'input-field'}`} value={form.time} onChange={(e) => { setForm({ ...form, time: e.target.value }); clearInvalid(setInvalid, 'time'); }} />
             </div>
           </div>
-          <div>
-            <label className="label-field">المكان <RequiredMark /></label>
-            <input id={fieldId('location')} className={`${isInvalid(invalid, 'location') ? 'input-field-error' : 'input-field'}`} value={form.location} onChange={(e) => { setForm({ ...form, location: e.target.value }); clearInvalid(setInvalid, 'location'); }} />
-          </div>
-          <div>
-            <label className="label-field">الوصف <RequiredMark /></label>
-            <textarea id={fieldId('description')} rows={2} className={`${isInvalid(invalid, 'description') ? 'input-field-error' : 'input-field'} resize-none`} value={form.description} onChange={(e) => { setForm({ ...form, description: e.target.value }); clearInvalid(setInvalid, 'description'); }} />
-          </div>
           <ManagedFileField
             usage="event-image"
             label="صورة الفعالية"
@@ -561,6 +672,59 @@ export default function ProgramsPage() {
             <input type="checkbox" checked={form.showOnHomepage} onChange={(e) => setForm({ ...form, showOnHomepage: e.target.checked })} className="h-4 w-4 accent-navy-700" />
             <span className="text-sm font-semibold text-navy-900">عرض في الصفحة الرئيسية</span>
           </label>
+
+          <CmsEntityTranslationTabs
+            target="events"
+            recordId={editId}
+            canonicalPayload={editId ? events.map((ev) => (ev.id === editId ? { ...ev, title: form.title, description: form.description, location: form.location } : ev)) : events}
+            fields={[
+              {
+                name: 'title',
+                label: 'عنوان الفعالية',
+                kind: 'title',
+                canonicalValue: form.title,
+                placeholder: 'عنوان الفعالية',
+              },
+              {
+                name: 'location',
+                label: 'المكان',
+                kind: 'text',
+                canonicalValue: form.location,
+                placeholder: 'مكان الفعالية',
+                isLocation: true,
+              },
+              {
+                name: 'description',
+                label: 'الوصف',
+                kind: 'description',
+                canonicalValue: form.description,
+                placeholder: 'وصف الفعالية',
+              },
+            ]}
+            canEdit={canAddEvent && (!editId || isPresident)}
+            canPublish={canAddEvent && (!editId || isPresident)}
+            translations={translations}
+            onTranslationChange={(loc, name, val) => {
+              setTranslations((prev) => ({
+                ...prev,
+                [loc]: { ...prev[loc], [name]: val },
+              }));
+            }}
+          >
+            <div>
+              <label className="label-field">عنوان الفعالية <RequiredMark /></label>
+              <input id={fieldId('title')} className={`${isInvalid(invalid, 'title') ? 'input-field-error' : 'input-field'}`} value={form.title} onChange={(e) => { setForm({ ...form, title: e.target.value }); clearInvalid(setInvalid, 'title'); }} placeholder="عنوان الفعالية" />
+            </div>
+            <div>
+              <label className="label-field">المكان <RequiredMark /></label>
+              <input id={fieldId('location')} className={`${isInvalid(invalid, 'location') ? 'input-field-error' : 'input-field'}`} value={form.location} onChange={(e) => { setForm({ ...form, location: e.target.value }); clearInvalid(setInvalid, 'location'); }} placeholder="مكان الفعالية" />
+            </div>
+            <div>
+              <label className="label-field">الوصف <RequiredMark /></label>
+              <textarea id={fieldId('description')} rows={2} className={`${isInvalid(invalid, 'description') ? 'input-field-error' : 'input-field'} resize-none`} value={form.description} onChange={(e) => { setForm({ ...form, description: e.target.value }); clearInvalid(setInvalid, 'description'); }} placeholder="وصف الفعالية" />
+            </div>
+          </CmsEntityTranslationTabs>
+
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setModalOpen(false)} className="btn-ghost">إلغاء</button>
             <button type="submit" className="btn-primary">

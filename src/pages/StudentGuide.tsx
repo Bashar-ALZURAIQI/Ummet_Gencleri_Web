@@ -7,6 +7,7 @@ import {
   Coffee, Pill, BookMarked, Briefcase, Landmark, Mail, MessageCircle,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { useTranslation } from 'react-i18next';
 import Modal from '../components/Modal';
 import SiteEditBanner from '../components/SiteEditBanner';
 import RequiredMark from '../components/RequiredMark';
@@ -14,6 +15,9 @@ import GuideSuggestionCallout from '../components/GuideSuggestionCallout';
 import { validateChecks, clearInvalid, isInvalid, fieldId } from '../utils/formValidation';
 import { validateGuideContact, validateGuideItem, validateGuideSection } from '../domain/cmsValidation';
 import type { GuideSectionData, GuideItem, GuideContact, SiteEditDiff } from '../data/mockData';
+import { CmsEntityTranslationTabs } from '../components/cmsLocalization/CmsEntityTranslationTabs';
+import { useCmsLocalizationRepository } from '../context/CmsLocalizationContext';
+import { computeSourceHash, type LocalizedCmsLocale, type JsonValue } from '../domain/cmsLocalization';
 
 const iconMap: Record<string, typeof BookOpen> = {
   BookOpen, Home, Bus, Library, GraduationCap, MapPin, Phone, Clock,
@@ -36,18 +40,33 @@ const colorOptions = [
 ];
 
 export default function StudentGuide() {
-  const { currentUser, guideSections, guideQuickInfo, submitSiteEdit, savePublishedSiteTarget } = useApp();
+  const { t } = useTranslation();
+  const { currentUser, guideSections, guideQuickInfo, canonicalGuideSections, submitSiteEdit, savePublishedSiteTarget } = useApp();
+  const localizationRepo = useCmsLocalizationRepository();
   const [activeSectionId, setActiveSectionId] = useState(guideSections[0]?.id ?? '');
   const [sectionModalOpen, setSectionModalOpen] = useState(false);
   const [editingSection, setEditingSection] = useState<GuideSectionData | null>(null);
+  const [secTranslations, setSecTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
+    tr: {},
+    en: {},
+  });
   const [itemModalOpen, setItemModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<GuideItem | null>(null);
+  const [itemTranslations, setItemTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
+    tr: {},
+    en: {},
+  });
   const [contactModalOpen, setContactModalOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<GuideContact | null>(null);
+  const [contactTranslations, setContactTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
+    tr: {},
+    en: {},
+  });
   const [quickInfo, setQuickInfo] = useState(guideQuickInfo);
   const [editingQuickInfo, setEditingQuickInfo] = useState(false);
   const [invalid, setInvalid] = useState<string[]>([]);
 
+  const isPresident = currentUser?.role === 'PRESIDENT';
   const isPresidentOrMedia =
     currentUser &&
     (currentUser.role === 'PRESIDENT' || currentUser.role === 'MEDIA_HEAD');
@@ -72,13 +91,16 @@ export default function StudentGuide() {
 
   const openAddSection = () => {
     setEditingSection(null);
+    setSecTranslations({ tr: {}, en: {} });
     setSectionForm({ label: '', icon: 'BookOpen', color: 'text-navy-700', bg: 'bg-navy-100', title: '', intro: '' });
     setSectionModalOpen(true);
   };
 
   const openEditSection = (s: GuideSectionData) => {
-    setEditingSection(s);
-    setSectionForm({ label: s.label, icon: s.icon, color: s.color, bg: s.bg, title: s.title, intro: s.intro });
+    const canon = canonicalGuideSections?.find((sec) => sec.id === s.id) ?? s;
+    setEditingSection(canon);
+    setSecTranslations({ tr: {}, en: {} });
+    setSectionForm({ label: canon.label, icon: canon.icon, color: canon.color, bg: canon.bg, title: canon.title, intro: canon.intro });
     setSectionModalOpen(true);
   };
 
@@ -139,6 +161,7 @@ export default function StudentGuide() {
     const validation = validateGuideSection(sectionForm);
     if (!validateChecks(validation.invalid.map((key) => ({ key, ok: false })), setInvalid)) return;
     if (!sectionForm.label.trim()) return;
+    const newSecId = 'sec' + Date.now();
     if (editingSection) {
       const next: GuideSectionData = { ...editingSection, ...sectionForm };
       if (currentUser?.role === 'MEDIA_HEAD') {
@@ -161,7 +184,7 @@ export default function StudentGuide() {
       if (!saved.ok) { alert(saved.error); return; }
     } else {
       const newSection: GuideSectionData = {
-        id: 'sec' + Date.now(), ...sectionForm, items: [], contacts: [],
+        id: newSecId, ...sectionForm, items: [], contacts: [],
       };
       if (currentUser?.role === 'MEDIA_HEAD') {
         const diffs = sectionDiffs('add', null, newSection);
@@ -176,9 +199,34 @@ export default function StudentGuide() {
         setSectionModalOpen(false);
         return;
       }
-      const saved = await savePublishedSiteTarget('guideSections', [...guideSections, newSection]);
+      const nextSections = [...guideSections, newSection];
+      const saved = await savePublishedSiteTarget('guideSections', nextSections);
       if (!saved.ok) { alert(saved.error); return; }
       setActiveSectionId(newSection.id);
+
+      for (const loc of ['tr', 'en'] as const) {
+        const trData = secTranslations[loc];
+        if (trData.label?.trim() || trData.title?.trim() || trData.intro?.trim()) {
+          try {
+            const latest = await localizationRepo.getDraft('guideSections', loc);
+            const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
+              ? JSON.parse(JSON.stringify(latest.payload))
+              : [];
+            list.push({ id: newSecId, ...trData });
+            await localizationRepo.saveDraft({
+              target: 'guideSections',
+              locale: loc,
+              payload: list as unknown as JsonValue,
+              status: 'draft',
+              manualPaths: [`${newSecId}.label`],
+              sourceHash: computeSourceHash(nextSections),
+              updatedAt: new Date().toISOString(),
+            });
+          } catch {
+            // non-blocking
+          }
+        }
+      }
     }
     setSectionModalOpen(false);
   };
@@ -205,13 +253,21 @@ export default function StudentGuide() {
 
   const openAddItem = () => {
     setEditingItem(null);
+    setItemTranslations({ tr: {}, en: {} });
     setItemForm({ heading: '', body: '', tips: [''] });
     setItemModalOpen(true);
   };
 
   const openEditItem = (item: GuideItem) => {
-    setEditingItem(item);
-    setItemForm({ heading: item.heading, body: item.body, tips: item.tips.length ? [...item.tips] : [''] });
+    const canonSec = canonicalGuideSections?.find((sec) => sec.id === activeSectionId);
+    const canonItem = canonSec?.items?.find((it) => it.id === item.id);
+    setEditingItem(canonItem ?? item);
+    setItemTranslations({ tr: {}, en: {} });
+    setItemForm({
+      heading: canonItem?.heading ?? item.heading,
+      body: canonItem?.body ?? item.body,
+      tips: (canonItem?.tips ?? item.tips).length ? [...(canonItem?.tips ?? item.tips)] : [''],
+    });
     setItemModalOpen(true);
   };
 
@@ -221,11 +277,11 @@ export default function StudentGuide() {
     if (!validateChecks(validation.invalid.map((key) => ({ key, ok: false })), setInvalid)) return;
     if (!itemForm.heading.trim()) return;
     const tips = itemForm.tips.filter((t) => t.trim());
+    const newItemId = editingItem?.id ?? 'item' + Date.now();
     if (currentUser?.role === 'MEDIA_HEAD') {
       const section = guideSections.find((s) => s.id === activeSectionId);
       if (!section) return;
-      const itemId = editingItem?.id ?? 'item' + Date.now();
-      const nextItem: GuideItem = { id: itemId, heading: itemForm.heading, body: itemForm.body, tips };
+      const nextItem: GuideItem = { id: newItemId, heading: itemForm.heading, body: itemForm.body, tips };
       const next: GuideSectionData = editingItem
         ? { ...section, items: section.items.map((it) => it.id === editingItem.id ? nextItem : it) }
         : { ...section, items: [...section.items, nextItem] };
@@ -234,7 +290,7 @@ export default function StudentGuide() {
         const submitted = await submitSiteEdit({
           pageId: 'guide', pageLabel: 'دليل الطالب', sectionLabel: section.label,
           target: 'guideSections', op: 'update', recordId: section.id, recordValue: next,
-          nested: { parentField: 'items', itemId },
+          nested: { parentField: 'items', itemId: newItemId },
           diffs,
         });
         if (!submitted) return;
@@ -249,11 +305,45 @@ export default function StudentGuide() {
         ...s, items: s.items.map((it) => it.id === editingItem.id ? { ...it, heading: itemForm.heading, body: itemForm.body, tips } : it),
       } : s);
     } else {
-      const newItem: GuideItem = { id: 'item' + Date.now(), heading: itemForm.heading, body: itemForm.body, tips };
+      const newItem: GuideItem = { id: newItemId, heading: itemForm.heading, body: itemForm.body, tips };
       nextSections = guideSections.map((s) => s.id === activeSectionId ? { ...s, items: [...s.items, newItem] } : s);
     }
     const saved = await savePublishedSiteTarget('guideSections', nextSections);
     if (!saved.ok) { alert(saved.error); return; }
+
+    if (!editingItem) {
+      for (const loc of ['tr', 'en'] as const) {
+        const trData = itemTranslations[loc];
+        if (trData.heading?.trim() || trData.body?.trim()) {
+          try {
+            const latest = await localizationRepo.getDraft('guideSections', loc);
+            const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
+              ? JSON.parse(JSON.stringify(latest.payload))
+              : [];
+            const secIdx = list.findIndex((s) => s && s.id === activeSectionId);
+            if (secIdx >= 0) {
+              const secObj = list[secIdx];
+              const items = Array.isArray(secObj.items) ? [...secObj.items] : [];
+              items.push({ id: newItemId, ...trData });
+              secObj.items = items;
+            } else {
+              list.push({ id: activeSectionId, items: [{ id: newItemId, ...trData }] });
+            }
+            await localizationRepo.saveDraft({
+              target: 'guideSections',
+              locale: loc,
+              payload: list as unknown as JsonValue,
+              status: 'draft',
+              manualPaths: [`${newItemId}.heading`],
+              sourceHash: computeSourceHash(nextSections),
+              updatedAt: new Date().toISOString(),
+            });
+          } catch {
+            // non-blocking
+          }
+        }
+      }
+    }
     setItemModalOpen(false);
   };
 
@@ -312,8 +402,15 @@ export default function StudentGuide() {
   };
 
   const openEditContact = (c: GuideContact) => {
-    setEditingContact(c);
-    setContactForm({ label: c.label, value: c.value, type: c.type });
+    const canonSec = canonicalGuideSections?.find((sec) => sec.id === activeSectionId);
+    const canonContact = canonSec?.contacts?.find((ct) => ct.id === c.id);
+    setEditingContact(canonContact ?? c);
+    setContactTranslations({ tr: {}, en: {} });
+    setContactForm({
+      label: canonContact?.label ?? c.label,
+      value: canonContact?.value ?? c.value,
+      type: canonContact?.type ?? c.type,
+    });
     setContactModalOpen(true);
   };
 
@@ -416,11 +513,11 @@ export default function StudentGuide() {
         <div className="container-app relative">
           <div className="flex items-center gap-3 text-gold-400">
             <BookOpen className="h-6 w-6" />
-            <span className="text-sm font-bold tracking-wide">دليل الطالب</span>
+            <span className="text-sm font-bold tracking-wide">{t('guide.badge')}</span>
           </div>
-          <h1 className="mt-3 text-3xl font-extrabold text-white sm:text-4xl">دليلك الشامل للحياة في أرضروم</h1>
+          <h1 className="mt-3 text-3xl font-extrabold text-white sm:text-4xl">{t('guide.title')}</h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-gray-300">
-            كل ما يحتاجه الطالب الجديد في مدينة أرضروم وجامعة أتاتورك، من التسجيل الجامعي إلى السكن والمواصلات والخدمات الأكاديمية.
+            {t('guide.description')}
           </p>
         </div>
       </div>
@@ -478,7 +575,7 @@ export default function StudentGuide() {
                   onClick={openAddSection}
                   className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-navy-300 px-4 py-2.5 text-xs font-bold text-navy-600 transition-colors hover:bg-navy-50"
                 >
-                  <Plus className="h-4 w-4" /> إضافة قسم جديد
+                  <Plus className="h-4 w-4" /> {t('guide.addSection')}
                 </button>
               )}
             </div>
@@ -487,13 +584,13 @@ export default function StudentGuide() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-navy-900">
                   <Info className="h-5 w-5" />
-                  <span className="text-sm font-bold">معلومة سريعة</span>
+                  <span className="text-sm font-bold">{t('guide.quickInfo')}</span>
                 </div>
                 {isPresidentOrMedia && !editingQuickInfo && (
                   <button
                     onClick={() => setEditingQuickInfo(true)}
                     className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/60 text-navy-600 hover:bg-white"
-                    title="تعديل"
+                    title={t('common.edit')}
                   >
                     <Edit3 className="h-3.5 w-3.5" />
                   </button>
@@ -513,13 +610,13 @@ export default function StudentGuide() {
                       onClick={saveQuickInfo}
                       className="inline-flex items-center gap-1 rounded-lg bg-navy-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-navy-800"
                     >
-                      <Save className="h-3 w-3" /> حفظ
+                      <Save className="h-3 w-3" /> {t('common.save')}
                     </button>
                     <button
                       onClick={() => { setEditingQuickInfo(false); setQuickInfo(guideQuickInfo); }}
                       className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50"
                     >
-                      <X className="h-3 w-3" /> إلغاء
+                      <X className="h-3 w-3" /> {t('common.cancel')}
                     </button>
                   </div>
                 </div>
@@ -608,7 +705,7 @@ export default function StudentGuide() {
                 onClick={openAddItem}
                 className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-navy-200 px-4 py-4 text-sm font-bold text-navy-600 transition-colors hover:border-navy-300 hover:bg-navy-50"
               >
-                <Plus className="h-5 w-5" /> إضافة معلومة/دليل جديد
+                <Plus className="h-5 w-5" /> {t('guide.addItem')}
               </button>
             )}
 
@@ -617,14 +714,14 @@ export default function StudentGuide() {
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="flex items-center gap-2 text-base font-bold text-navy-900">
                   <Phone className="h-5 w-5 text-navy-600" />
-                  جهات الاتصال المهمة
+                  {t('guide.importantContacts')}
                 </h3>
                 {isPresidentOrMedia && (
                   <button
                     onClick={openAddContact}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-navy-50 px-3 py-1.5 text-xs font-bold text-navy-700 hover:bg-navy-100"
                   >
-                    <Plus className="h-3.5 w-3.5" /> إضافة جهة اتصال
+                    <Plus className="h-3.5 w-3.5" /> {t('guide.addContact')}
                   </button>
                 )}
               </div>
@@ -673,18 +770,56 @@ export default function StudentGuide() {
       {/* Section Modal */}
       <Modal open={sectionModalOpen} onClose={() => setSectionModalOpen(false)} title={editingSection ? 'تعديل القسم' : 'إضافة قسم جديد'} maxWidth="max-w-lg">
         <form onSubmit={saveSection} className="space-y-4">
-          <div>
-            <label htmlFor={fieldId('secLabel')} className="label-field">اسم القسم <RequiredMark /></label>
-            <input id={fieldId('secLabel')} required className={`input-field ${isInvalid(invalid, 'secLabel')}`} value={sectionForm.label} onChange={(e) => { setSectionForm({ ...sectionForm, label: e.target.value }); clearInvalid(setInvalid, 'secLabel'); }} placeholder="مثال: المطاعم" />
-          </div>
-          <div>
-            <label htmlFor={fieldId('secTitle')} className="label-field">العنوان الرئيسي <RequiredMark /></label>
-            <input id={fieldId('secTitle')} required className={`input-field ${isInvalid(invalid, 'secTitle')}`} value={sectionForm.title} onChange={(e) => { setSectionForm({ ...sectionForm, title: e.target.value }); clearInvalid(setInvalid, 'secTitle'); }} placeholder="مثال: دليل المطاعم" />
-          </div>
-          <div>
-            <label htmlFor={fieldId('secIntro')} className="label-field">النص التعريفي <RequiredMark /></label>
-            <textarea id={fieldId('secIntro')} required rows={2} className={`input-field resize-none ${isInvalid(invalid, 'secIntro')}`} value={sectionForm.intro} onChange={(e) => { setSectionForm({ ...sectionForm, intro: e.target.value }); clearInvalid(setInvalid, 'secIntro'); }} />
-          </div>
+          <CmsEntityTranslationTabs
+            target="guideSections"
+            recordId={editingSection?.id ?? null}
+            canonicalPayload={canonicalGuideSections ?? guideSections}
+            fields={[
+              {
+                name: 'label',
+                label: 'اسم القسم',
+                kind: 'title',
+                canonicalValue: sectionForm.label,
+                placeholder: 'اسم القسم',
+              },
+              {
+                name: 'title',
+                label: 'العنوان الرئيسي',
+                kind: 'title',
+                canonicalValue: sectionForm.title,
+                placeholder: 'العنوان الرئيسي',
+              },
+              {
+                name: 'intro',
+                label: 'النص التعريفي',
+                kind: 'description',
+                canonicalValue: sectionForm.intro,
+                placeholder: 'النص التعريفي',
+              },
+            ]}
+            canEdit={Boolean(isPresidentOrMedia)}
+            canPublish={Boolean(isPresident)}
+            translations={secTranslations}
+            onTranslationChange={(loc, name, val) => {
+              setSecTranslations((prev) => ({
+                ...prev,
+                [loc]: { ...prev[loc], [name]: val },
+              }));
+            }}
+          >
+            <div>
+              <label htmlFor={fieldId('secLabel')} className="label-field">اسم القسم <RequiredMark /></label>
+              <input id={fieldId('secLabel')} required className={`input-field ${isInvalid(invalid, 'secLabel')}`} value={sectionForm.label} onChange={(e) => { setSectionForm({ ...sectionForm, label: e.target.value }); clearInvalid(setInvalid, 'secLabel'); }} placeholder="مثال: المطاعم" />
+            </div>
+            <div>
+              <label htmlFor={fieldId('secTitle')} className="label-field">العنوان الرئيسي <RequiredMark /></label>
+              <input id={fieldId('secTitle')} required className={`input-field ${isInvalid(invalid, 'secTitle')}`} value={sectionForm.title} onChange={(e) => { setSectionForm({ ...sectionForm, title: e.target.value }); clearInvalid(setInvalid, 'secTitle'); }} placeholder="مثال: دليل المطاعم" />
+            </div>
+            <div>
+              <label htmlFor={fieldId('secIntro')} className="label-field">النص التعريفي <RequiredMark /></label>
+              <textarea id={fieldId('secIntro')} required rows={2} className={`input-field resize-none ${isInvalid(invalid, 'secIntro')}`} value={sectionForm.intro} onChange={(e) => { setSectionForm({ ...sectionForm, intro: e.target.value }); clearInvalid(setInvalid, 'secIntro'); }} />
+            </div>
+          </CmsEntityTranslationTabs>
           <div>
             <label className="label-field">الأيقونة</label>
             <div className="flex flex-wrap gap-2">
@@ -734,43 +869,81 @@ export default function StudentGuide() {
       {/* Item Modal */}
       <Modal open={itemModalOpen} onClose={() => setItemModalOpen(false)} title={editingItem ? 'تعديل المعلومة' : 'إضافة معلومة/دليل جديد'} maxWidth="max-w-lg">
         <form onSubmit={saveItem} className="space-y-4">
-          <div>
-            <label htmlFor={fieldId('itemHeading')} className="label-field">عنوان الكرت <RequiredMark /></label>
-            <input id={fieldId('itemHeading')} required className={`input-field ${isInvalid(invalid, 'itemHeading')}`} value={itemForm.heading} onChange={(e) => { setItemForm({ ...itemForm, heading: e.target.value }); clearInvalid(setInvalid, 'itemHeading'); }} />
-          </div>
-          <div>
-            <label htmlFor={fieldId('itemBody')} className="label-field">الوصف الرئيسي <RequiredMark /></label>
-            <textarea id={fieldId('itemBody')} required rows={2} className={`input-field resize-none ${isInvalid(invalid, 'itemBody')}`} value={itemForm.body} onChange={(e) => { setItemForm({ ...itemForm, body: e.target.value }); clearInvalid(setInvalid, 'itemBody'); }} />
-          </div>
-          <div>
-            <label className="label-field">النقاط الفرعية</label>
-            <div className="space-y-2">
-              {itemForm.tips.map((tip, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <input
-                    className="input-field"
-                    value={tip}
-                    onChange={(e) => setItemForm({ ...itemForm, tips: itemForm.tips.map((t, j) => j === i ? e.target.value : t) })}
-                    placeholder={`نقطة ${i + 1}`}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setItemForm({ ...itemForm, tips: itemForm.tips.filter((_, j) => j !== i) })}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
-              <button
-                type="button"
-                onClick={() => setItemForm({ ...itemForm, tips: [...itemForm.tips, ''] })}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-navy-300 px-3 py-1.5 text-xs font-bold text-navy-600 hover:bg-navy-50"
-              >
-                <Plus className="h-3.5 w-3.5" /> إضافة نقطة
-              </button>
+          <CmsEntityTranslationTabs
+            target="guideSections"
+            recordId={editingItem?.id ?? null}
+            canonicalPayload={canonicalGuideSections ?? guideSections}
+            fields={[
+              {
+                name: 'heading',
+                label: 'عنوان الكرت',
+                kind: 'title',
+                canonicalValue: itemForm.heading,
+                placeholder: 'عنوان الكرت',
+              },
+              {
+                name: 'body',
+                label: 'الوصف الرئيسي',
+                kind: 'richText',
+                canonicalValue: itemForm.body,
+                placeholder: 'الوصف الرئيسي',
+              },
+              ...itemForm.tips.map((tip, i) => ({
+                name: `tips.${i}`,
+                label: `النقطة الفرعية ${i + 1}`,
+                kind: 'text' as const,
+                canonicalValue: tip,
+                placeholder: `نقطة ${i + 1}`,
+              })),
+            ]}
+            canEdit={Boolean(isPresidentOrMedia)}
+            canPublish={Boolean(isPresident)}
+            translations={itemTranslations}
+            onTranslationChange={(loc, name, val) => {
+              setItemTranslations((prev) => ({
+                ...prev,
+                [loc]: { ...prev[loc], [name]: val },
+              }));
+            }}
+          >
+            <div>
+              <label htmlFor={fieldId('itemHeading')} className="label-field">عنوان الكرت <RequiredMark /></label>
+              <input id={fieldId('itemHeading')} required className={`input-field ${isInvalid(invalid, 'itemHeading')}`} value={itemForm.heading} onChange={(e) => { setItemForm({ ...itemForm, heading: e.target.value }); clearInvalid(setInvalid, 'itemHeading'); }} />
             </div>
-          </div>
+            <div>
+              <label htmlFor={fieldId('itemBody')} className="label-field">الوصف الرئيسي <RequiredMark /></label>
+              <textarea id={fieldId('itemBody')} required rows={2} className={`input-field resize-none ${isInvalid(invalid, 'itemBody')}`} value={itemForm.body} onChange={(e) => { setItemForm({ ...itemForm, body: e.target.value }); clearInvalid(setInvalid, 'itemBody'); }} />
+            </div>
+            <div>
+              <label className="label-field">النقاط الفرعية</label>
+              <div className="space-y-2">
+                {itemForm.tips.map((tip, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input
+                      className="input-field"
+                      value={tip}
+                      onChange={(e) => setItemForm({ ...itemForm, tips: itemForm.tips.map((t, j) => j === i ? e.target.value : t) })}
+                      placeholder={`نقطة ${i + 1}`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setItemForm({ ...itemForm, tips: itemForm.tips.filter((_, j) => j !== i) })}
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setItemForm({ ...itemForm, tips: [...itemForm.tips, ''] })}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-navy-300 px-3 py-1.5 text-xs font-bold text-navy-600 hover:bg-navy-50"
+                >
+                  <Plus className="h-3.5 w-3.5" /> إضافة نقطة
+                </button>
+              </div>
+            </div>
+          </CmsEntityTranslationTabs>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setItemModalOpen(false)} className="btn-ghost">إلغاء</button>
             <button type="submit" className="btn-primary">
@@ -783,10 +956,34 @@ export default function StudentGuide() {
       {/* Contact Modal */}
       <Modal open={contactModalOpen} onClose={() => setContactModalOpen(false)} title={editingContact ? 'تعديل جهة اتصال' : 'إضافة جهة اتصال'} maxWidth="max-w-md">
         <form onSubmit={saveContact} className="space-y-4">
-          <div>
-            <label htmlFor={fieldId('contactLabel')} className="label-field">الاسم <RequiredMark /></label>
-            <input id={fieldId('contactLabel')} required className={`input-field ${isInvalid(invalid, 'contactLabel')}`} value={contactForm.label} onChange={(e) => { setContactForm({ ...contactForm, label: e.target.value }); clearInvalid(setInvalid, 'contactLabel'); }} placeholder="مثال: قسم شؤون الطلاب" />
-          </div>
+          <CmsEntityTranslationTabs
+            target="guideSections"
+            recordId={editingContact?.id ?? null}
+            canonicalPayload={canonicalGuideSections ?? guideSections}
+            fields={[
+              {
+                name: 'label',
+                label: 'الاسم',
+                kind: 'title',
+                canonicalValue: contactForm.label,
+                placeholder: 'مثال: قسم شؤون الطلاب',
+              },
+            ]}
+            canEdit={Boolean(isPresidentOrMedia)}
+            canPublish={Boolean(isPresident)}
+            translations={contactTranslations}
+            onTranslationChange={(loc, name, val) => {
+              setContactTranslations((prev) => ({
+                ...prev,
+                [loc]: { ...prev[loc], [name]: val },
+              }));
+            }}
+          >
+            <div>
+              <label htmlFor={fieldId('contactLabel')} className="label-field">الاسم <RequiredMark /></label>
+              <input id={fieldId('contactLabel')} required className={`input-field ${isInvalid(invalid, 'contactLabel')}`} value={contactForm.label} onChange={(e) => { setContactForm({ ...contactForm, label: e.target.value }); clearInvalid(setInvalid, 'contactLabel'); }} placeholder="مثال: قسم شؤون الطلاب" />
+            </div>
+          </CmsEntityTranslationTabs>
           <div>
             <label htmlFor={fieldId('contactValue')} className="label-field">القيمة <RequiredMark /></label>
             <input id={fieldId('contactValue')} required className={`input-field ${isInvalid(invalid, 'contactValue')}`} dir="ltr" value={contactForm.value} onChange={(e) => { setContactForm({ ...contactForm, value: e.target.value }); clearInvalid(setInvalid, 'contactValue'); }} placeholder="+90 442 231 0000" />

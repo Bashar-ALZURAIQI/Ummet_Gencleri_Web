@@ -1,5 +1,6 @@
 import { Menu, X, type LucideIcon } from 'lucide-react';
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   closeSidebar,
   shouldCloseSidebarForKey,
@@ -36,10 +37,14 @@ export function SidebarLayout<TId extends string>({
   items,
   activeId,
   onSelect,
-  title = 'الأقسام',
-  direction = 'rtl',
+  title,
+  direction: customDirection,
   children,
 }: SidebarLayoutProps<TId>) {
+  const { i18n } = useTranslation();
+  const { t } = useTranslation();
+  const resolvedTitle = title ?? t('common.menu', 'الأقسام');
+  const direction: 'rtl' | 'ltr' = customDirection ?? (i18n.dir() as 'rtl' | 'ltr');
   const [drawer, setDrawer] = useState<SidebarDrawerState>(CLOSED_DRAWER);
   const drawerId = useId();
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -104,7 +109,7 @@ export function SidebarLayout<TId extends string>({
   };
 
   const navigation = (mobile = false) => (
-    <nav aria-label={title} className="space-y-2">
+    <nav aria-label={resolvedTitle} className="space-y-2">
       {items.map((item) => {
         const Icon = item.icon;
         const active = item.id === activeId;
@@ -115,7 +120,7 @@ export function SidebarLayout<TId extends string>({
             type="button"
             aria-current={active ? 'page' : undefined}
             onClick={() => (mobile ? handleSelect(item) : onSelect(item.id))}
-            className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-right text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${
+            className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-start text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${
               active
                 ? 'bg-emerald-600 text-white shadow-sm'
                 : 'text-navy-800 hover:bg-emerald-50 hover:text-emerald-800'
@@ -136,7 +141,7 @@ export function SidebarLayout<TId extends string>({
           direction === 'rtl' ? 'border-l border-gray-200' : 'border-r border-gray-200'
         }`}
       >
-        <h2 className="mb-4 px-2 text-base font-bold text-navy-900">{title}</h2>
+        <h2 className="mb-4 px-2 text-base font-bold text-navy-900">{resolvedTitle}</h2>
         {navigation()}
       </aside>
 
@@ -151,7 +156,7 @@ export function SidebarLayout<TId extends string>({
             className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 font-semibold text-white shadow-sm transition-colors hover:bg-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
           >
             <Menu className="h-5 w-5" aria-hidden="true" />
-            القائمة
+            {t('common.menu', 'القائمة')}
           </button>
         </div>
         {children}
@@ -161,7 +166,7 @@ export function SidebarLayout<TId extends string>({
         <div className="fixed inset-0 z-50 lg:hidden">
           <button
             type="button"
-            aria-label="إغلاق القائمة"
+            aria-label={t('common.closeMenu', 'إغلاق القائمة')}
             className="absolute inset-0 bg-navy-950/55"
             onClick={() => setDrawer(closeSidebar)}
           />
@@ -170,17 +175,17 @@ export function SidebarLayout<TId extends string>({
             ref={drawerRef}
             role="dialog"
             aria-modal="true"
-            aria-label={title}
+            aria-label={resolvedTitle}
             tabIndex={-1}
             className={`fixed inset-y-0 h-full w-[17rem] max-w-[85vw] overflow-y-auto bg-white p-5 shadow-2xl ${
               direction === 'rtl' ? 'right-0' : 'left-0'
             }`}
           >
             <div className="mb-6 flex items-center justify-between gap-4">
-              <h2 className="text-lg font-bold text-navy-900">{title}</h2>
+              <h2 className="text-lg font-bold text-navy-900">{resolvedTitle}</h2>
               <button
                 type="button"
-                aria-label="إغلاق القائمة"
+                aria-label={t('common.closeMenu', 'إغلاق القائمة')}
                 onClick={() => setDrawer(closeSidebar)}
                 className="rounded-lg p-2 text-navy-700 transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               >

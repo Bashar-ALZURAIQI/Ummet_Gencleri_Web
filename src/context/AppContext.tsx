@@ -10,6 +10,8 @@ import {
 } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, type ServiceResult } from '../lib/supabase';
+import { i18n } from '../i18n/config.ts';
+import { overlayLocalizedCmsPayload } from '../domain/cmsPublicRead.ts';
 import {
   listAssignableMembers,
   listPresidentAssignableMembers,
@@ -18,6 +20,7 @@ import {
   subscribeToPublicExecutiveDirectory,
   subscribeToOwnProfileAndAssignment,
   transferExecutiveAssignment,
+  revokeExecutiveAssignment as revokeExecutiveAssignmentService,
   removeMemberMembership,
   updateOwnProfile as updateOwnProfileService,
   changeOwnPassword as changeOwnPasswordService,
@@ -157,7 +160,19 @@ import {
   executeExecutiveTransfer,
   type TransferMemberRoleResult,
 } from '../domain/executiveTransfer';
-import { routeAfterConfirmedIdentityRefresh } from '../domain/liveIdentityRouting';
+import { executeExecutiveRevocation } from '../domain/executiveRevocation';
+import {
+  type AdminTab,
+  urlToView,
+  createHistoryNavigator,
+  resolveSessionAuthNavigation,
+  type SessionNavigationIntent,
+} from '../domain/appNavigation';
+import {
+  saveLastAdminTab,
+  loadLastAdminTab,
+  clearLastAdminTab,
+} from '../domain/adminTabMemory';
 import {
   createIdentitySubscriptionGeneration,
   reduceRealtimeWarning,
@@ -227,14 +242,16 @@ export type View =
   | { kind: 'news' }
   | { kind: 'guide' }
   | { kind: 'faq' }
-  | { kind: 'login' }
+  | { kind: 'login'; returnTo?: string }
   | { kind: 'register' }
   | { kind: 'forgot-password' }
   | { kind: 'update-password' }
   | { kind: 'student-dashboard' }
-  | { kind: 'admin' }
+  | { kind: 'admin'; tab?: AdminTab }
   | { kind: 'board' }
   | { kind: 'committee'; committeeId: CommitteeId };
+
+export type { AdminTab };
 
 export type CurrentUser = SupabaseCurrentUser;
 
@@ -555,7 +572,8 @@ type PublishedContentTarget = SiteEditTarget | 'plans' | 'reports' | 'committees
 
 interface AppContextValue {
   view: View;
-  setView: (v: View) => void;
+  setView: (v: View | ((prev: View) => View)) => void;
+  navigate: (view: View, options?: { replace?: boolean }) => void;
   events: UEvent[];
   setEvents: React.Dispatch<React.SetStateAction<UEvent[]>>;
   news: NewsItem[];
@@ -595,6 +613,7 @@ interface AppContextValue {
   canAccessCommittee: (committeeId: CommitteeId) => boolean;
   canAccessAdmin: () => boolean;
   canEditSection: (section: AdminSection) => boolean;
+  refreshPublishedLocalizations: () => Promise<void>;
   generalInfo: GeneralInfo;
   setGeneralInfo: React.Dispatch<React.SetStateAction<GeneralInfo>>;
   siteContent: SiteContent;
@@ -661,6 +680,7 @@ interface AppContextValue {
   approveSiteEditWithChanges: (editId: string, revisedDiffs: SiteEditDiff[]) => Promise<{ ok: boolean; error?: string }>;
   updatePresidentProfile: (updates: Partial<Pick<BoardMember, 'name' | 'photo' | 'bio'>>) => void;
   transferMemberRole: (memberId: string, role: UserRole) => Promise<TransferMemberRoleResult>;
+  revokeExecutiveAssignment: (memberId: string) => Promise<{ ok: boolean; error?: string; revokedMember?: { id: string; name: string } }>;
   getRoleHolder: (role: UserRole) => UnifiedMember | undefined;
   updateBoardHead: (committeeId: CommitteeId, data: Partial<Pick<BoardMember, 'name' | 'bio' | 'photo' | 'email' | 'phone' | 'university' | 'major' | 'year'>>) => Promise<OwnProfileOperationResult>;
   removeMember: (memberId: string) => Promise<{ ok: boolean; error?: string }>;
@@ -692,6 +712,22 @@ interface AppContextValue {
     value: unknown,
   ) => Promise<{ ok: boolean; error?: string }>;
   createPublishedEvent: (event: UEvent) => Promise<{ ok: boolean; error?: string }>;
+  canonicalSiteContent?: SiteContent;
+  canonicalAboutContent?: AboutContent;
+  canonicalNews?: NewsItem[];
+  canonicalEvents?: UEvent[];
+  canonicalFaqCategories?: FAQCategoryData[];
+  canonicalGuideSections?: GuideSectionData[];
+  canonicalGuideQuickInfo?: string;
+  canonicalGalleryAlbums?: GalleryAlbum[];
+  canonicalGalleryCategories?: GalleryCategory[];
+  canonicalCommittees?: typeof mockCommittees;
+  canonicalPlans?: AdminPlan[];
+  canonicalReports?: AdminReport[];
+  canonicalProgramsContent?: ProgramsContent;
+  canonicalContactCards?: ContactCardData[];
+  canonicalContactMap?: ContactMapData;
+  canonicalGeneralInfo?: GeneralInfo;
 }
 
 const EMPTY_OWN_PROFILE_OPERATION_RESULTS: OwnProfileOperationResults = {
@@ -825,7 +861,12 @@ const browserAuthTimerScheduler = {
 };
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [view, setView] = useState<View>({ kind: 'home' });
+  const [view, setViewState] = useState<View>(() => {
+    if (typeof window !== 'undefined') {
+      return urlToView(window.location.href).view;
+    }
+    return { kind: 'home' };
+  });
   const [events, setEvents] = useState<UEvent[]>(() => {
     const bundle = safeParse<SiteContentBundle>(LS_SITE_CONTENT_KEY);
     const local = safeParse<UEvent[]>(LS_EVENTS_KEY);
@@ -883,6 +924,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const identitySubscriptionGeneration = useRef(createIdentitySubscriptionGeneration()).current;
   const latestAuthEventRef = useRef<{ epoch: number; session: Session | null } | null>(null);
   const passwordRecoveryGateRef = useRef<PasswordRecoveryGate>('IDLE');
+  const explicitLoginIntentEpochRef = useRef<number | null>(null);
 
   const setPasswordRecoveryGate = useCallback((gate: PasswordRecoveryGate) => {
     passwordRecoveryGateRef.current = gate;
@@ -896,6 +938,49 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const captureConfirmedAuthOwner = useCallback((): ConfirmedAuthOwner | null => (
     confirmedAuthOwner.capture((epoch) => authEpoch.isCurrent(epoch))
   ), [authEpoch, confirmedAuthOwner]);
+
+  const navigatorRef = useRef<ReturnType<typeof createHistoryNavigator> | null>(null);
+
+  const navigate = useCallback((targetView: View, options?: { replace?: boolean }) => {
+    if (navigatorRef.current) {
+      navigatorRef.current.navigate(targetView, options);
+    } else {
+      setViewState(targetView);
+    }
+    if (targetView.kind === 'admin' && targetView.tab) {
+      const owner = captureConfirmedAuthOwner();
+      if (owner?.userId) {
+        saveLastAdminTab(owner.userId, targetView.tab);
+      }
+    }
+  }, [captureConfirmedAuthOwner]);
+
+  const setView = useCallback((v: View | ((prev: View) => View)) => {
+    if (typeof v === 'function') {
+      setViewState((prev) => {
+        const next = v(prev);
+        if (navigatorRef.current) {
+          navigatorRef.current.navigate(next);
+        }
+        return next;
+      });
+    } else {
+      navigate(v);
+    }
+  }, [navigate]);
+
+  useEffect(() => {
+    const nav = createHistoryNavigator({
+      onViewChange: (nextView) => {
+        setViewState(nextView);
+      },
+    });
+    navigatorRef.current = nav;
+    return () => {
+      nav.destroy();
+      navigatorRef.current = null;
+    };
+  }, []);
 
   const [contactMessages, setContactMessages] = useState<ContactMessage[]>([]);
   const [contactMessagesLoading, setContactMessagesLoading] = useState(false);
@@ -1257,6 +1342,145 @@ export function AppProvider({ children }: { children: ReactNode }) {
     safeWrite(LS_EVENTS_KEY, events);
     safeWrite(LS_GALLERY_KEY, { albums: galleryAlbums, categories: galleryCategories });
   }, [siteContent, aboutContent, generalInfo, programsContent, guideQuickInfo, guideSections, galleryAlbums, galleryCategories, faqCategories, contactCards, contactMap, events, news, plans, reports, committees]);
+
+  const [activeLocale, setActiveLocale] = useState<string>(() => i18n.language || 'ar');
+
+  useEffect(() => {
+    const handleLanguageChanged = (lng: string) => {
+      setActiveLocale(lng || 'ar');
+    };
+    i18n.on('languageChanged', handleLanguageChanged);
+    return () => {
+      i18n.off('languageChanged', handleLanguageChanged);
+    };
+  }, []);
+
+  const [publishedLocalizations, setPublishedLocalizations] = useState<Record<string, unknown>>({});
+
+  const refreshPublishedLocalizations = useCallback(async () => {
+    if (activeLocale === 'ar') {
+      setPublishedLocalizations({});
+      return;
+    }
+    try {
+      const { data, error } = await supabase
+        .from('cms_localizations')
+        .select('target, payload')
+        .eq('partition', 'published')
+        .eq('locale', activeLocale);
+
+      if (error || !data) return;
+      const map: Record<string, unknown> = {};
+      for (const row of data) {
+        if (row && typeof row.target === 'string') {
+          map[row.target] = row.payload;
+        }
+      }
+      setPublishedLocalizations(map);
+    } catch {
+      // Clean fallback to canonical Arabic on network error
+    }
+  }, [activeLocale]);
+
+  useEffect(() => {
+    void refreshPublishedLocalizations();
+  }, [refreshPublishedLocalizations]);
+
+  const effectiveNews = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return news;
+    const localized = publishedLocalizations['news'];
+    return overlayLocalizedCmsPayload(news, localized, 'news') as NewsItem[];
+  }, [activeLocale, view.kind, news, publishedLocalizations]);
+
+  const effectiveEvents = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return events;
+    const localized = publishedLocalizations['events'];
+    return overlayLocalizedCmsPayload(events, localized, 'events') as UEvent[];
+  }, [activeLocale, view.kind, events, publishedLocalizations]);
+
+  const effectiveSiteContent = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return siteContent;
+    const localized = publishedLocalizations['site'];
+    return overlayLocalizedCmsPayload(siteContent, localized, 'site') as SiteContent;
+  }, [activeLocale, view.kind, siteContent, publishedLocalizations]);
+
+  const effectiveAboutContent = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return aboutContent;
+    const localized = publishedLocalizations['about'];
+    return overlayLocalizedCmsPayload(aboutContent, localized, 'about') as AboutContent;
+  }, [activeLocale, view.kind, aboutContent, publishedLocalizations]);
+
+  const effectiveFaqCategories = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return faqCategories;
+    const localized = publishedLocalizations['faqCategories'];
+    return overlayLocalizedCmsPayload(faqCategories, localized, 'faqCategories') as FAQCategoryData[];
+  }, [activeLocale, view.kind, faqCategories, publishedLocalizations]);
+
+  const effectiveGuideSections = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return guideSections;
+    const localized = publishedLocalizations['guideSections'];
+    return overlayLocalizedCmsPayload(guideSections, localized, 'guideSections') as GuideSectionData[];
+  }, [activeLocale, view.kind, guideSections, publishedLocalizations]);
+
+  const effectiveGuideQuickInfo = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return guideQuickInfo;
+    const localized = publishedLocalizations['guideQuickInfo'];
+    return overlayLocalizedCmsPayload(guideQuickInfo, localized, 'guideQuickInfo') as string;
+  }, [activeLocale, view.kind, guideQuickInfo, publishedLocalizations]);
+
+  const effectiveGalleryAlbums = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return galleryAlbums;
+    const localized = publishedLocalizations['galleryAlbums'];
+    return overlayLocalizedCmsPayload(galleryAlbums, localized, 'galleryAlbums') as GalleryAlbum[];
+  }, [activeLocale, view.kind, galleryAlbums, publishedLocalizations]);
+
+  const effectiveGalleryCategories = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return galleryCategories;
+    const localized = publishedLocalizations['galleryCategories'];
+    return overlayLocalizedCmsPayload(galleryCategories, localized, 'galleryCategories') as GalleryCategory[];
+  }, [activeLocale, view.kind, galleryCategories, publishedLocalizations]);
+
+  const effectiveCommittees = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return committees;
+    const localized = publishedLocalizations['committees'];
+    return overlayLocalizedCmsPayload(committees, localized, 'committees') as typeof mockCommittees;
+  }, [activeLocale, view.kind, committees, publishedLocalizations]);
+
+  const effectivePlans = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return plans;
+    const localized = publishedLocalizations['plans'];
+    return overlayLocalizedCmsPayload(plans, localized, 'plans') as AdminPlan[];
+  }, [activeLocale, view.kind, plans, publishedLocalizations]);
+
+  const effectiveReports = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return reports;
+    const localized = publishedLocalizations['reports'];
+    return overlayLocalizedCmsPayload(reports, localized, 'reports') as AdminReport[];
+  }, [activeLocale, view.kind, reports, publishedLocalizations]);
+
+  const effectiveProgramsContent = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return programsContent;
+    const localized = publishedLocalizations['programsContent'];
+    return overlayLocalizedCmsPayload(programsContent, localized, 'programsContent') as ProgramsContent;
+  }, [activeLocale, view.kind, programsContent, publishedLocalizations]);
+
+  const effectiveContactCards = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return contactCards;
+    const localized = publishedLocalizations['contactCards'];
+    return overlayLocalizedCmsPayload(contactCards, localized, 'contactCards') as ContactCardData[];
+  }, [activeLocale, view.kind, contactCards, publishedLocalizations]);
+
+  const effectiveContactMap = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return contactMap;
+    const localized = publishedLocalizations['contactMap'];
+    return overlayLocalizedCmsPayload(contactMap, localized, 'contactMap') as ContactMapData;
+  }, [activeLocale, view.kind, contactMap, publishedLocalizations]);
+
+  const effectiveGeneralInfo = useMemo(() => {
+    if (activeLocale === 'ar' || view.kind === 'admin') return generalInfo;
+    const localized = publishedLocalizations['generalInfo'];
+    return overlayLocalizedCmsPayload(generalInfo, localized, 'generalInfo') as GeneralInfo;
+  }, [activeLocale, view.kind, generalInfo, publishedLocalizations]);
 
   const applyPublishedContentBundle = useCallback((bundle: SiteContentBundle) => {
     if (bundle.siteContent) setSiteContent(bundle.siteContent);
@@ -1662,7 +1886,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const applySession = useCallback(async (
     session: Session,
     capturedEpoch: number,
-    navigation: boolean | { previousRole: UserRole } = true,
+    navigation: SessionNavigationIntent | boolean = 'passive',
   ): Promise<{ ok: boolean; error?: string }> => {
     if (!authEpoch.isCurrent(capturedEpoch)) {
       return { ok: false, error: 'تم استبدال محاولة تحميل الجلسة بمحاولة أحدث.' };
@@ -1682,7 +1906,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setAuthError(message);
       setAuthInitializing(false);
       setIdentityRefreshing(false);
-      setView({ kind: 'login' });
+      navigate({ kind: 'login' }, { replace: true });
       return { ok: false, error: message };
     }
 
@@ -1722,20 +1946,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAuthError(null);
     setAuthInitializing(false);
     setIdentityRefreshing(false);
-    if (navigation === true) {
-      setView(confirmedUser.role === 'STUDENT' ? { kind: 'student-dashboard' } : { kind: 'admin' });
-    } else if (typeof navigation === 'object') {
-      setView((currentView) => ({
-        ...currentView,
-        kind: routeAfterConfirmedIdentityRefresh(
-          navigation.previousRole,
-          confirmedUser.role,
-          currentView.kind,
-        ),
-      } as View));
+
+    let effectiveIntent: SessionNavigationIntent = typeof navigation === 'boolean'
+      ? (navigation ? 'explicit-login' : 'passive')
+      : navigation;
+
+    if (
+      explicitLoginIntentEpochRef.current !== null
+      && explicitLoginIntentEpochRef.current === capturedEpoch
+    ) {
+      effectiveIntent = 'explicit-login';
+      explicitLoginIntentEpochRef.current = null;
+    }
+
+    const currentUrl = typeof window !== 'undefined' ? window.location.href : 'https://site.example/';
+    const lastAdminTab = loadLastAdminTab(confirmedUser.userId);
+
+    const decision = resolveSessionAuthNavigation({
+      currentUrl,
+      confirmedUser,
+      navigationIntent: effectiveIntent,
+      lastAdminTab,
+    });
+
+    if (decision.shouldNavigate && decision.targetView) {
+      navigate(decision.targetView, decision.replace ? { replace: true } : undefined);
     }
     return { ok: true };
-  }, [authEpoch, confirmedAuthOwner, synchronizeConfirmedProfileDisplay]);
+  }, [authEpoch, confirmedAuthOwner, navigate, synchronizeConfirmedProfileDisplay]);
 
   // Restore the Supabase session and keep it synchronized. The listener stays
   // synchronous; identity loading is deferred to avoid supabase-js callback locks.
@@ -1807,7 +2045,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setAuthError(null);
         setAuthInitializing(false);
         setIdentityRefreshing(false);
-        setView({ kind: 'home' });
+        navigate({ kind: 'home' }, { replace: true });
         return;
       }
 
@@ -1819,10 +2057,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setAuthInitializing(true);
         setIdentityRefreshing(false);
         authEpoch.schedule(eventEpoch, () => {
+          const isExplicit = explicitLoginIntentEpochRef.current !== null
+            && explicitLoginIntentEpochRef.current === eventEpoch;
+          if (isExplicit) {
+            explicitLoginIntentEpochRef.current = null;
+          }
           void applySession(
             session,
             eventEpoch,
-            event === 'SIGNED_IN' || event === 'INITIAL_SESSION',
+            isExplicit ? 'explicit-login' : event === 'INITIAL_SESSION' ? 'initial' : 'passive',
           );
         });
       }
@@ -1839,11 +2082,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setAuthError('تعذر التحقق من جلسة الحساب. يرجى تسجيل الدخول مرة أخرى.');
           setAuthInitializing(false);
           setIdentityRefreshing(false);
-          setView({ kind: 'login' });
+          navigate({ kind: 'login' }, { replace: true });
           return;
         }
         if (data.session) {
-          await applySession(data.session, initialEpoch);
+          await applySession(data.session, initialEpoch, 'initial');
         } else {
           if (!authEpoch.isCurrent(initialEpoch)) return;
           setCurrentStudent(null);
@@ -1859,7 +2102,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setAuthError('تعذر الاتصال بخدمة تسجيل الدخول. يرجى المحاولة لاحقاً.');
         setAuthInitializing(false);
         setIdentityRefreshing(false);
-        setView({ kind: 'login' });
+        navigate({ kind: 'login' }, { replace: true });
       }
     })();
 
@@ -1876,7 +2119,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     captureConfirmedAuthOwner,
     clearConfirmedAuthOwnership,
     identitySubscriptionGeneration,
+    navigate,
     setPasswordRecoveryGate,
+    setView,
   ]);
 
   const prepareCurrentSessionIdentityRefresh = useCallback((
@@ -1924,7 +2169,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return { ok: false, error: message };
       }
     };
-  }, [applySession, authEpoch, clearConfirmedAuthOwnership, identitySubscriptionGeneration]);
+  }, [applySession, authEpoch, clearConfirmedAuthOwnership, identitySubscriptionGeneration, setView]);
 
   const refreshCurrentSessionIdentity = useCallback((
     previousRole: UserRole,
@@ -2099,6 +2344,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAuthInitializing(false);
     setIdentityRefreshing(false);
     setPasswordRecoveryGate('IDLE');
+    explicitLoginIntentEpochRef.current = null;
 
     try {
       const { error } = await supabase.auth.signOut();
@@ -2124,6 +2370,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     clearConfirmedAuthOwnership();
     identitySubscriptionGeneration.invalidateAll();
     const loginEpoch = authEpoch.beginOperation();
+    explicitLoginIntentEpochRef.current = loginEpoch;
     latestAuthEventRef.current = null;
     setCurrentStudent(null);
     setCurrentUser(null);
@@ -2135,6 +2382,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         password,
       });
       if (error || !data.session) {
+        explicitLoginIntentEpochRef.current = null;
         if (authEpoch.isCurrent(loginEpoch)) setAuthInitializing(false);
         return { ok: false, error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' };
       }
@@ -2146,11 +2394,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         latestEvent: eventCapture,
       });
       if (sessionEpoch === null) {
+        explicitLoginIntentEpochRef.current = null;
         return { ok: false, error: 'تم استبدال محاولة تسجيل الدخول بمحاولة أحدث.' };
       }
       authEpoch.cancelScheduled(sessionEpoch);
-      return await applySession(data.session, sessionEpoch);
+      return await applySession(data.session, sessionEpoch, 'explicit-login');
     } catch (error) {
+      explicitLoginIntentEpochRef.current = null;
       console.error('Supabase password sign-in failed:', error);
       if (authEpoch.isCurrent(loginEpoch)) setAuthInitializing(false);
       return { ok: false, error: 'تعذر الاتصال بخدمة تسجيل الدخول. يرجى المحاولة لاحقاً.' };
@@ -2176,6 +2426,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     clearConfirmedAuthOwnership();
     identitySubscriptionGeneration.invalidateAll();
     const signupEpoch = authEpoch.beginOperation();
+    explicitLoginIntentEpochRef.current = signupEpoch;
     latestAuthEventRef.current = null;
     setCurrentStudent(null);
     setCurrentUser(null);
@@ -2205,6 +2456,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         latestEvent: eventCapture,
       });
       if (responseEpoch === null) {
+        explicitLoginIntentEpochRef.current = null;
         return { ok: false, error: 'تم استبدال محاولة إنشاء الحساب بمحاولة مصادقة أحدث.' };
       }
 
@@ -2214,11 +2466,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         error,
       });
       if (signupResult.kind === 'failure') {
+        explicitLoginIntentEpochRef.current = null;
         console.error('Supabase signup failed.');
         if (authEpoch.isCurrent(responseEpoch)) setAuthInitializing(false);
         return { ok: false, error: 'تعذر إنشاء الحساب. تحقق من البريد الإلكتروني أو حاول لاحقاً.' };
       }
       if (signupResult.kind === 'existing-or-disguised') {
+        explicitLoginIntentEpochRef.current = null;
         setAuthInitializing(false);
         return {
           ok: false,
@@ -2237,10 +2491,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       if (signupResult.kind === 'signed-in' && data.session) {
         authEpoch.cancelScheduled(responseEpoch);
-        const sessionResult = await applySession(data.session, responseEpoch);
+        const sessionResult = await applySession(data.session, responseEpoch, 'explicit-login');
         return sessionResult.ok ? { ...sessionResult, ...emailDelivery } : sessionResult;
       }
 
+      explicitLoginIntentEpochRef.current = null;
       if (!authEpoch.isCurrent(responseEpoch)) {
         return { ok: false, error: 'تم استبدال محاولة إنشاء الحساب بمحاولة مصادقة أحدث.' };
       }
@@ -2249,6 +2504,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setAuthInitializing(false);
       return { ok: true, requiresEmailConfirmation: true, ...emailDelivery };
     } catch (error) {
+      explicitLoginIntentEpochRef.current = null;
       console.error('Supabase signup request failed:', error);
       if (authEpoch.isCurrent(signupEpoch)) setAuthInitializing(false);
       return { ok: false, error: 'تعذر الاتصال بخدمة إنشاء الحساب. يرجى المحاولة لاحقاً.' };
@@ -2326,12 +2582,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     identitySubscriptionGeneration.invalidateAll();
     const logoutEpoch = authEpoch.suspendEvents();
     latestAuthEventRef.current = null;
+    explicitLoginIntentEpochRef.current = null;
+    const currentUserId = currentUser?.userId;
     setCurrentStudent(null);
     setCurrentUser(null);
     setAuthError(null);
     setAuthInitializing(false);
     setPasswordRecoveryGate('IDLE');
-    setView({ kind: 'home' });
+    clearLastAdminTab(currentUserId);
+    navigate({ kind: 'home' }, { replace: true });
 
     try {
       const { error } = await supabase.auth.signOut();
@@ -2584,6 +2843,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       reloadIdentity: () => reloadIdentity(),
     });
     return result;
+  };
+
+  const revokeExecutiveAssignment: AppContextValue['revokeExecutiveAssignment'] = async (memberId) => {
+    const target = members.find((member) => member.id === memberId);
+    if (!target) {
+      return { ok: false, error: 'لم يعد العضو المحدد موجوداً في الدليل المحدث.' };
+    }
+    return executeExecutiveRevocation({
+      actor: currentUser ? { role: currentUser.role, userId: currentUser.userId } : null,
+      target: { id: target.id, name: target.name, role: target.role },
+      revoke: revokeExecutiveAssignmentService,
+      refreshDirectory: refreshAccountDirectory,
+    });
   };
 
   const removeMember: AppContextValue['removeMember'] = async (memberId) => {
@@ -3428,16 +3700,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const value: AppContextValue = {
       view,
       setView,
-      events,
+      navigate,
+      events: effectiveEvents,
       setEvents,
-      news,
+      news: effectiveNews,
       setNews,
       students,
       suggestions,
       setSuggestions,
-      plans,
+      plans: effectivePlans,
       setPlans,
-      reports,
+      reports: effectiveReports,
       setReports,
       currentStudent,
       currentUser,
@@ -3467,29 +3740,46 @@ export function AppProvider({ children }: { children: ReactNode }) {
       canAccessCommittee,
       canAccessAdmin,
       canEditSection,
-      generalInfo,
+      refreshPublishedLocalizations,
+      generalInfo: effectiveGeneralInfo,
       setGeneralInfo,
-      siteContent,
+      siteContent: effectiveSiteContent,
       setSiteContent,
       updateSiteField,
       updateSiteFields,
-      aboutContent,
+      aboutContent: effectiveAboutContent,
       setAboutContent,
       updateAboutField,
       updateAboutFields,
-      guideSections,
+      guideSections: effectiveGuideSections,
       setGuideSections,
-      galleryAlbums,
+      galleryAlbums: effectiveGalleryAlbums,
       setGalleryAlbums,
-      galleryCategories,
+      galleryCategories: effectiveGalleryCategories,
       setGalleryCategories,
-      faqCategories,
+      faqCategories: effectiveFaqCategories,
       setFaqCategories,
-      contactCards,
+      contactCards: effectiveContactCards,
       setContactCards,
-      contactMap,
+      contactMap: effectiveContactMap,
       setContactMap,
-      committees: committees,
+      committees: effectiveCommittees,
+      canonicalSiteContent: siteContent,
+      canonicalAboutContent: aboutContent,
+      canonicalNews: news,
+      canonicalEvents: events,
+      canonicalFaqCategories: faqCategories,
+      canonicalGuideSections: guideSections,
+      canonicalGuideQuickInfo: guideQuickInfo,
+      canonicalGalleryAlbums: galleryAlbums,
+      canonicalGalleryCategories: galleryCategories,
+      canonicalCommittees: committees,
+      canonicalPlans: plans,
+      canonicalReports: reports,
+      canonicalProgramsContent: programsContent,
+      canonicalContactCards: contactCards,
+      canonicalContactMap: contactMap,
+      canonicalGeneralInfo: generalInfo,
       members,
       setMembers,
       updateMemberProfile,
@@ -3518,9 +3808,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       editRequestsLoading,
       editRequestsError,
       clearEditRequestsError,
-      programsContent,
+      programsContent: effectiveProgramsContent,
       setProgramsContent,
-      guideQuickInfo,
+      guideQuickInfo: effectiveGuideQuickInfo,
       setGuideQuickInfo,
       submitSiteEdit,
       approveSiteEdit,
@@ -3528,6 +3818,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       approveSiteEditWithChanges,
       updatePresidentProfile,
       transferMemberRole,
+      revokeExecutiveAssignment,
       getRoleHolder,
       updateBoardHead,
       removeMember,
@@ -3553,4 +3844,9 @@ export function useApp() {
   const ctx = useContext(AppContext);
   if (!ctx) throw new Error('useApp must be used within AppProvider');
   return ctx;
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function useOptionalApp() {
+  return useContext(AppContext);
 }

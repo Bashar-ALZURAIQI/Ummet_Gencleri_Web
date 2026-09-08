@@ -4,16 +4,23 @@ import {
   ChevronLeft, Users, ClipboardCheck,
 } from 'lucide-react';
 import { useApp, type View } from '../context/AppContext';
+import { useTranslation } from 'react-i18next';
 import Modal from '../components/Modal';
 import ProfileEditsPanel from '../components/ProfileEditsPanel';
 import UserAvatar from '../components/UserAvatar';
 import { committeeOrder, committeeMeta, type CommitteeId } from '../data/mockData';
+import {
+  getExecutiveSectionLabel,
+  getExecutiveSectionDescription,
+  getExecutiveRoleLabel,
+} from '../domain/executivePresentation';
 
 const iconMap: Record<string, typeof Crown> = {
   Crown, UserCog, Megaphone, GraduationCap, ShieldCheck, CalendarDays, Wallet,
 };
 
 export default function BoardPage() {
+  const { t } = useTranslation();
   const { committees, setView, currentUser, pendingProfileEdits } = useApp();
   const [reviewOpen, setReviewOpen] = useState(false);
 
@@ -33,11 +40,10 @@ export default function BoardPage() {
         <div className="absolute -top-20 right-1/4 h-72 w-72 rounded-full bg-gold-500/15 blur-3xl" />
         <div className="absolute -bottom-20 left-1/4 h-72 w-72 rounded-full bg-navy-600/30 blur-3xl" />
         <div className="container-app relative">
-          <span className="text-sm font-bold uppercase tracking-wider text-gold-300">الهيكل التنظيمي</span>
-          <h1 className="mt-3 text-4xl font-extrabold text-white lg:text-5xl">الهيئة التنفيذية</h1>
+          <span className="text-sm font-bold uppercase tracking-wider text-gold-300">{t('board.badge')}</span>
+          <h1 className="mt-3 text-4xl font-extrabold text-white lg:text-5xl">{t('navigation.executiveBoard')}</h1>
           <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-gray-300">
-            يتكون اتحاد شباب الأمة من هيئة تنفيذية تضم الرئاسة ونائب الرئيس وخمس
-            لجان متخصصة، يعملون معًا لتحقيق رؤية الاتحاد وأهدافه.
+            {t('board.description')}
           </p>
         </div>
       </section>
@@ -66,8 +72,8 @@ export default function BoardPage() {
                   />
                   <div className="text-right">
                     <div className="text-base font-extrabold text-navy-900">{c.head?.name || '—'}</div>
-                    <div className="text-sm font-semibold text-navy-600">{c.head?.role || '—'}</div>
-                    <div className="mt-0.5 text-xs text-gray-400">{c.name || '—'}</div>
+                    <div className="text-sm font-semibold text-navy-600">{getExecutiveRoleLabel(c.head?.role, t) || '—'}</div>
+                    <div className="mt-0.5 text-xs text-gray-400">{getExecutiveSectionLabel(c.id, t) || '—'}</div>
                   </div>
                   <ChevronLeft className="mr-auto h-5 w-5 text-gray-300 transition-transform group-hover:-translate-x-1 group-hover:text-navy-600" />
                 </div>
@@ -82,8 +88,8 @@ export default function BoardPage() {
 
         {/* Committees grid */}
         <div className="mb-10 text-center">
-          <h2 className="text-2xl font-extrabold text-navy-900 lg:text-3xl">اللجان المتخصصة</h2>
-          <p className="mt-2 text-sm text-gray-500">خمس لجان تتوزع عليها مهام الاتحاد وأنشطته</p>
+          <h2 className="text-2xl font-extrabold text-navy-900 lg:text-3xl">{t('board.specializedCommittees')}</h2>
+          <p className="mt-2 text-sm text-gray-500">{t('board.committeesSubtitle')}</p>
         </div>
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {committeeOrder
@@ -106,16 +112,16 @@ export default function BoardPage() {
                     className="h-16 w-16 transition-transform group-hover:scale-110"
                     fallbackClassName={`bg-gradient-to-br ${c.color || 'from-navy-700 to-navy-950'} text-xl text-white shadow-lg`}
                   />
-                  <h3 className="mt-4 text-lg font-bold text-navy-900">{c.name || '—'}</h3>
-                  <p className="mt-1 text-sm font-bold text-navy-700">{c.head?.name || 'لم يُعيّن مسؤول بعد'}</p>
-                  <p className="text-xs text-gray-400">{c.head?.role || ''}</p>
-                  <p className="mt-1 line-clamp-2 text-sm text-gray-500">{c.description || ''}</p>
+                  <h3 className="mt-4 text-lg font-bold text-navy-900">{getExecutiveSectionLabel(c.id, t) || '—'}</h3>
+                  <p className="mt-1 text-sm font-bold text-navy-700">{c.head?.name || t('board.noHeadAssigned')}</p>
+                  <p className="text-xs text-gray-400">{getExecutiveRoleLabel(c.head?.role, t) || ''}</p>
+                  <p className="mt-1 line-clamp-2 text-sm text-gray-500">{getExecutiveSectionDescription(c.id, t, c.description) || ''}</p>
                   <div className="mt-4 flex items-center gap-2 text-xs text-gray-400">
                     <Users className="h-3.5 w-3.5" />
-                    {memberCount + 1} أعضاء
+                    {t('board.membersCount', { count: memberCount + 1 })}
                   </div>
                   <span className="mt-4 inline-flex items-center gap-1 text-sm font-bold text-navy-700 group-hover:text-navy-900">
-                    عرض التفاصيل
+                    {t('common.viewDetails')}
                     <ChevronLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
                   </span>
                 </button>
@@ -125,7 +131,7 @@ export default function BoardPage() {
 
         {/* All members quick nav */}
         <div className="mt-14 rounded-3xl bg-gray-50 p-8">
-          <h3 className="mb-6 text-center text-xl font-bold text-navy-900">تصفح جميع المكاتب واللجان</h3>
+          <h3 className="mb-6 text-center text-xl font-bold text-navy-900">{t('board.browseCommittees')}</h3>
           <div className="flex flex-wrap justify-center gap-2">
             {committeeOrder.map((id) => {
               const meta = committeeMeta[id];
@@ -138,7 +144,7 @@ export default function BoardPage() {
                   className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-navy-700 transition-all hover:bg-navy-50 hover:shadow-sm"
                 >
                   <Icon className="h-4 w-4" />
-                  {meta.name}
+                  {getExecutiveSectionLabel(id, t, 'short') || meta.name}
                 </button>
               );
             })}
@@ -154,9 +160,9 @@ export default function BoardPage() {
             className="fixed bottom-6 left-6 z-40 flex items-center gap-2 rounded-full bg-navy-800 px-4 py-3 text-sm font-bold text-white shadow-xl transition-colors hover:bg-navy-700"
           >
             <ClipboardCheck className="h-4 w-4" />
-            طلبات تعديل الهيئة ({pendingCount})
+            {t('admin.tabs.pendingEdits', 'طلبات تعديل الهيئة')} ({pendingCount})
           </button>
-          <Modal open={reviewOpen} onClose={() => setReviewOpen(false)} title="طلبات تعديل بيانات الهيئة التنفيذية" maxWidth="max-w-2xl">
+          <Modal open={reviewOpen} onClose={() => setReviewOpen(false)} title={t('admin.profileEditsModal.title', 'طلبات تعديل بيانات الهيئة التنفيذية')} maxWidth="max-w-2xl">
             <ProfileEditsPanel />
           </Modal>
         </>

@@ -54,8 +54,25 @@ export function remainingCapacity(maxCapacity: number | null, joiningCount: numb
   return Math.max(0, maxCapacity - Math.max(0, joiningCount));
 }
 
-export function formatEnrollmentCount(currentEnrollments: number, maxCapacity: number | null): string {
+export function formatEnrollmentCount(
+  currentEnrollments: number,
+  maxCapacity: number | null,
+  t?: (key: string, options?: Record<string, unknown>) => string,
+): string {
   const current = Math.max(0, Math.trunc(currentEnrollments));
+  if (t) {
+    if (maxCapacity === null) {
+      return t('events.enrolledCount', { count: current, current, defaultValue: `${current} مسجل` });
+    }
+    const max = Math.max(0, Math.trunc(maxCapacity));
+    return t('events.enrolledCapacity', {
+      current,
+      max,
+      count: current,
+      capacity: max,
+      defaultValue: `${current} / ${max} مسجل`,
+    });
+  }
   return maxCapacity === null
     ? `${current} مسجل`
     : `${current} / ${Math.max(0, Math.trunc(maxCapacity))} مسجل`;

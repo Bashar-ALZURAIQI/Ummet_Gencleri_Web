@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Mail, Phone, MapPin, Send, CheckCircle2, Clock, MessageSquare,
   Edit3, Save, Navigation,
@@ -10,6 +11,9 @@ import RequiredMark from '../components/RequiredMark';
 import { validateRequired, clearInvalid, isInvalid, fieldId } from '../utils/formValidation';
 import { normalizeGoogleMapsInput } from '../domain/contactMap';
 import type { ContactCardData } from '../data/mockData';
+import { CmsEntityTranslationTabs } from '../components/cmsLocalization/CmsEntityTranslationTabs';
+import { isTranslatableLocationValue } from '../domain/cmsLocalizationEditor';
+import type { LocalizedCmsLocale } from '../domain/cmsLocalization';
 
 const iconMap: Record<string, typeof Mail> = {
   Mail, Phone, MapPin, Clock,
@@ -18,7 +22,9 @@ const iconMap: Record<string, typeof Mail> = {
 export default function ContactPage() {
   const {
     currentUser, addContactMessage, contactCards, contactMap, submitSiteEdit, savePublishedSiteTarget,
+    canonicalContactCards, canonicalContactMap,
   } = useApp();
+  const { t } = useTranslation();
   const [form, setForm] = useState({ name: '', email: '', subject: '', body: '' });
   const [sent, setSent] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -29,10 +35,19 @@ export default function ContactPage() {
   const [cardModalOpen, setCardModalOpen] = useState(false);
   const [editingCard, setEditingCard] = useState<ContactCardData | null>(null);
   const [cardForm, setCardForm] = useState({ title: '', value: '', sub: '' });
+  const [cardTranslations, setCardTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
+    tr: {},
+    en: {},
+  });
   const [mapModalOpen, setMapModalOpen] = useState(false);
   const [mapForm, setMapForm] = useState({ title: contactMap.title, source: contactMap.embedUrl });
+  const [mapTranslations, setMapTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
+    tr: {},
+    en: {},
+  });
   const [mapError, setMapError] = useState('');
 
+  const isPresident = currentUser?.role === 'PRESIDENT';
   const isPresidentOrMedia =
     currentUser &&
     (currentUser.role === 'PRESIDENT' || currentUser.role === 'MEDIA_HEAD');
@@ -41,17 +56,17 @@ export default function ContactPage() {
     e.preventDefault();
     const errs: Record<string, string> = {};
     const empty: string[] = [];
-    if (form.name.trim().length < 2) { errs.name = 'الرجاء إدخال اسم صحيح من حرفين على الأقل'; empty.push('name'); }
-    if (!form.email.trim()) { errs.email = 'الرجاء إدخال البريد الإلكتروني'; empty.push('email'); }
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) { errs.email = 'بريد إلكتروني غير صالح'; empty.push('email'); }
-    if (form.subject.trim().length < 2) { errs.subject = 'الرجاء إدخال موضوع من حرفين على الأقل'; empty.push('subject'); }
-    if (form.body.trim().length < 5) { errs.body = 'الرجاء كتابة رسالة من خمسة أحرف على الأقل'; empty.push('body'); }
+    if (form.name.trim().length < 2) { errs.name = t('contact.errors.nameMin'); empty.push('name'); }
+    if (!form.email.trim()) { errs.email = t('contact.errors.emailRequired'); empty.push('email'); }
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) { errs.email = t('contact.errors.emailInvalid'); empty.push('email'); }
+    if (form.subject.trim().length < 2) { errs.subject = t('contact.errors.subjectMin'); empty.push('subject'); }
+    if (form.body.trim().length < 5) { errs.body = t('contact.errors.bodyMin'); empty.push('body'); }
     setErrors(errs);
     if (empty.length) {
       setInvalid(empty);
       const el = document.getElementById(fieldId(empty[0]));
       if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.focus(); }
-      alert('يرجى تعبئة كافة الحقول المطلوبة قبل الإرسال');
+      alert(t('contact.errors.fillRequired'));
       return;
     }
     if (Object.keys(errs).length) return;
@@ -59,7 +74,7 @@ export default function ContactPage() {
     const result = await addContactMessage(form);
     setSubmitting(false);
     if (!result.ok) {
-      setErrors((prev) => ({ ...prev, submit: result.error ?? 'تعذر إرسال الرسالة.' }));
+      setErrors((prev) => ({ ...prev, submit: result.error ?? t('contact.errors.sendFailed') }));
       return;
     }
     setForm({ name: '', email: '', subject: '', body: '' });
@@ -68,8 +83,10 @@ export default function ContactPage() {
   };
 
   const openEditCard = (card: ContactCardData) => {
-    setEditingCard(card);
-    setCardForm({ title: card.title, value: card.value, sub: card.sub });
+    const canon = canonicalContactCards?.find((c) => c.id === card.id) ?? card;
+    setEditingCard(canon);
+    setCardForm({ title: canon.title, value: canon.value, sub: canon.sub });
+    setCardTranslations({ tr: {}, en: {} });
     setCardModalOpen(true);
   };
 
@@ -111,7 +128,9 @@ export default function ContactPage() {
   };
 
   const openEditMap = () => {
-    setMapForm({ title: contactMap.title, source: contactMap.embedUrl });
+    const canonMap = canonicalContactMap ?? contactMap;
+    setMapForm({ title: canonMap.title, source: canonMap.embedUrl });
+    setMapTranslations({ tr: {}, en: {} });
     setMapError('');
     setMapModalOpen(true);
   };
@@ -119,7 +138,7 @@ export default function ContactPage() {
   const saveMap = async (e: React.FormEvent) => {
     e.preventDefault();
     const normalized = normalizeGoogleMapsInput(mapForm.source);
-    if (!mapForm.title.trim()) { setMapError('عنوان الخريطة مطلوب.'); return; }
+    if (!mapForm.title.trim()) { setMapError(t('contact.editMapModal.titleRequired', 'عنوان الخريطة مطلوب.')); return; }
     if (!normalized.ok) { setMapError(normalized.error); return; }
     const next = { title: mapForm.title.trim(), embedUrl: normalized.embedUrl, openUrl: normalized.openUrl };
     if (currentUser?.role === 'MEDIA_HEAD') {
@@ -140,7 +159,7 @@ export default function ContactPage() {
       }
     } else {
       const saved = await savePublishedSiteTarget('contactMap', next);
-      if (!saved.ok) { setMapError(saved.error ?? 'تعذر حفظ الخريطة.'); return; }
+      if (!saved.ok) { setMapError(saved.error ?? t('contact.editMapModal.saveFailed', 'تعذر حفظ الخريطة.')); return; }
     }
     setMapModalOpen(false);
   };
@@ -152,10 +171,10 @@ export default function ContactPage() {
         <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '28px 28px' }} />
         <div className="absolute -top-20 right-1/4 h-72 w-72 rounded-full bg-gold-500/15 blur-3xl" />
         <div className="container-app relative">
-          <span className="text-sm font-bold uppercase tracking-wider text-gold-300">تواصل معنا</span>
-          <h1 className="mt-3 text-4xl font-extrabold text-white lg:text-5xl">اتصل بنا</h1>
+          <span className="text-sm font-bold uppercase tracking-wider text-gold-300">{t('contact.badge')}</span>
+          <h1 className="mt-3 text-4xl font-extrabold text-white lg:text-5xl">{t('contact.title')}</h1>
           <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-gray-300">
-            هل لديك سؤال أو اقتراح أو ترغب بالتعاون معنا؟ يسعدنا تواصلك معنا في أي وقت.
+            {t('contact.description')}
           </p>
         </div>
       </section>
@@ -173,7 +192,7 @@ export default function ContactPage() {
                     <button
                       onClick={() => openEditCard(c)}
                       className="absolute left-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-white text-navy-700 opacity-0 shadow ring-1 ring-gray-200 transition-opacity hover:bg-navy-50 group-hover/card:opacity-100"
-                      title="تعديل"
+                      title={t('common.edit')}
                     >
                       <Edit3 className="h-3.5 w-3.5" />
                     </button>
@@ -199,22 +218,22 @@ export default function ContactPage() {
                   <MessageSquare className="h-5 w-5" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-navy-900">أرسل لنا رسالة</h2>
-                  <p className="text-sm text-gray-500">سنرد عليك في أقرب وقت ممكن.</p>
+                  <h2 className="text-xl font-bold text-navy-900">{t('contact.sendMessage')}</h2>
+                  <p className="text-sm text-gray-500">{t('contact.responseNotice')}</p>
                 </div>
               </div>
 
               {sent && (
                 <div className="mb-5 flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700 animate-fade-in-fast">
                   <CheckCircle2 className="h-5 w-5" />
-                  تم إرسال رسالتك بنجاح! شكرًا لتواصلك معنا.
+                  {t('contact.successMessage')}
                 </div>
               )}
 
               <form onSubmit={submit} className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label htmlFor={fieldId('name')} className="label-field">الاسم الكامل <RequiredMark /></label>
+                    <label htmlFor={fieldId('name')} className="label-field">{t('contact.fullName')} <RequiredMark /></label>
                     <input
                       id={fieldId('name')}
                       type="text"
@@ -222,12 +241,12 @@ export default function ContactPage() {
                       value={form.name}
                       onChange={(e) => { setForm({ ...form, name: e.target.value }); clearInvalid(setInvalid, 'name'); setErrors((prev) => ({ ...prev, name: '' })); }}
                       className={`input-field ${isInvalid(invalid, 'name')}`}
-                      placeholder="أدخل اسمك"
+                      placeholder={t('contact.namePlaceholder')}
                     />
                     {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name}</p>}
                   </div>
                   <div>
-                    <label htmlFor={fieldId('email')} className="label-field">البريد الإلكتروني <RequiredMark /></label>
+                    <label htmlFor={fieldId('email')} className="label-field">{t('contact.email')} <RequiredMark /></label>
                     <input
                       id={fieldId('email')}
                       type="email"
@@ -242,7 +261,7 @@ export default function ContactPage() {
                   </div>
                 </div>
                 <div>
-                  <label htmlFor={fieldId('subject')} className="label-field">الموضوع <RequiredMark /></label>
+                  <label htmlFor={fieldId('subject')} className="label-field">{t('contact.subject')} <RequiredMark /></label>
                   <input
                     id={fieldId('subject')}
                     type="text"
@@ -250,12 +269,12 @@ export default function ContactPage() {
                     value={form.subject}
                     onChange={(e) => { setForm({ ...form, subject: e.target.value }); clearInvalid(setInvalid, 'subject'); setErrors((prev) => ({ ...prev, subject: '' })); }}
                     className={`input-field ${isInvalid(invalid, 'subject')}`}
-                    placeholder="موضوع الرسالة"
+                    placeholder={t('contact.subjectPlaceholder')}
                   />
                   {errors.subject && <p className="mt-1 text-xs text-red-500">{errors.subject}</p>}
                 </div>
                 <div>
-                  <label htmlFor={fieldId('body')} className="label-field">الرسالة <RequiredMark /></label>
+                  <label htmlFor={fieldId('body')} className="label-field">{t('contact.message')} <RequiredMark /></label>
                   <textarea
                     id={fieldId('body')}
                     required
@@ -263,14 +282,14 @@ export default function ContactPage() {
                     onChange={(e) => { setForm({ ...form, body: e.target.value }); clearInvalid(setInvalid, 'body'); setErrors((prev) => ({ ...prev, body: '' })); }}
                     rows={5}
                     className={`input-field resize-none ${isInvalid(invalid, 'body')}`}
-                    placeholder="اكتب رسالتك هنا..."
+                    placeholder={t('contact.messagePlaceholder')}
                   />
                   {errors.body && <p className="mt-1 text-xs text-red-500">{errors.body}</p>}
                 </div>
                 {errors.submit && <p className="text-sm font-semibold text-red-600">{errors.submit}</p>}
                 <button type="submit" disabled={submitting} className="btn-primary w-full disabled:opacity-60 sm:w-auto">
                   <Send className="h-4 w-4" />
-                  {submitting ? 'جاري الإرسال...' : 'إرسال الرسالة'}
+                  {submitting ? t('contact.sending') : t('contact.sendButton')}
                 </button>
               </form>
             </div>
@@ -281,7 +300,7 @@ export default function ContactPage() {
         <div className="relative mt-10 overflow-hidden rounded-3xl border border-gray-100 shadow-md">
           {isPresidentOrMedia && (
             <button type="button" onClick={openEditMap} className="absolute left-3 top-2 z-10 btn-ghost bg-white/95 text-xs">
-              <Edit3 className="h-3.5 w-3.5" /> تعديل الخريطة
+              <Edit3 className="h-3.5 w-3.5" /> {t('contact.editMap', 'تعديل الخريطة')}
             </button>
           )}
           <div className="flex items-center justify-between bg-navy-800 px-5 py-3">
@@ -295,11 +314,11 @@ export default function ContactPage() {
               rel="noopener noreferrer"
               className="text-xs font-bold text-gold-300 hover:text-gold-200"
             >
-              فتح في خرائط Google
+              {t('contact.openInGoogleMaps')}
             </a>
           </div>
           <iframe
-            title="موقع الاتحاد - جامعة أتاتورك أرضروم"
+            title={t('contact.mapTitle', 'موقع الاتحاد - جامعة أتاتورك أرضروم')}
             src={contactMap.embedUrl}
             className="h-80 w-full"
             loading="lazy"
@@ -309,44 +328,112 @@ export default function ContactPage() {
       </section>
 
       {/* Card edit modal */}
-      <Modal open={cardModalOpen} onClose={() => setCardModalOpen(false)} title="تعديل بطاقة التواصل" maxWidth="max-w-sm">
+      <Modal open={cardModalOpen} onClose={() => setCardModalOpen(false)} title={t('contact.editCardModal.title', 'تعديل بطاقة التواصل')} maxWidth="max-w-lg">
         <form onSubmit={saveCard} className="space-y-4">
-          <div>
-            <label htmlFor={fieldId('title')} className="label-field">العنوان <RequiredMark /></label>
-            <input id={fieldId('title')} required className={`input-field ${isInvalid(invalid, 'title')}`} value={cardForm.title} onChange={(e) => { setCardForm({ ...cardForm, title: e.target.value }); clearInvalid(setInvalid, 'title'); }} />
-          </div>
-          <div>
-            <label htmlFor={fieldId('value')} className="label-field">القيمة <RequiredMark /></label>
-            <input id={fieldId('value')} required className={`input-field ${isInvalid(invalid, 'value')}`} dir={editingCard?.ltr ? 'ltr' : undefined} value={cardForm.value} onChange={(e) => { setCardForm({ ...cardForm, value: e.target.value }); clearInvalid(setInvalid, 'value'); }} />
-          </div>
-          <div>
-            <label htmlFor={fieldId('sub')} className="label-field">الوصف الفرعي <RequiredMark /></label>
-            <input id={fieldId('sub')} required className={`input-field ${isInvalid(invalid, 'sub')}`} value={cardForm.sub} onChange={(e) => { setCardForm({ ...cardForm, sub: e.target.value }); clearInvalid(setInvalid, 'sub'); }} />
-          </div>
+          <CmsEntityTranslationTabs
+            target="contactCards"
+            recordId={editingCard?.id ?? null}
+            canonicalPayload={editingCard ? contactCards.map((c) => c.id === editingCard.id ? { ...c, ...cardForm } : c) : contactCards}
+            fields={[
+              {
+                name: 'title',
+                label: t('contact.editCardModal.titleLabel', 'العنوان'),
+                kind: 'title',
+                canonicalValue: cardForm.title,
+                placeholder: t('contact.editCardModal.titleLabel', 'العنوان'),
+              },
+              ...(editingCard && (editingCard.id === 'address' || editingCard.id === 'hours' || isTranslatableLocationValue(editingCard.value)) && editingCard.id !== 'email' && editingCard.id !== 'phone'
+                ? [{
+                    name: 'value',
+                    label: t('contact.editCardModal.valueLabel', 'القيمة'),
+                    kind: 'text' as const,
+                    canonicalValue: cardForm.value,
+                    placeholder: t('contact.editCardModal.valueLabel', 'القيمة'),
+                    isLocation: true,
+                  }]
+                : []),
+              {
+                name: 'sub',
+                label: t('contact.editCardModal.subLabel', 'الوصف الفرعي'),
+                kind: 'description',
+                canonicalValue: cardForm.sub,
+                placeholder: t('contact.editCardModal.subLabel', 'الوصف الفرعي'),
+              },
+            ]}
+            canEdit={Boolean(isPresidentOrMedia)}
+            canPublish={Boolean(isPresident)}
+            translations={cardTranslations}
+            onTranslationChange={(loc, name, val) => {
+              setCardTranslations((prev) => ({
+                ...prev,
+                [loc]: { ...prev[loc], [name]: val },
+              }));
+            }}
+          >
+            <div>
+              <label htmlFor={fieldId('title')} className="label-field">{t('contact.editCardModal.titleLabel', 'العنوان')} <RequiredMark /></label>
+              <input id={fieldId('title')} required className={`input-field ${isInvalid(invalid, 'title')}`} value={cardForm.title} onChange={(e) => { setCardForm({ ...cardForm, title: e.target.value }); clearInvalid(setInvalid, 'title'); }} />
+            </div>
+            <div>
+              <label htmlFor={fieldId('value')} className="label-field">{t('contact.editCardModal.valueLabel', 'القيمة')} <RequiredMark /></label>
+              <input id={fieldId('value')} required className={`input-field ${isInvalid(invalid, 'value')}`} dir={editingCard?.ltr ? 'ltr' : undefined} value={cardForm.value} onChange={(e) => { setCardForm({ ...cardForm, value: e.target.value }); clearInvalid(setInvalid, 'value'); }} />
+              {editingCard && (editingCard.id === 'phone' || editingCard.id === 'email') && (
+                <p className="mt-1 text-xs text-gray-500">{t('contact.technicalValueNotice', 'هذه القيمة تقنية وثابتة عبر جميع اللغات.')}</p>
+              )}
+            </div>
+            <div>
+              <label htmlFor={fieldId('sub')} className="label-field">{t('contact.editCardModal.subLabel', 'الوصف الفرعي')} <RequiredMark /></label>
+              <input id={fieldId('sub')} required className={`input-field ${isInvalid(invalid, 'sub')}`} value={cardForm.sub} onChange={(e) => { setCardForm({ ...cardForm, sub: e.target.value }); clearInvalid(setInvalid, 'sub'); }} />
+            </div>
+          </CmsEntityTranslationTabs>
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setCardModalOpen(false)} className="btn-ghost">إلغاء</button>
+            <button type="button" onClick={() => setCardModalOpen(false)} className="btn-ghost">{t('common.cancel', 'إلغاء')}</button>
             <button type="submit" className="btn-primary">
-              <Save className="h-4 w-4" /> حفظ
+              <Save className="h-4 w-4" /> {t('common.save', 'حفظ')}
             </button>
           </div>
         </form>
       </Modal>
 
-      <Modal open={mapModalOpen} onClose={() => setMapModalOpen(false)} title="تعديل خريطة الموقع" maxWidth="max-w-lg">
+      <Modal open={mapModalOpen} onClose={() => setMapModalOpen(false)} title={t('contact.editMapModal.title', 'تعديل خريطة الموقع')} maxWidth="max-w-lg">
         <form onSubmit={saveMap} className="space-y-4">
+          <CmsEntityTranslationTabs
+            target="contactMap"
+            recordId="map"
+            canonicalPayload={{ ...contactMap, title: mapForm.title }}
+            fields={[
+              {
+                name: 'title',
+                label: t('contact.editMapModal.titleLabel', 'عنوان الخريطة'),
+                kind: 'title',
+                canonicalValue: mapForm.title,
+                placeholder: t('contact.editMapModal.titleLabel', 'عنوان الخريطة'),
+              },
+            ]}
+            canEdit={Boolean(isPresidentOrMedia)}
+            canPublish={Boolean(isPresident)}
+            translations={mapTranslations}
+            onTranslationChange={(loc, name, val) => {
+              setMapTranslations((prev) => ({
+                ...prev,
+                [loc]: { ...prev[loc], [name]: val },
+              }));
+            }}
+          >
+            <div>
+              <label className="label-field">{t('contact.editMapModal.titleLabel', 'عنوان الخريطة')} <RequiredMark /></label>
+              <input className="input-field" value={mapForm.title} onChange={(e) => { setMapForm({ ...mapForm, title: e.target.value }); setMapError(''); }} />
+            </div>
+          </CmsEntityTranslationTabs>
           <div>
-            <label className="label-field">عنوان الخريطة <RequiredMark /></label>
-            <input className="input-field" value={mapForm.title} onChange={(e) => { setMapForm({ ...mapForm, title: e.target.value }); setMapError(''); }} />
-          </div>
-          <div>
-            <label className="label-field">رابط Google Maps أو كود iframe <RequiredMark /></label>
+            <label className="label-field">{t('contact.editMapModal.sourceLabel', 'رابط Google Maps أو كود iframe')} <RequiredMark /></label>
             <textarea dir="ltr" rows={4} className="input-field resize-none" value={mapForm.source} onChange={(e) => { setMapForm({ ...mapForm, source: e.target.value }); setMapError(''); }} />
-            <p className="mt-1 text-xs text-gray-500">يمكن لصق رابط التضمين أو كود iframe من Google Maps.</p>
+            <p className="mt-1 text-xs text-gray-500">{t('contact.editMapModal.sourceHelp', 'يمكن لصق رابط التضمين أو كود iframe من Google Maps.')}</p>
           </div>
           {mapError && <p className="text-sm font-semibold text-red-600">{mapError}</p>}
           <div className="flex justify-end gap-2">
-            <button type="button" onClick={() => setMapModalOpen(false)} className="btn-ghost">إلغاء</button>
-            <button type="submit" className="btn-primary"><Save className="h-4 w-4" /> حفظ</button>
+            <button type="button" onClick={() => setMapModalOpen(false)} className="btn-ghost">{t('common.cancel', 'إلغاء')}</button>
+            <button type="submit" className="btn-primary"><Save className="h-4 w-4" /> {t('common.save', 'حفظ')}</button>
           </div>
         </form>
       </Modal>

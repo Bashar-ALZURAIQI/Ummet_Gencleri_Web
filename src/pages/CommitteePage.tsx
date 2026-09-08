@@ -5,6 +5,7 @@ import {
   Edit3, Trash2, Plus, Save, ClipboardCheck, Hourglass,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { useTranslation } from 'react-i18next';
 import Modal from '../components/Modal';
 import ProfileEditsPanel from '../components/ProfileEditsPanel';
 import DismissibleToast from '../components/DismissibleToast';
@@ -19,6 +20,16 @@ import {
   resolveExecutiveContentEditState,
 } from '../domain/executiveEditWorkflow';
 import { persistPresidentCommitteeEdit } from '../domain/executiveEditCoordinator';
+import {
+  getExecutiveSectionLabel,
+  getExecutiveSectionDescription,
+  getExecutiveRoleLabel,
+  getExecutiveMetricLabel,
+} from '../domain/executivePresentation';
+import { formatStatisticNumber } from '../domain/numberPresentation';
+import { CmsEntityTranslationTabs } from '../components/cmsLocalization/CmsEntityTranslationTabs';
+import { useCmsLocalizationRepository } from '../context/CmsLocalizationContext';
+import { computeSourceHash, type LocalizedCmsLocale, type JsonValue } from '../domain/cmsLocalization';
 
 const iconMap: Record<string, typeof Crown> = {
   Crown, UserCog, Megaphone, GraduationCap, ShieldCheck, CalendarDays, Wallet,
@@ -30,7 +41,10 @@ type StatForm = { label: string; value: string };
 type SubmissionFeedback = { id: number; type: 'success' | 'error'; text: string };
 
 export default function CommitteePage({ committeeId }: { committeeId: CommitteeId }) {
-  const { committees, currentUser, setView, pendingProfileEdits, submitProfileEdit, updateBoardHead, uploadManagedFile, savePublishedSiteTarget } = useApp();
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language;
+  const { committees, canonicalCommittees, currentUser, setView, pendingProfileEdits, submitProfileEdit, updateBoardHead, uploadManagedFile, savePublishedSiteTarget } = useApp();
+  const localizationRepo = useCmsLocalizationRepository();
 
   // Modals
   const [headModal, setHeadModal] = useState(false);
@@ -44,8 +58,24 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
   const [statIdx, setStatIdx] = useState<number>(-1);
   const [statForm, setStatForm] = useState<StatForm>({ label: '', value: '' });
 
+  const [headTranslations, setHeadTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
+    tr: {},
+    en: {},
+  });
+  const [respTranslations, setRespTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
+    tr: {},
+    en: {},
+  });
+  const [statTranslations, setStatTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
+    tr: {},
+    en: {},
+  });
   const [memberModal, setMemberModal] = useState(false);
   const [editingMember, setEditingMember] = useState<CommitteeMember | null>(null);
+  const [memberTranslations, setMemberTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
+    tr: {},
+    en: {},
+  });
   const [memberForm, setMemberForm] = useState<MemberForm>({ name: '', position: '', photo: '' });
 
   const [invalid, setInvalid] = useState<string[]>([]);
@@ -55,6 +85,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
   const [reviewOpen, setReviewOpen] = useState(false);
 
   const committee = committees.find((c) => c.id === committeeId);
+  const canonicalCommittee = (canonicalCommittees ?? committees).find((c) => c.id === committeeId);
   if (!committee) return null;
 
   const allowedCommitteeManager = currentUser?.role === 'PRESIDENT' ||
@@ -97,7 +128,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
           setSubmissionFeedback({ id: Date.now(), type: 'error', text: message });
           return false;
         }
-        setSubmissionFeedback({ id: Date.now(), type: 'success', text: 'تم الحفظ بنجاح' });
+        setSubmissionFeedback({ id: Date.now(), type: 'success', text: t('admin.vision.savedSuccess', 'تم الحفظ بنجاح') });
         return true;
       } catch (error) {
         console.error('[ExecutiveBoardEditModal] Unexpected president publication failure', error);
@@ -149,7 +180,8 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
 
   // Head
   const openHead = () => {
-    const h = committee.head ?? {};
+    const h = canonicalCommittee?.head ?? committee.head ?? {};
+    setHeadTranslations({ tr: {}, en: {} });
     setHeadForm({ name: h.name ?? '', role: h.role ?? '', bio: h.bio ?? '', photo: h.photo ?? '', email: h.email ?? '' });
     setHeadModal(true);
   };
@@ -168,8 +200,13 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
   };
 
   // Responsibilities
-  const openAddResp = () => { setRespIdx(-1); setRespText(''); setRespModal(true); };
-  const openEditResp = (i: number) => { setRespIdx(i); setRespText(committee.responsibilities?.[i] ?? ''); setRespModal(true); };
+  const openAddResp = () => { setRespIdx(-1); setRespTranslations({ tr: {}, en: {} }); setRespText(''); setRespModal(true); };
+  const openEditResp = (i: number) => {
+    setRespIdx(i);
+    setRespTranslations({ tr: {}, en: {} });
+    setRespText(canonicalCommittee?.responsibilities?.[i] ?? committee.responsibilities?.[i] ?? '');
+    setRespModal(true);
+  };
   const saveResp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!respText.trim()) return;
@@ -183,12 +220,21 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
     setRespModal(false);
   };
   const deleteResp = async (i: number) => {
-    if (!confirm('حذف هذا البند؟')) return;
+    if (!confirm(t('committee.confirmDeleteItem', 'حذف هذا البند؟'))) return;
     await submitOrApply((c) => ({ ...c, responsibilities: (c.responsibilities ?? []).filter((_, x) => x !== i) }));
   };
 
   // Stats
-  const openEditStat = (i: number) => { setStatIdx(i); setStatForm({ ...(committee.stats?.[i] ?? { value: '', label: '' }) }); setStatModal(true); };
+  const openEditStat = (i: number) => {
+    setStatIdx(i);
+    setStatTranslations({ tr: {}, en: {} });
+    const canonStat = canonicalCommittee?.stats?.[i];
+    setStatForm({
+      value: canonStat?.value ?? committee.stats?.[i]?.value ?? '',
+      label: canonStat?.label ?? committee.stats?.[i]?.label ?? '',
+    });
+    setStatModal(true);
+  };
   const saveStat = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateRequired(statForm, ['value', 'label'], setInvalid)) return;
@@ -201,23 +247,74 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
   };
 
   // Members
-  const openAddMember = () => { setEditingMember(null); setMemberForm({ name: '', position: '', photo: '' }); setMemberModal(true); };
-  const openEditMember = (m: CommitteeMember) => { setEditingMember(m); setMemberForm({ name: m.name ?? '', position: m.position ?? '', photo: m.photo ?? '' }); setMemberModal(true); };
+  const openAddMember = () => {
+    setEditingMember(null);
+    setMemberTranslations({ tr: {}, en: {} });
+    setMemberForm({ name: '', position: '', photo: '' });
+    setMemberModal(true);
+  };
+  const openEditMember = (m: CommitteeMember) => {
+    setEditingMember(m);
+    setMemberTranslations({ tr: {}, en: {} });
+    const canonMember = canonicalCommittee?.members?.find((x) => x.id === m.id);
+    setMemberForm({
+      name: m.name ?? '',
+      position: canonMember?.position ?? m.position ?? '',
+      photo: m.photo ?? '',
+    });
+    setMemberModal(true);
+  };
   const saveMember = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!memberForm.name.trim()) return;
     if (!validateRequired(memberForm, ['name', 'position', 'photo'], setInvalid)) return;
     const photo = memberForm.photo;
+    const newMemberId = editingMember?.id ?? 'cm' + Date.now();
     if (!(await submitOrApply((c) => {
       if (editingMember) {
         return { ...c, members: (c.members ?? []).map((m) => m.id === editingMember.id ? { ...m, ...memberForm, photo } : m) };
       }
-      return { ...c, members: [...(c.members ?? []), { id: 'cm' + Date.now(), name: memberForm.name, position: memberForm.position, photo }] };
+      return { ...c, members: [...(c.members ?? []), { id: newMemberId, name: memberForm.name, position: memberForm.position, photo }] };
     }))) return;
+
+    if (!editingMember) {
+      for (const loc of ['tr', 'en'] as const) {
+        const trData = memberTranslations[loc];
+        if (trData.position?.trim()) {
+          try {
+            const latest = await localizationRepo.getDraft('committees', loc);
+            const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
+              ? JSON.parse(JSON.stringify(latest.payload))
+              : [];
+            const commIdx = list.findIndex((c) => c && c.id === committeeId);
+            if (commIdx >= 0) {
+              const commObj = list[commIdx];
+              const members = Array.isArray(commObj.members) ? [...commObj.members] : [];
+              members.push({ id: newMemberId, ...trData });
+              commObj.members = members;
+            } else {
+              list.push({ id: committeeId, members: [{ id: newMemberId, ...trData }] });
+            }
+            await localizationRepo.saveDraft({
+              target: 'committees',
+              locale: loc,
+              payload: list as unknown as JsonValue,
+              status: 'draft',
+              manualPaths: [`${newMemberId}.position`],
+              sourceHash: computeSourceHash(committees),
+              updatedAt: new Date().toISOString(),
+            });
+          } catch {
+            // non-blocking
+          }
+        }
+      }
+    }
+
     setMemberModal(false);
   };
   const deleteMember = async (mid: string) => {
-    if (!confirm('حذف هذا العضو؟')) return;
+    if (!confirm(t('committee.confirmDeleteMember', 'حذف هذا العضو؟'))) return;
     await submitOrApply((c) => ({ ...c, members: (c.members ?? []).filter((m) => m.id !== mid) }));
   };
 
@@ -234,11 +331,11 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
             <div>
               <div className="flex items-center gap-2">
                 <span className="rounded-full bg-white/15 px-3 py-0.5 text-xs font-bold text-white backdrop-blur-sm">
-                  {committeeId === 'presidency' || committeeId === 'vice-presidency' ? 'مكتب تنفيذي' : 'لجنة'}
+                  {committeeId === 'presidency' || committeeId === 'vice-presidency' ? t('committee.executiveOffice') : t('committee.committeeTag')}
                 </span>
               </div>
-              <h1 className="mt-2 text-3xl font-extrabold text-white lg:text-4xl">{committee.name}</h1>
-              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/80">{committee.description}</p>
+              <h1 className="mt-2 text-3xl font-extrabold text-white lg:text-4xl">{getExecutiveSectionLabel(committee.id, t) || committee.name}</h1>
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/80">{getExecutiveSectionDescription(committee.id, t, committee.description)}</p>
             </div>
           </div>
         </div>
@@ -269,7 +366,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
                 <button
                   onClick={openHead}
                   className="absolute left-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white text-navy-700 opacity-0 shadow ring-1 ring-gray-200 transition-opacity hover:bg-navy-50 group-hover/head:opacity-100"
-                  title="تعديل بيانات المسؤول"
+                  title={t('committee.editHeadTitle', 'تعديل بيانات المسؤول')}
                 >
                   <Edit3 className="h-4 w-4" />
                 </button>
@@ -285,7 +382,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
                   fallbackClassName="bg-navy-700 text-2xl text-white"
                 />
                 <h3 className="mt-3 text-lg font-extrabold text-navy-900">{committee.head?.name || '—'}</h3>
-                <p className="text-sm font-semibold text-navy-600">{committee.head?.role || '—'}</p>
+                <p className="text-sm font-semibold text-navy-600">{getExecutiveRoleLabel(committee.head?.role, t) || '—'}</p>
                 <p className="mt-3 text-xs leading-relaxed text-gray-500">{committee.head?.bio || ''}</p>
                 <div className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-gray-50 px-3 py-2 text-xs text-gray-500">
                   <Mail className="h-3.5 w-3.5" />
@@ -305,8 +402,8 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
                   {canEditContent && (
                     <Edit3 className="absolute left-1.5 top-1.5 h-3 w-3 text-gray-300 opacity-0 transition-opacity group-hover/stat:opacity-100" />
                   )}
-                  <div className="text-lg font-extrabold text-navy-900">{s.value ?? '—'}</div>
-                  <div className="text-[10px] text-gray-500">{s.label ?? ''}</div>
+                  <div className="text-lg font-extrabold text-navy-900">{formatStatisticNumber(s.value, locale)}</div>
+                  <div className="text-[10px] text-gray-500">{getExecutiveMetricLabel(s.label, t)}</div>
                 </button>
               ))}
             </div>
@@ -318,17 +415,17 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               <div className="card p-6">
                 <h3 className="flex items-center gap-2 text-lg font-bold text-navy-900">
                   <Target className="h-5 w-5 text-navy-600" />
-                  رؤية وأهداف اللجنة
+                  {t('committee.visionAndGoals')}
                 </h3>
                 {committee.vision && (
                   <div className="mt-4">
-                    <div className="mb-1.5 text-xs font-bold text-navy-500">رؤية اللجنة</div>
+                    <div className="mb-1.5 text-xs font-bold text-navy-500">{t('committee.vision')}</div>
                     <p className="whitespace-pre-line rounded-xl bg-gray-50 p-4 text-sm leading-relaxed text-gray-600">{committee.vision}</p>
                   </div>
                 )}
                 {committee.goals && committee.goals.trim().length > 0 && (
                   <div className="mt-4">
-                    <div className="mb-1.5 text-xs font-bold text-navy-500">أهداف اللجنة</div>
+                    <div className="mb-1.5 text-xs font-bold text-navy-500">{t('committee.goals')}</div>
                     <p className="whitespace-pre-line rounded-xl bg-gray-50 p-4 text-sm leading-relaxed text-gray-600">{committee.goals}</p>
                   </div>
                 )}
@@ -339,11 +436,11 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               <div className="flex items-center justify-between">
                 <h3 className="flex items-center gap-2 text-lg font-bold text-navy-900">
                   <Briefcase className="h-5 w-5 text-navy-600" />
-                  المهام والمسؤوليات
+                  {t('committee.responsibilities')}
                 </h3>
                 {canEditContent && (
                   <button onClick={openAddResp} className="flex items-center gap-1 rounded-lg bg-navy-50 px-2.5 py-1.5 text-xs font-bold text-navy-700 transition-colors hover:bg-navy-100">
-                    <Plus className="h-3.5 w-3.5" /> إضافة بند
+                    <Plus className="h-3.5 w-3.5" /> {t('committee.addItem')}
                   </button>
                 )}
               </div>
@@ -354,10 +451,10 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
                     <span className="flex-1">{r ?? ''}</span>
                     {canEditContent && (
                       <div className="flex gap-1 opacity-0 transition-opacity group-hover/item:opacity-100">
-                        <button onClick={() => openEditResp(i)} className="flex h-6 w-6 items-center justify-center rounded-md text-navy-600 hover:bg-navy-50" title="تعديل">
+                        <button onClick={() => openEditResp(i)} className="flex h-6 w-6 items-center justify-center rounded-md text-navy-600 hover:bg-navy-50" title={t('common.edit')}>
                           <Edit3 className="h-3.5 w-3.5" />
                         </button>
-                        <button onClick={() => deleteResp(i)} className="flex h-6 w-6 items-center justify-center rounded-md text-rose-600 hover:bg-rose-50" title="حذف">
+                        <button onClick={() => deleteResp(i)} className="flex h-6 w-6 items-center justify-center rounded-md text-rose-600 hover:bg-rose-50" title={t('common.delete')}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
@@ -371,11 +468,11 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               <div className="flex items-center justify-between">
                 <h3 className="flex items-center gap-2 text-lg font-bold text-navy-900">
                   <Users className="h-5 w-5 text-navy-600" />
-                  أعضاء {committee.shortName}
+                  {t('committee.membersTitle', { committee: getExecutiveSectionLabel(committee.id, t) })}
                 </h3>
                 {canEditContent && (
                   <button onClick={openAddMember} className="flex items-center gap-1 rounded-lg bg-navy-50 px-2.5 py-1.5 text-xs font-bold text-navy-700 transition-colors hover:bg-navy-100">
-                    <Plus className="h-3.5 w-3.5" /> إضافة عضو
+                    <Plus className="h-3.5 w-3.5" /> {t('committee.addMember')}
                   </button>
                 )}
               </div>
@@ -389,10 +486,10 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
                     </div>
                     {canEditContent && (
                       <div className="absolute left-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover/memitem:opacity-100">
-                        <button onClick={() => openEditMember(m)} className="flex h-6 w-6 items-center justify-center rounded-md bg-white text-navy-600 shadow-sm ring-1 ring-gray-200 hover:bg-navy-50" title="تعديل">
+                        <button onClick={() => openEditMember(m)} className="flex h-6 w-6 items-center justify-center rounded-md bg-white text-navy-600 shadow-sm ring-1 ring-gray-200 hover:bg-navy-50" title={t('common.edit')}>
                           <Edit3 className="h-3 w-3" />
                         </button>
-                        <button onClick={() => m.id && deleteMember(m.id)} className="flex h-6 w-6 items-center justify-center rounded-md bg-white text-rose-600 shadow-sm ring-1 ring-gray-200 hover:bg-rose-50" title="حذف">
+                        <button onClick={() => m.id && deleteMember(m.id)} className="flex h-6 w-6 items-center justify-center rounded-md bg-white text-rose-600 shadow-sm ring-1 ring-gray-200 hover:bg-rose-50" title={t('common.delete')}>
                           <Trash2 className="h-3 w-3" />
                         </button>
                       </div>
@@ -400,7 +497,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
                   </div>
                 ))}
                 {(committee.members ?? []).length === 0 && (
-                  <p className="py-4 text-center text-sm text-gray-400">لا يوجد أعضاء مضافون.</p>
+                  <p className="py-4 text-center text-sm text-gray-400">{t('committee.noMembers')}</p>
                 )}
               </div>
             </div>
@@ -414,16 +511,16 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               onClick={() => { setView({ kind: 'committee', committeeId: prev }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
               className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-navy-700 transition-colors hover:bg-navy-50"
             >
-              <ChevronRight className="h-4 w-4" />
-              {committeeMeta[prev].name}
+              <ChevronRight className="h-4 w-4 rtl:rotate-0 ltr:rotate-180" />
+              {getExecutiveSectionLabel(prev, t) || committeeMeta[prev].name}
             </button>
           ) : (
             <button
               onClick={() => setView({ kind: 'board' })}
               className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-navy-700 transition-colors hover:bg-navy-50"
             >
-              <ChevronRight className="h-4 w-4" />
-              الهيئة التنفيذية
+              <ChevronRight className="h-4 w-4 rtl:rotate-0 ltr:rotate-180" />
+              {t('navigation.executiveBoard')}
             </button>
           )}
           {next ? (
@@ -431,16 +528,16 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               onClick={() => { setView({ kind: 'committee', committeeId: next }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
               className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-navy-700 transition-colors hover:bg-navy-50"
             >
-              {committeeMeta[next].name}
-              <ChevronLeft className="h-4 w-4" />
+              {getExecutiveSectionLabel(next, t) || committeeMeta[next].name}
+              <ChevronLeft className="h-4 w-4 rtl:rotate-0 ltr:rotate-180" />
             </button>
           ) : (
             <button
               onClick={() => setView({ kind: 'board' })}
               className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-navy-700 transition-colors hover:bg-navy-50"
             >
-              الهيئة التنفيذية
-              <ChevronLeft className="h-4 w-4" />
+              {t('navigation.executiveBoard')}
+              <ChevronLeft className="h-4 w-4 rtl:rotate-0 ltr:rotate-180" />
             </button>
           )}
         </div>
@@ -448,26 +545,49 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
 
       {/* Head edit modal */}
       {canEditPersonalProfile && (
-        <Modal open={headModal} onClose={() => setHeadModal(false)} title="تعديل بيانات المسؤول" maxWidth="max-w-md">
+        <Modal open={headModal} onClose={() => setHeadModal(false)} title={t('committee.headModal.title', 'تعديل بيانات المسؤول')} maxWidth="max-w-md">
           <form onSubmit={saveHead} className="space-y-4">
             <div>
-              <label htmlFor={fieldId('name')} className="label-field">الاسم الكامل <RequiredMark /></label>
+              <label htmlFor={fieldId('name')} className="label-field">{t('committee.headModal.fullName', 'الاسم الكامل')} <RequiredMark /></label>
               <input id={fieldId('name')} required className={`input-field ${isInvalid(invalid, 'name')}`} value={headForm.name} onChange={(e) => { setHeadForm({ ...headForm, name: e.target.value }); clearInvalid(setInvalid, 'name'); }} />
             </div>
             <div>
-              <label htmlFor={fieldId('role')} className="label-field">المسمى الوظيفي <RequiredMark /></label>
-              <input id={fieldId('role')} readOnly className="input-field bg-gray-100 text-gray-500" value={headForm.role} />
+              <label htmlFor={fieldId('role')} className="label-field">{t('committee.headModal.role', 'المسمى الوظيفي')} <RequiredMark /></label>
+              <input id={fieldId('role')} readOnly className="input-field bg-gray-100 text-gray-500" value={getExecutiveRoleLabel(headForm.role, t) || headForm.role} />
             </div>
-            <div>
-              <label htmlFor={fieldId('bio')} className="label-field">النبذة التعريفية <RequiredMark /></label>
-              <textarea id={fieldId('bio')} required rows={3} className={`input-field resize-none ${isInvalid(invalid, 'bio')}`} value={headForm.bio} onChange={(e) => { setHeadForm({ ...headForm, bio: e.target.value }); clearInvalid(setInvalid, 'bio'); }} />
-            </div>
+            <CmsEntityTranslationTabs
+              target="committees"
+              recordId={committee.id}
+              canonicalPayload={canonicalCommittees ?? committees}
+              fields={[
+                {
+                  name: 'head.bio',
+                  label: t('committee.headModal.bio', 'النبذة التعريفية'),
+                  kind: 'richText',
+                  canonicalValue: headForm.bio,
+                  placeholder: t('committee.headModal.bio', 'النبذة التعريفية'),
+                },
+              ]}
+              canEdit={Boolean(canEditPersonalProfile)}
+              translations={headTranslations}
+              onTranslationChange={(loc, name, val) => {
+                setHeadTranslations((prev) => ({
+                  ...prev,
+                  [loc]: { ...prev[loc], [name]: val },
+                }));
+              }}
+            >
+              <div>
+                <label htmlFor={fieldId('bio')} className="label-field">{t('committee.headModal.bio', 'النبذة التعريفية')} <RequiredMark /></label>
+                <textarea id={fieldId('bio')} required rows={3} className={`input-field resize-none ${isInvalid(invalid, 'bio')}`} value={headForm.bio} onChange={(e) => { setHeadForm({ ...headForm, bio: e.target.value }); clearInvalid(setInvalid, 'bio'); }} />
+              </div>
+            </CmsEntityTranslationTabs>
             <ManagedFileField
               usage="avatar"
-              label="الصورة الشخصية"
+              label={t('committee.headModal.photo', 'الصورة الشخصية')}
               currentUrl={headForm.photo}
               required
-              error={isInvalid(invalid, 'photo') ? 'يرجى رفع صورة شخصية.' : null}
+              error={isInvalid(invalid, 'photo') ? t('committee.headModal.photoError', 'يرجى رفع صورة شخصية.') : null}
               onUpload={(file, onProgress) => uploadManagedFile('avatar', file, onProgress)}
               onUploaded={(asset) => {
                 setHeadForm((current) => ({ ...current, photo: asset.publicUrl }));
@@ -475,12 +595,12 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               }}
             />
             <div>
-              <label htmlFor={fieldId('email')} className="label-field">البريد الإلكتروني الرسمي <RequiredMark /></label>
+              <label htmlFor={fieldId('email')} className="label-field">{t('committee.headModal.officialEmail', 'البريد الإلكتروني الرسمي')} <RequiredMark /></label>
               <input id={fieldId('email')} required type="email" dir="ltr" className={`input-field ${isInvalid(invalid, 'email')}`} value={headForm.email} onChange={(e) => { setHeadForm({ ...headForm, email: e.target.value }); clearInvalid(setInvalid, 'email'); }} />
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setHeadModal(false)} className="btn-ghost">إلغاء</button>
-              <button type="submit" className="btn-primary"><Save className="h-4 w-4" /> حفظ</button>
+              <button type="button" onClick={() => setHeadModal(false)} className="btn-ghost">{t('common.cancel', 'إلغاء')}</button>
+              <button type="submit" className="btn-primary"><Save className="h-4 w-4" /> {t('common.save', 'حفظ')}</button>
             </div>
           </form>
         </Modal>
@@ -488,16 +608,40 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
 
       {/* Responsibility modal */}
       {canEditContent && (
-        <Modal open={respModal} onClose={() => setRespModal(false)} title={respIdx >= 0 ? 'تعديل البند' : 'إضافة بند جديد'} maxWidth="max-w-md">
+        <Modal open={respModal} onClose={() => setRespModal(false)} title={respIdx >= 0 ? t('committee.respModal.editTitle', 'تعديل البند') : t('committee.respModal.addTitle', 'إضافة بند جديد')} maxWidth="max-w-md">
           <form onSubmit={saveResp} className="space-y-4">
-            <div>
-              <label htmlFor={fieldId('respText')} className="label-field">نص البند <RequiredMark /></label>
-              <textarea id={fieldId('respText')} required rows={3} className={`input-field resize-none ${isInvalid(invalid, 'respText')}`} value={respText} onChange={(e) => { setRespText(e.target.value); clearInvalid(setInvalid, 'respText'); }} placeholder="اكتب المهمة أو المسؤولية" />
-            </div>
+            <CmsEntityTranslationTabs
+              target="committees"
+              recordId={committee.id}
+              canonicalPayload={canonicalCommittees ?? committees}
+              fields={[
+                {
+                  name: `responsibilities.${respIdx >= 0 ? respIdx : (committee.responsibilities?.length ?? 0)}`,
+                  label: t('committee.respModal.textLabel', 'نص البند'),
+                  kind: 'text',
+                  canonicalValue: respText,
+                  placeholder: t('committee.respModal.placeholder', 'اكتب المهمة أو المسؤولية'),
+                },
+              ]}
+              canEdit={Boolean(canEditContent)}
+              canPublish={Boolean(isPresident)}
+              translations={respTranslations}
+              onTranslationChange={(loc, name, val) => {
+                setRespTranslations((prev) => ({
+                  ...prev,
+                  [loc]: { ...prev[loc], [name]: val },
+                }));
+              }}
+            >
+              <div>
+                <label htmlFor={fieldId('respText')} className="label-field">{t('committee.respModal.textLabel', 'نص البند')} <RequiredMark /></label>
+                <textarea id={fieldId('respText')} required rows={3} className={`input-field resize-none ${isInvalid(invalid, 'respText')}`} value={respText} onChange={(e) => { setRespText(e.target.value); clearInvalid(setInvalid, 'respText'); }} placeholder={t('committee.respModal.placeholder', 'اكتب المهمة أو المسؤولية')} />
+              </div>
+            </CmsEntityTranslationTabs>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setRespModal(false)} className="btn-ghost">إلغاء</button>
+              <button type="button" onClick={() => setRespModal(false)} className="btn-ghost">{t('common.cancel', 'إلغاء')}</button>
               <button type="submit" disabled={contentSubmitting} className="btn-primary disabled:cursor-not-allowed disabled:opacity-60">
-                <Save className="h-4 w-4" /> {contentSubmitting ? 'جارٍ الإرسال...' : 'حفظ'}
+                <Save className="h-4 w-4" /> {contentSubmitting ? t('common.sending', 'جارٍ الإرسال...') : t('common.save', 'حفظ')}
               </button>
             </div>
           </form>
@@ -506,20 +650,44 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
 
       {/* Stat modal */}
       {canEditContent && (
-        <Modal open={statModal} onClose={() => setStatModal(false)} title="تعديل الإحصائية" maxWidth="max-w-xs">
+        <Modal open={statModal} onClose={() => setStatModal(false)} title={t('committee.statModal.title', 'تعديل الإحصائية')} maxWidth="max-w-xs">
           <form onSubmit={saveStat} className="space-y-4">
             <div>
-              <label htmlFor={fieldId('value')} className="label-field">الرقم/القيمة <RequiredMark /></label>
+              <label htmlFor={fieldId('value')} className="label-field">{t('committee.statModal.valueLabel', 'الرقم/القيمة')} <RequiredMark /></label>
               <input id={fieldId('value')} required className={`input-field ${isInvalid(invalid, 'value')}`} value={statForm.value} onChange={(e) => { setStatForm({ ...statForm, value: e.target.value }); clearInvalid(setInvalid, 'value'); }} />
             </div>
-            <div>
-              <label htmlFor={fieldId('label')} className="label-field">المسمى <RequiredMark /></label>
-              <input id={fieldId('label')} required className={`input-field ${isInvalid(invalid, 'label')}`} value={statForm.label} onChange={(e) => { setStatForm({ ...statForm, label: e.target.value }); clearInvalid(setInvalid, 'label'); }} />
-            </div>
+            <CmsEntityTranslationTabs
+              target="committees"
+              recordId={committee.id ? `${committee.id}.stats.${statIdx}` : `stats.${statIdx}`}
+              canonicalPayload={canonicalCommittees ?? committees}
+              fields={[
+                {
+                  name: 'label',
+                  label: t('committee.statModal.nameLabel', 'المسمى'),
+                  kind: 'title',
+                  canonicalValue: statForm.label,
+                  placeholder: t('committee.statModal.nameLabel', 'المسمى'),
+                },
+              ]}
+              canEdit={Boolean(canEditContent)}
+              canPublish={Boolean(isPresident)}
+              translations={statTranslations}
+              onTranslationChange={(loc, name, val) => {
+                setStatTranslations((prev) => ({
+                  ...prev,
+                  [loc]: { ...prev[loc], [name]: val },
+                }));
+              }}
+            >
+              <div>
+                <label htmlFor={fieldId('label')} className="label-field">{t('committee.statModal.nameLabel', 'المسمى')} <RequiredMark /></label>
+                <input id={fieldId('label')} required className={`input-field ${isInvalid(invalid, 'label')}`} value={statForm.label} onChange={(e) => { setStatForm({ ...statForm, label: e.target.value }); clearInvalid(setInvalid, 'label'); }} />
+              </div>
+            </CmsEntityTranslationTabs>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setStatModal(false)} className="btn-ghost">إلغاء</button>
+              <button type="button" onClick={() => setStatModal(false)} className="btn-ghost">{t('common.cancel', 'إلغاء')}</button>
               <button type="submit" disabled={contentSubmitting} className="btn-primary disabled:cursor-not-allowed disabled:opacity-60">
-                <Save className="h-4 w-4" /> {contentSubmitting ? 'جارٍ الإرسال...' : 'حفظ'}
+                <Save className="h-4 w-4" /> {contentSubmitting ? t('common.sending', 'جارٍ الإرسال...') : t('common.save', 'حفظ')}
               </button>
             </div>
           </form>
@@ -528,22 +696,46 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
 
       {/* Member modal */}
       {canEditContent && (
-        <Modal open={memberModal} onClose={() => setMemberModal(false)} title={editingMember ? 'تعديل عضو' : 'إضافة عضو جديد'} maxWidth="max-w-md">
+        <Modal open={memberModal} onClose={() => setMemberModal(false)} title={editingMember ? t('committee.memberModal.editTitle', 'تعديل عضو') : t('committee.memberModal.addTitle', 'إضافة عضو جديد')} maxWidth="max-w-md">
           <form onSubmit={saveMember} className="space-y-4">
             <div>
-              <label htmlFor={fieldId('name')} className="label-field">الاسم <RequiredMark /></label>
+              <label htmlFor={fieldId('name')} className="label-field">{t('committee.memberModal.name', 'الاسم')} <RequiredMark /></label>
               <input id={fieldId('name')} required className={`input-field ${isInvalid(invalid, 'name')}`} value={memberForm.name} onChange={(e) => { setMemberForm({ ...memberForm, name: e.target.value }); clearInvalid(setInvalid, 'name'); }} />
             </div>
-            <div>
-              <label htmlFor={fieldId('position')} className="label-field">المسؤولية <RequiredMark /></label>
-              <input id={fieldId('position')} required className={`input-field ${isInvalid(invalid, 'position')}`} value={memberForm.position} onChange={(e) => { setMemberForm({ ...memberForm, position: e.target.value }); clearInvalid(setInvalid, 'position'); }} placeholder="مثال: منسق، مستشار..." />
-            </div>
+            <CmsEntityTranslationTabs
+              target="committees"
+              recordId={editingMember?.id ?? null}
+              canonicalPayload={canonicalCommittees ?? committees}
+              fields={[
+                {
+                  name: 'position',
+                  label: t('committee.memberModal.position', 'المسؤولية'),
+                  kind: 'text',
+                  canonicalValue: memberForm.position,
+                  placeholder: t('committee.memberModal.positionPlaceholder', 'مثال: منسق، مستشار...'),
+                },
+              ]}
+              canEdit={Boolean(canEditContent)}
+              canPublish={Boolean(isPresident)}
+              translations={memberTranslations}
+              onTranslationChange={(loc, name, val) => {
+                setMemberTranslations((prev) => ({
+                  ...prev,
+                  [loc]: { ...prev[loc], [name]: val },
+                }));
+              }}
+            >
+              <div>
+                <label htmlFor={fieldId('position')} className="label-field">{t('committee.memberModal.position', 'المسؤولية')} <RequiredMark /></label>
+                <input id={fieldId('position')} required className={`input-field ${isInvalid(invalid, 'position')}`} value={memberForm.position} onChange={(e) => { setMemberForm({ ...memberForm, position: e.target.value }); clearInvalid(setInvalid, 'position'); }} placeholder={t('committee.memberModal.positionPlaceholder', 'مثال: منسق، مستشار...')} />
+              </div>
+            </CmsEntityTranslationTabs>
             <ManagedFileField
               usage="avatar"
-              label="الصورة الشخصية"
+              label={t('committee.memberModal.photo', 'الصورة الشخصية')}
               currentUrl={memberForm.photo}
               required
-              error={isInvalid(invalid, 'photo') ? 'يرجى رفع صورة شخصية.' : null}
+              error={isInvalid(invalid, 'photo') ? t('committee.memberModal.photoError', 'يرجى رفع صورة شخصية.') : null}
               onUpload={(file, onProgress) => uploadManagedFile('avatar', file, onProgress)}
               onUploaded={(asset) => {
                 setMemberForm((current) => ({ ...current, photo: asset.publicUrl }));
@@ -551,9 +743,9 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               }}
             />
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setMemberModal(false)} className="btn-ghost">إلغاء</button>
+              <button type="button" onClick={() => setMemberModal(false)} className="btn-ghost">{t('common.cancel', 'إلغاء')}</button>
               <button type="submit" disabled={contentSubmitting} className="btn-primary disabled:cursor-not-allowed disabled:opacity-60">
-                <Save className="h-4 w-4" /> {contentSubmitting ? 'جارٍ الإرسال...' : 'حفظ'}
+                <Save className="h-4 w-4" /> {contentSubmitting ? t('common.sending', 'جارٍ الإرسال...') : t('common.save', 'حفظ')}
               </button>
             </div>
           </form>
@@ -568,9 +760,9 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
             className="fixed bottom-6 left-6 z-40 flex items-center gap-2 rounded-full bg-navy-800 px-4 py-3 text-sm font-bold text-white shadow-xl transition-colors hover:bg-navy-700"
           >
             <ClipboardCheck className="h-4 w-4" />
-            طلبات تعديل الهيئة ({pendingCount})
+            {t('committee.reviewFloatingButton', 'طلبات تعديل الهيئة ({{count}})', { count: pendingCount })}
           </button>
-          <Modal open={reviewOpen} onClose={() => setReviewOpen(false)} title="طلبات تعديل بيانات الهيئة التنفيذية" maxWidth="max-w-2xl">
+          <Modal open={reviewOpen} onClose={() => setReviewOpen(false)} title={t('committee.reviewModalTitle', 'طلبات تعديل بيانات الهيئة التنفيذية')} maxWidth="max-w-2xl">
             <ProfileEditsPanel />
           </Modal>
         </>

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { LogIn, UserPlus, Mail, Lock, User, GraduationCap, CheckCircle2, AlertCircle, Users, Phone, KeyRound, Send } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import RequiredMark from '../components/RequiredMark';
@@ -6,16 +7,18 @@ import PasswordField from '../components/PasswordField';
 import TransientToast, { type ToastMessage } from '../components/TransientToast';
 import { validateRecoveredPassword } from '../domain/passwordRecovery';
 import { validateRequired, clearInvalid, isInvalid, fieldId } from '../utils/formValidation';
+import { resolvePublicBrandName } from '../domain/publicBrand';
 
-function passwordStrength(p: string): { ok: boolean; hint: string } {
-  if (p.length < 6) return { ok: false, hint: '6 أحرف على الأقل' };
-  if (!/[A-Z]/.test(p)) return { ok: false, hint: 'حرف كبير واحد على الأقل' };
-  if (!/[a-z]/.test(p)) return { ok: false, hint: 'حرف صغير واحد على الأقل' };
-  if (!/[0-9]/.test(p)) return { ok: false, hint: 'رقم أو رمز واحد على الأقل' };
+function passwordStrength(p: string, t: (k: string) => string): { ok: boolean; hint: string } {
+  if (p.length < 6) return { ok: false, hint: t('auth.strength.min6') };
+  if (!/[A-Z]/.test(p)) return { ok: false, hint: t('auth.strength.uppercase') };
+  if (!/[a-z]/.test(p)) return { ok: false, hint: t('auth.strength.lowercase') };
+  if (!/[0-9]/.test(p)) return { ok: false, hint: t('auth.strength.numberOrSymbol') };
   return { ok: true, hint: '' };
 }
 
 export function LoginPage() {
+  const { t } = useTranslation();
   const { login, setView, authError, clearAuthError } = useApp();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -25,19 +28,19 @@ export function LoginPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validateRequired({ email, password }, ['email', 'password'], setInvalid, 'الرجاء إدخال البريد وكلمة المرور')) return;
+    if (!validateRequired({ email, password }, ['email', 'password'], setInvalid, t('auth.errors.fillEmailPassword'))) return;
     setLoading(true);
     setError('');
     clearAuthError();
     const res = await login(email.trim(), password);
     setLoading(false);
     if (!res.ok) {
-      setError(res.error ?? 'البريد الإلكتروني أو كلمة المرور غير صحيحة');
+      setError(res.error ?? t('auth.errors.invalidCredentials'));
     }
   };
 
   return (
-    <AuthShell title="تسجيل الدخول" subtitle="ادخل إلى بوابتك الخاصة">
+    <AuthShell title={t('auth.loginTitle')} subtitle={t('auth.loginSubtitle')}>
       <form onSubmit={submit} className="space-y-4">
         {(error || authError) && (
           <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -46,7 +49,7 @@ export function LoginPage() {
           </div>
         )}
         <div>
-          <label className="label-field">البريد الإلكتروني <RequiredMark /></label>
+          <label className="label-field">{t('auth.email')} <RequiredMark /></label>
           <div className="relative">
             <Mail className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
@@ -61,7 +64,7 @@ export function LoginPage() {
           </div>
         </div>
         <div>
-          <label className="label-field">كلمة المرور <RequiredMark /></label>
+          <label className="label-field">{t('auth.password')} <RequiredMark /></label>
           <div className="relative">
             <Lock className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <PasswordField
@@ -80,17 +83,17 @@ export function LoginPage() {
             onClick={() => setView({ kind: 'forgot-password' })}
             className="text-sm font-bold text-navy-700 transition-colors hover:text-navy-900"
           >
-            هل نسيت كلمة المرور؟
+            {t('auth.forgotPassword', 'هل نسيت كلمة المرور؟')}
           </button>
         </div>
         <button type="submit" disabled={loading} className="btn-primary w-full disabled:opacity-60">
           <LogIn className="h-4 w-4" />
-          {loading ? 'جارٍ الدخول...' : 'دخول'}
+          {loading ? t('auth.loggingIn') : t('auth.loginAction')}
         </button>
         <p className="text-center text-sm text-gray-500">
-          ليس لديك حساب؟{' '}
+          {t('auth.noAccount')}{' '}
           <button type="button" onClick={() => setView({ kind: 'register' })} className="font-bold text-navy-700 hover:text-navy-900">
-            أنشئ حسابًا
+            {t('auth.createAccountLink')}
           </button>
         </p>
       </form>
@@ -99,6 +102,7 @@ export function LoginPage() {
 }
 
 export function ForgotPasswordPage() {
+  const { t } = useTranslation();
   const { requestPasswordReset, setView } = useApp();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
@@ -108,23 +112,23 @@ export function ForgotPasswordPage() {
     event.preventDefault();
     const normalizedEmail = email.trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-      setToast({ id: Date.now(), type: 'error', text: 'يرجى إدخال بريد إلكتروني صالح.' });
+      setToast({ id: Date.now(), type: 'error', text: t('auth.errors.invalidEmail') });
       return;
     }
     setLoading(true);
     const result = await requestPasswordReset(normalizedEmail);
     setLoading(false);
     setToast(result.ok
-      ? { id: Date.now(), type: 'success', text: 'تم إرسال رابط الاستعادة إلى بريدك الإلكتروني' }
-      : { id: Date.now(), type: 'error', text: result.error ?? 'تعذر إرسال رابط الاستعادة.' });
+      ? { id: Date.now(), type: 'success', text: t('auth.errors.resetLinkSent', 'تم إرسال رابط الاستعادة إلى بريدك الإلكتروني') }
+      : { id: Date.now(), type: 'error', text: result.error ?? t('auth.errors.resetLinkFailed') });
   };
 
   return (
-    <AuthShell title="استعادة كلمة المرور" subtitle="سنرسل إليك رابطاً آمناً لتعيين كلمة مرور جديدة">
+    <AuthShell title={t('auth.forgotPasswordTitle')} subtitle={t('auth.forgotPasswordSubtitle')}>
       <TransientToast message={toast} onClose={() => setToast(null)} />
       <form onSubmit={submit} className="space-y-5">
         <div>
-          <label className="label-field" htmlFor={fieldId('recoveryEmail')}>البريد الإلكتروني <RequiredMark /></label>
+          <label className="label-field" htmlFor={fieldId('recoveryEmail')}>{t('auth.email')} <RequiredMark /></label>
           <div className="relative">
             <Mail className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
@@ -142,14 +146,14 @@ export function ForgotPasswordPage() {
         </div>
         <button type="submit" disabled={loading} className="btn-primary w-full disabled:opacity-60">
           <Send className="h-4 w-4" />
-          {loading ? 'جارٍ إرسال الرابط...' : 'إرسال رابط الاستعادة'}
+          {loading ? t('auth.sendingResetLink') : t('auth.sendResetLink')}
         </button>
         <button
           type="button"
           onClick={() => setView({ kind: 'login' })}
           className="w-full text-center text-sm font-bold text-navy-700 hover:text-navy-900"
         >
-          العودة إلى تسجيل الدخول
+          {t('auth.backToLogin')}
         </button>
       </form>
     </AuthShell>
@@ -157,6 +161,7 @@ export function ForgotPasswordPage() {
 }
 
 export function UpdatePasswordPage() {
+  const { t } = useTranslation();
   const {
     authInitializing,
     passwordRecoveryReady,
@@ -179,18 +184,23 @@ export function UpdatePasswordPage() {
     event.preventDefault();
     const validation = validateRecoveredPassword(password, confirmation);
     if (!validation.ok) {
-      setToast({ id: Date.now(), type: 'error', text: validation.error });
+      const errorMsg = validation.error === 'يجب ألا تقل كلمة المرور الجديدة عن 8 أحرف.'
+        ? t('auth.errors.passwordMin8')
+        : validation.error === 'تأكيد كلمة المرور الجديدة غير مطابق.'
+        ? t('auth.errors.passwordMismatch')
+        : validation.error;
+      setToast({ id: Date.now(), type: 'error', text: errorMsg });
       return;
     }
     setLoading(true);
     const result = await updateRecoveredPassword(password);
     setLoading(false);
     if (!result.ok) {
-      setToast({ id: Date.now(), type: 'error', text: result.error ?? 'تعذر تغيير كلمة المرور.' });
+      setToast({ id: Date.now(), type: 'error', text: result.error ?? t('auth.errors.updatePasswordFailed') });
       return;
     }
     setCompleted(true);
-    setToast({ id: Date.now(), type: 'success', text: 'تم تغيير كلمة المرور بنجاح' });
+    setToast({ id: Date.now(), type: 'success', text: t('auth.errors.updatePasswordSuccess', 'تم تغيير كلمة المرور بنجاح') });
     navigationTimer.current = window.setTimeout(() => {
       void finishPasswordRecovery();
     }, 1400);
@@ -198,22 +208,22 @@ export function UpdatePasswordPage() {
 
   if (authInitializing) {
     return (
-      <AuthShell title="تعيين كلمة مرور جديدة" subtitle="جارٍ التحقق من رابط الاستعادة">
-        <div className="py-8 text-center text-sm font-semibold text-gray-500">جارٍ التحقق من الرابط الآمن...</div>
+      <AuthShell title={t('auth.verifyingRecoveryTitle')} subtitle={t('auth.verifyingRecoverySubtitle')}>
+        <div className="py-8 text-center text-sm font-semibold text-gray-500">{t('auth.verifyingRecoveryMessage')}</div>
       </AuthShell>
     );
   }
 
   if (!passwordRecoveryReady && !completed) {
     return (
-      <AuthShell title="رابط الاستعادة غير صالح" subtitle="قد يكون الرابط منتهياً أو سبق استخدامه">
+      <AuthShell title={t('auth.invalidLinkTitle')} subtitle={t('auth.invalidLinkSubtitle')}>
         <div className="space-y-5">
           <div role="alert" className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-            رابط الاستعادة غير صالح أو انتهت صلاحيته. اطلب رابطاً جديداً.
+            {t('auth.invalidLinkAlert')}
           </div>
           <button type="button" onClick={() => setView({ kind: 'forgot-password' })} className="btn-primary w-full">
-            طلب رابط استعادة جديد
+            {t('auth.requestNewResetLink')}
           </button>
         </div>
       </AuthShell>
@@ -221,10 +231,10 @@ export function UpdatePasswordPage() {
   }
 
   return (
-    <AuthShell title="تعيين كلمة مرور جديدة" subtitle="اختر كلمة مرور قوية لحماية حسابك">
+    <AuthShell title={t('auth.updatePasswordTitle')} subtitle={t('auth.updatePasswordSubtitle')}>
       <TransientToast message={toast} onClose={() => setToast(null)} />
       <form onSubmit={submit} className="space-y-4">
-        <label className="block text-sm font-semibold text-gray-700">كلمة المرور الجديدة
+        <label className="block text-sm font-semibold text-gray-700">{t('auth.newPassword')}
           <PasswordField
             name="newPassword"
             value={password}
@@ -236,7 +246,7 @@ export function UpdatePasswordPage() {
             required
           />
         </label>
-        <label className="block text-sm font-semibold text-gray-700">تأكيد كلمة المرور الجديدة
+        <label className="block text-sm font-semibold text-gray-700">{t('auth.confirmPassword')}
           <PasswordField
             name="passwordConfirmation"
             value={confirmation}
@@ -250,7 +260,7 @@ export function UpdatePasswordPage() {
         </label>
         <button type="submit" disabled={loading || completed} className="btn-primary w-full disabled:opacity-60">
           <KeyRound className="h-4 w-4" />
-          {completed ? 'تم التغيير...' : loading ? 'جارٍ تغيير كلمة المرور...' : 'حفظ كلمة المرور الجديدة'}
+          {completed ? t('auth.passwordUpdated') : loading ? t('auth.savingNewPassword') : t('auth.saveNewPassword')}
         </button>
       </form>
     </AuthShell>
@@ -258,7 +268,8 @@ export function UpdatePasswordPage() {
 }
 
 export function RegisterPage() {
-  const { registerWithApplication, setView } = useApp();
+  const { t, i18n } = useTranslation();
+  const { registerWithApplication, setView, siteContent } = useApp();
   const [form, setForm] = useState({ name: '', email: '', password: '', university: '', major: '', year: '', phone: '', motivation: '' });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -266,21 +277,21 @@ export function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [invalid, setInvalid] = useState<string[]>([]);
 
-  const strength = passwordStrength(form.password);
+  const strength = passwordStrength(form.password, t);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validateRequired(form, ['name', 'email', 'password', 'university', 'major', 'year', 'phone', 'motivation'], setInvalid)) return;
+    if (!validateRequired(form, ['name', 'email', 'password', 'university', 'major', 'year', 'phone', 'motivation'], setInvalid, t('auth.errors.fillRequired'))) return;
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-      setError('بريد إلكتروني غير صالح');
+      setError(t('auth.errors.invalidEmail'));
       return;
     }
     if (!/^05\d{9}$/.test(form.phone)) {
-      setError('يرجى إدخال رقم تواصل صحيح يبدأ بـ 05 ويتكون من 11 رقماً (مثال: 05375922478)');
+      setError(t('auth.errors.phoneFormat'));
       return;
     }
     if (!strength.ok) {
-      setError(`كلمة المرور ضعيفة: ${strength.hint}`);
+      setError(`${t('auth.strength.weakPrefix')}${strength.hint}`);
       return;
     }
     setLoading(true);
@@ -300,17 +311,19 @@ export function RegisterPage() {
     setLoading(false);
     setEmailWarning(res.emailWarning ?? '');
     if (!res.ok) {
-      setError(res.error ?? 'تعذر إنشاء الحساب');
+      setError(res.error ?? t('auth.errors.registrationFailed'));
     } else if (res.requiresEmailConfirmation) {
       setForm({ name: '', email: '', password: '', university: '', major: '', year: '', phone: '', motivation: '' });
-      setSuccess('تم إنشاء الحساب وحفظ طلب الانضمام. تحقق من بريدك الإلكتروني لتأكيد الحساب ثم سجّل الدخول.');
+      setSuccess(t('auth.registrationSuccess'));
     }
   };
 
+  const brandName = resolvePublicBrandName(i18n.language, siteContent.brand);
+
   return (
-    <AuthShell title="إنشاء حساب جديد" subtitle="انضم إلى عائلة اتحاد شباب الأمة" wide>
+    <AuthShell title={t('auth.registerTitle')} subtitle={t('home.joinFamily', { brand: brandName })} wide>
       <div className="mb-4 rounded-xl border border-gold-200 bg-gold-50 p-3 text-xs text-gold-800">
-        <span className="font-bold">ملاحظة:</span> بعد إنشاء الحساب، سيكون طلبك قيد المراجعة من قبل إدارة الاتحاد قبل الموافقة والمقابلة.
+        <span className="font-bold">{t('auth.registrationNoticeLabel')} </span>{t('auth.registrationNoticeText')}
       </div>
       <form onSubmit={submit} className="space-y-4">
         {error && (
@@ -333,7 +346,7 @@ export function RegisterPage() {
         )}
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="label-field">الاسم الكامل <RequiredMark /></label>
+            <label className="label-field">{t('auth.fullName')} <RequiredMark /></label>
             <div className="relative">
               <User className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input
@@ -342,12 +355,12 @@ export function RegisterPage() {
                 value={form.name}
                 onChange={(e) => { setForm({ ...form, name: e.target.value }); clearInvalid(setInvalid, 'name'); setError(''); }}
                 className={`${isInvalid(invalid, 'name') ? 'input-field-error' : 'input-field'} pr-10`}
-                placeholder="اسمك الكامل"
+                placeholder={t('auth.namePlaceholder')}
               />
             </div>
           </div>
           <div>
-            <label className="label-field">البريد الإلكتروني <RequiredMark /></label>
+            <label className="label-field">{t('auth.email')} <RequiredMark /></label>
             <div className="relative">
               <Mail className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input
@@ -363,7 +376,7 @@ export function RegisterPage() {
           </div>
         </div>
         <div>
-          <label className="label-field">كلمة المرور <RequiredMark /></label>
+          <label className="label-field">{t('auth.password')} <RequiredMark /></label>
           <div className="relative">
             <Lock className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <PasswordField
@@ -376,12 +389,12 @@ export function RegisterPage() {
             />
           </div>
           <p className={`mt-1.5 text-xs ${form.password && !strength.ok ? 'text-rose-600' : 'text-gray-400'}`}>
-            يجب أن تحتوي على 6 أحرف على الأقل، مع حرف كبير وحرف صغير ورقم/رمز.
+            {t('auth.passwordHint')}
           </p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="label-field">الجامعة <RequiredMark /></label>
+            <label className="label-field">{t('auth.university')} <RequiredMark /></label>
             <div className="relative">
               <GraduationCap className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input
@@ -390,41 +403,41 @@ export function RegisterPage() {
                 value={form.university}
                 onChange={(e) => { setForm({ ...form, university: e.target.value }); clearInvalid(setInvalid, 'university'); setError(''); }}
                 className={`${isInvalid(invalid, 'university') ? 'input-field-error' : 'input-field'} pr-10`}
-                placeholder="اسم جامعتك"
+                placeholder={t('auth.universityPlaceholder')}
               />
             </div>
           </div>
           <div>
-            <label className="label-field">التخصص <RequiredMark /></label>
+            <label className="label-field">{t('auth.major')} <RequiredMark /></label>
             <input
               id={fieldId('major')}
               type="text"
               value={form.major}
               onChange={(e) => { setForm({ ...form, major: e.target.value }); clearInvalid(setInvalid, 'major'); setError(''); }}
               className={isInvalid(invalid, 'major') ? 'input-field-error' : 'input-field'}
-              placeholder="تخصصك"
+              placeholder={t('auth.majorPlaceholder')}
             />
           </div>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="label-field">السنة الدراسية <RequiredMark /></label>
+            <label className="label-field">{t('auth.year')} <RequiredMark /></label>
             <select
               id={fieldId('year')}
               value={form.year}
               onChange={(e) => { setForm({ ...form, year: e.target.value }); clearInvalid(setInvalid, 'year'); setError(''); }}
               className={isInvalid(invalid, 'year') ? 'input-field-error' : 'input-field'}
             >
-              <option value="">اختر من القائمة...</option>
-              <option>السنة الأولى</option>
-              <option>السنة الثانية</option>
-              <option>السنة الثالثة</option>
-              <option>السنة الرابعة</option>
-              <option>دراسات عليا</option>
+              <option value="">{t('auth.selectYearPlaceholder')}</option>
+              <option value="السنة الأولى">{t('auth.years.first')}</option>
+              <option value="السنة الثانية">{t('auth.years.second')}</option>
+              <option value="السنة الثالثة">{t('auth.years.third')}</option>
+              <option value="السنة الرابعة">{t('auth.years.fourth')}</option>
+              <option value="دراسات عليا">{t('auth.years.postgraduate')}</option>
             </select>
           </div>
           <div>
-            <label className="label-field">رقم التواصل <RequiredMark /></label>
+            <label className="label-field">{t('auth.phone')} <RequiredMark /></label>
             <div className="relative">
               <Phone className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input
@@ -438,28 +451,28 @@ export function RegisterPage() {
                 dir="ltr"
               />
             </div>
-            <p className="mt-1.5 text-xs text-gray-400">يرجى كتابة الرقم كاملاً بدءاً بـ 05 (مثال: 05375922478)</p>
+            <p className="mt-1.5 text-xs text-gray-400">{t('auth.phoneHelper')}</p>
           </div>
         </div>
         <div>
-          <label className="label-field">دوافع الانضمام <RequiredMark /></label>
+          <label className="label-field">{t('auth.motivation')} <RequiredMark /></label>
           <textarea
             id={fieldId('motivation')}
             rows={3}
             value={form.motivation}
             onChange={(e) => { setForm({ ...form, motivation: e.target.value }); clearInvalid(setInvalid, 'motivation'); setError(''); }}
             className={`${isInvalid(invalid, 'motivation') ? 'input-field-error' : 'input-field'} resize-none`}
-            placeholder="اكتب باختصار لماذا ترغب في الانضمام إلى الاتحاد..."
+            placeholder={t('auth.motivationPlaceholder')}
           />
         </div>
         <button type="submit" disabled={loading} className="btn-gold w-full disabled:opacity-60">
           <UserPlus className="h-4 w-4" />
-          {loading ? 'جارٍ الإنشاء...' : 'تقديم طلب الانضمام'}
+          {loading ? t('auth.creatingAccount') : t('auth.submitApplication')}
         </button>
         <p className="text-center text-sm text-gray-500">
-          لديك حساب بالفعل؟{' '}
+          {t('auth.haveAccount')}{' '}
           <button type="button" onClick={() => setView({ kind: 'login' })} className="font-bold text-navy-700 hover:text-navy-900">
-            سجّل الدخول
+            {t('auth.loginLink')}
           </button>
         </p>
       </form>
@@ -468,6 +481,8 @@ export function RegisterPage() {
 }
 
 function AuthShell({ title, subtitle, children, wide }: { title: string; subtitle: string; children: React.ReactNode; wide?: boolean }) {
+  const { i18n } = useTranslation();
+  const { siteContent } = useApp();
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-navy-50 via-gray-50 to-navy-100 pt-16 lg:pt-20">
       <div className={`w-full animate-slide-up px-4 py-10 ${wide ? 'max-w-2xl' : 'max-w-md'}`}>
@@ -484,7 +499,7 @@ function AuthShell({ title, subtitle, children, wide }: { title: string; subtitl
         </div>
         <div className="mt-6 flex items-center justify-center gap-2 text-xs text-gray-400">
           <CheckCircle2 className="h-3.5 w-3.5" />
-          اتحاد شباب الأمة
+          {resolvePublicBrandName(i18n.language, siteContent.brand)}
         </div>
       </div>
     </div>

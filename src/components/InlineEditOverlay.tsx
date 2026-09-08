@@ -1,8 +1,13 @@
 import { useState, type ReactNode } from 'react';
 import { Pencil, Save, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import Modal from './Modal';
 import ManagedFileField from './ManagedFileField';
 import { useApp } from '../context/AppContext';
+import { isCmsPathTranslatable, type CmsFieldKind } from '../domain/cmsTranslatableFields.ts';
+import { updateNestedPayload } from '../domain/cmsLocalizationEditor.ts';
+import type { JsonValue } from '../domain/cmsLocalization.ts';
+import { CmsTranslationSection } from './cmsLocalization/CmsTranslationSection.tsx';
 
 export interface InlineEditConfig {
   path: string;
@@ -53,33 +58,87 @@ const ICON_OPTIONS = [
   'Globe', 'Mail', 'Phone', 'MapPin', 'CheckCircle2', 'Clock', 'FileText',
 ] as const;
 
+/**
+ * Pure dot-notation getter to extract canonical Arabic values regardless of public locale.
+ */
+export function getCanonicalFieldValue(payload: unknown, path: string): string | number {
+  if (!payload || typeof payload !== 'object') return '';
+  const cleanPath = path.replace(/\[(\d+)\]/g, '.$1.');
+  const segments = cleanPath.split('.').map((s) => s.trim()).filter(Boolean);
+  let current: unknown = payload;
+  for (const seg of segments) {
+    if (current === null || current === undefined || typeof current !== 'object') {
+      return '';
+    }
+    current = (current as Record<string, unknown>)[seg];
+  }
+  if (typeof current === 'string' || typeof current === 'number') {
+    return current;
+  }
+  return '';
+}
+
 // Single-field edit button + centered modal
 export function EditableField({
   config,
   currentValue,
   canEdit,
+  canPublish: canPublishProp,
   children,
 }: {
   config: InlineEditConfig;
   currentValue: string;
   canEdit: boolean;
+  canPublish?: boolean;
   children: ReactNode;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState(currentValue);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  const { updateSiteField, updateAboutField } = useInlineEditContext();
+  const {
+    uploadManagedFile,
+    siteContent,
+    aboutContent,
+    canonicalSiteContent,
+    canonicalAboutContent,
+    currentUser,
+    refreshPublishedLocalizations,
+  } = useApp();
+
+  const canPublish = canPublishProp !== undefined
+    ? canPublishProp
+    : currentUser?.role === 'PRESIDENT';
+
+  const canonicalBasePayload = config.target === 'site'
+    ? (canonicalSiteContent ?? siteContent)
+    : (canonicalAboutContent ?? aboutContent);
+
+  const getCanonicalValue = () => {
+    const canon = getCanonicalFieldValue(canonicalBasePayload, config.path);
+    return canon !== '' ? String(canon) : currentValue;
+  };
+
+  const [draft, setDraft] = useState(getCanonicalValue);
 
   const openModal = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setDraft(currentValue);
+    setDraft(getCanonicalValue());
     setSaveError(null);
     setOpen(true);
   };
 
-  const { updateSiteField, updateAboutField } = useInlineEditContext();
-  const { uploadManagedFile } = useApp();
+  const isTranslatable =
+    config.type !== 'image' &&
+    config.type !== 'number' &&
+    config.type !== 'icon' &&
+    isCmsPathTranslatable(config.target, config.path);
+
+  const fieldKind: CmsFieldKind = config.type === 'textarea' ? 'description' : 'text';
+  const canonicalPayload = updateNestedPayload(canonicalBasePayload, config.path, draft);
 
   const save = async () => {
     const val = config.type === 'number' ? Number(draft) || 0 : draft;
@@ -90,18 +149,21 @@ export function EditableField({
         ? updateSiteField(config.path, val, config.label)
         : updateAboutField(config.path, String(val), config.label));
       if (!saved) {
-        setSaveError('تعذر حفظ التعديل. بقيت النافذة مفتوحة للمحاولة مرة أخرى.');
+        setSaveError(t('admin.siteEdits.saveFailed'));
         return;
       }
       setOpen(false);
     } catch {
-      setSaveError('تعذر الاتصال بالخادم أثناء الحفظ. لم تُغلق النافذة ولم يُؤكد التعديل.');
+      setSaveError(t('admin.siteEdits.networkError'));
     } finally {
       setSaving(false);
     }
   };
 
   if (!canEdit) return <>{children}</>;
+
+  const editTitle = t('common.editPrefix', { label: config.label, defaultValue: `تعديل: ${config.label}` });
+  const editAria = t('common.editField', { label: config.label, defaultValue: `تعديل ${config.label}` });
 
   return (
     <>
@@ -111,17 +173,26 @@ export function EditableField({
           type="button"
           onClick={openModal}
           className="absolute -top-1.5 -right-1.5 z-40 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white text-navy-700 opacity-0 shadow-md ring-1 ring-navy-200 transition-opacity hover:bg-navy-50 group-hover/edit:opacity-100 focus:opacity-100"
-          title={`تعديل: ${config.label}`}
-          aria-label={`تعديل ${config.label}`}
+          title={editTitle}
+          aria-label={editAria}
         >
           <Pencil className="h-3 w-3" />
         </button>
       </span>
-      <Modal open={open} onClose={() => { if (!saving) setOpen(false); }} title={`تعديل: ${config.label}`} maxWidth="max-w-md">
+      <Modal open={open} onClose={() => { if (!saving) setOpen(false); }} title={editTitle} maxWidth="max-w-md">
         <div className="space-y-4">
+          {isTranslatable && (
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-xs font-bold text-navy-900 flex items-center gap-1.5">
+                <span className="inline-block h-2 w-2 rounded-full bg-emerald-500"></span>
+                {t('cmsLocalization.canonicalSource', 'العربية — المصدر (الأصل)')}
+              </span>
+            </div>
+          )}
           {config.type === 'textarea' ? (
             <textarea
               rows={5}
+              dir="rtl"
               className="input-field resize-none"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
@@ -140,10 +211,26 @@ export function EditableField({
           ) : (
             <input
               type={config.type === 'number' ? 'number' : 'text'}
+              dir={config.type === 'number' ? undefined : 'rtl'}
               className="input-field"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               autoFocus
+            />
+          )}
+          {isTranslatable && (
+            <CmsTranslationSection
+              target={config.target}
+              path={config.path}
+              label={config.label}
+              kind={fieldKind}
+              canonicalValue={draft}
+              canonicalPayload={canonicalPayload}
+              canEdit={canEdit}
+              canPublish={canPublish}
+              onPublished={() => {
+                void refreshPublishedLocalizations();
+              }}
             />
           )}
           {saveError && (
@@ -153,10 +240,10 @@ export function EditableField({
           )}
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setOpen(false)} disabled={saving} className="btn-ghost">
-              <X className="h-4 w-4" /> إلغاء
+              <X className="h-4 w-4" /> {t('common.cancel', 'إلغاء')}
             </button>
             <button type="button" onClick={() => void save()} disabled={saving} className="btn-primary">
-              <Save className="h-4 w-4" /> {saving ? 'جارٍ الحفظ...' : 'حفظ التغييرات'}
+              <Save className="h-4 w-4" /> {saving ? t('common.saving', 'جارٍ الحفظ...') : t('common.saveChanges', 'حفظ التغييرات')}
             </button>
           </div>
         </div>
@@ -176,30 +263,65 @@ export function EditableCard({
   config,
   currentValues,
   canEdit,
+  canPublish: canPublishProp,
   children,
   className,
 }: {
   config: MultiFieldConfig;
   currentValues: Record<string, string>;
   canEdit: boolean;
+  canPublish?: boolean;
   children: ReactNode;
   className?: string;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState<Record<string, string>>(currentValues);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  const { updateSiteFields, updateAboutFields } = useInlineEditContext();
+  const {
+    uploadManagedFile,
+    siteContent,
+    aboutContent,
+    canonicalSiteContent,
+    canonicalAboutContent,
+    currentUser,
+    refreshPublishedLocalizations,
+  } = useApp();
+
+  const canPublish = canPublishProp !== undefined
+    ? canPublishProp
+    : currentUser?.role === 'PRESIDENT';
+
+  const canonicalBasePayload = config.target === 'site'
+    ? (canonicalSiteContent ?? siteContent)
+    : (canonicalAboutContent ?? aboutContent);
+
+  const getCanonicalCardValues = (): Record<string, string> => {
+    const values: Record<string, string> = {};
+    for (const f of config.fields) {
+      const canon = getCanonicalFieldValue(canonicalBasePayload, f.path);
+      values[f.path] = canon !== '' ? String(canon) : (currentValues[f.path] ?? '');
+    }
+    return values;
+  };
+
+  const [draft, setDraft] = useState<Record<string, string>>(getCanonicalCardValues);
 
   const openModal = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setDraft(currentValues);
+    setDraft(getCanonicalCardValues());
     setSaveError(null);
     setOpen(true);
   };
 
-  const { updateSiteFields, updateAboutFields } = useInlineEditContext();
-  const { uploadManagedFile } = useApp();
+  let cardCanonicalPayload: JsonValue = canonicalBasePayload as unknown as JsonValue;
+  for (const f of config.fields) {
+    const currentFieldVal = f.type === 'number' ? Number(draft[f.path]) || 0 : draft[f.path] ?? '';
+    cardCanonicalPayload = updateNestedPayload(cardCanonicalPayload, f.path, currentFieldVal);
+  }
 
   const save = async () => {
     setSaving(true);
@@ -217,18 +339,21 @@ export function EditableCard({
             value: draft[field.path] ?? '',
           }))));
       if (!saved) {
-        setSaveError('تعذر حفظ البطاقة كاملة. بقيت النافذة مفتوحة ولم يُؤكد أي حفظ جزئي.');
+        setSaveError(t('admin.siteEdits.saveGroupFailed'));
         return;
       }
       setOpen(false);
     } catch {
-      setSaveError('تعذر الاتصال بالخادم أثناء الحفظ. توقفت العملية وبقيت النافذة مفتوحة.');
+      setSaveError(t('admin.siteEdits.networkError'));
     } finally {
       setSaving(false);
     }
   };
 
   if (!canEdit) return <>{children}</>;
+
+  const editCardTitle = t('common.editPrefix', { label: config.label, defaultValue: `تعديل: ${config.label}` });
+  const editCardAria = t('common.editField', { label: config.label, defaultValue: `تعديل ${config.label}` });
 
   return (
     <>
@@ -238,46 +363,80 @@ export function EditableCard({
           type="button"
           onClick={openModal}
           className="absolute -top-2 -right-2 z-40 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-navy-700 opacity-0 shadow-md ring-1 ring-navy-200 transition-opacity hover:bg-navy-50 group-hover/edit:opacity-100 focus:opacity-100"
-          title={`تعديل: ${config.label}`}
-          aria-label={`تعديل ${config.label}`}
+          title={editCardTitle}
+          aria-label={editCardAria}
         >
           <Pencil className="h-3.5 w-3.5" />
         </button>
       </div>
-      <Modal open={open} onClose={() => { if (!saving) setOpen(false); }} title={`تعديل: ${config.label}`} maxWidth="max-w-lg">
+      <Modal open={open} onClose={() => { if (!saving) setOpen(false); }} title={editCardTitle} maxWidth="max-w-lg">
         <div className="space-y-4">
-          {config.fields.map((field) => (
-            <div key={field.path}>
-              <label className="label-field">{field.label}</label>
-              {field.type === 'textarea' ? (
-                <textarea
-                  rows={3}
-                  className="input-field resize-none"
-                  value={draft[field.path] ?? ''}
-                  onChange={(e) => setDraft({ ...draft, [field.path]: e.target.value })}
-                />
-              ) : field.type === 'image' ? (
-                <ManagedFileField
-                  usage="site-image"
-                  label={field.label}
-                  currentUrl={draft[field.path] ?? ''}
-                  required
-                  disabled={saving}
-                  onUpload={(file, onProgress) => uploadManagedFile('site-image', file, onProgress)}
-                  onUploaded={(asset) => setDraft((current) => ({ ...current, [field.path]: asset.publicUrl }))}
-                />
-              ) : field.type === 'icon' ? (
-                <IconSelector value={draft[field.path] ?? 'Users'} onChange={(v) => setDraft({ ...draft, [field.path]: v })} />
-              ) : (
-                <input
-                  type={field.type === 'number' ? 'number' : 'text'}
-                  className="input-field"
-                  value={draft[field.path] ?? ''}
-                  onChange={(e) => setDraft({ ...draft, [field.path]: e.target.value })}
-                />
-              )}
-            </div>
-          ))}
+          {config.fields.map((field) => {
+            const isFieldTranslatable =
+              field.type !== 'image' &&
+              field.type !== 'number' &&
+              field.type !== 'icon' &&
+              isCmsPathTranslatable(config.target, field.path);
+            const fieldKind: CmsFieldKind = field.type === 'textarea' ? 'description' : 'text';
+
+            return (
+              <div key={field.path} className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="label-field">{field.label}</label>
+                  {isFieldTranslatable && (
+                    <span className="text-xs font-bold text-navy-900 flex items-center gap-1.5">
+                      <span className="inline-block h-2 w-2 rounded-full bg-emerald-500"></span>
+                      {t('cmsLocalization.canonicalSource', 'العربية — المصدر (الأصل)')}
+                    </span>
+                  )}
+                </div>
+                {field.type === 'textarea' ? (
+                  <textarea
+                    rows={3}
+                    dir="rtl"
+                    className="input-field resize-none"
+                    value={draft[field.path] ?? ''}
+                    onChange={(e) => setDraft({ ...draft, [field.path]: e.target.value })}
+                  />
+                ) : field.type === 'image' ? (
+                  <ManagedFileField
+                    usage="site-image"
+                    label={field.label}
+                    currentUrl={draft[field.path] ?? ''}
+                    required
+                    disabled={saving}
+                    onUpload={(file, onProgress) => uploadManagedFile('site-image', file, onProgress)}
+                    onUploaded={(asset) => setDraft((current) => ({ ...current, [field.path]: asset.publicUrl }))}
+                  />
+                ) : field.type === 'icon' ? (
+                  <IconSelector value={draft[field.path] ?? 'Users'} onChange={(v) => setDraft({ ...draft, [field.path]: v })} />
+                ) : (
+                  <input
+                    type={field.type === 'number' ? 'number' : 'text'}
+                    dir={field.type === 'number' ? undefined : 'rtl'}
+                    className="input-field"
+                    value={draft[field.path] ?? ''}
+                    onChange={(e) => setDraft({ ...draft, [field.path]: e.target.value })}
+                  />
+                )}
+                {isFieldTranslatable && (
+                  <CmsTranslationSection
+                    target={config.target}
+                    path={field.path}
+                    label={field.label}
+                    kind={fieldKind}
+                    canonicalValue={draft[field.path] ?? ''}
+                    canonicalPayload={cardCanonicalPayload}
+                    canEdit={canEdit}
+                    canPublish={canPublish}
+                    onPublished={() => {
+                      void refreshPublishedLocalizations();
+                    }}
+                  />
+                )}
+              </div>
+            );
+          })}
           {saveError && (
             <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
               {saveError}
@@ -285,10 +444,10 @@ export function EditableCard({
           )}
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setOpen(false)} disabled={saving} className="btn-ghost">
-              <X className="h-4 w-4" /> إلغاء
+              <X className="h-4 w-4" /> {t('common.cancel', 'إلغاء')}
             </button>
             <button type="button" onClick={() => void save()} disabled={saving} className="btn-primary">
-              <Save className="h-4 w-4" /> {saving ? 'جارٍ الحفظ...' : 'حفظ التغييرات'}
+              <Save className="h-4 w-4" /> {saving ? t('common.saving', 'جارٍ الحفظ...') : t('common.saveChanges', 'حفظ التغييرات')}
             </button>
           </div>
         </div>
