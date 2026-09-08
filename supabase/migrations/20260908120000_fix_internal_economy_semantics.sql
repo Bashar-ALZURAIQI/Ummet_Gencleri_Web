@@ -1,37 +1,26 @@
 BEGIN;
 
 -- ===========================================================================
--- 1. Activities Update Policy: Allow Creator Update for Current Executives
+-- 1. Activities Update Policy: Preserve Manager-Only Direct Table Updates
 -- ===========================================================================
 
 DROP POLICY IF EXISTS "activities_admin_update" ON public.activities;
+
 CREATE POLICY "activities_admin_update"
-ON public.activities FOR UPDATE TO authenticated
+ON public.activities
+FOR UPDATE
+TO authenticated
 USING (
   COALESCE((
     SELECT authz.can_manage
     FROM private.current_internal_economy_authorization AS authz
   ), false)
-  OR (
-    created_by = (SELECT auth.uid())
-    AND COALESCE((
-      SELECT authz.is_executive
-      FROM private.current_user_authorization AS authz
-    ), false)
-  )
 )
 WITH CHECK (
   COALESCE((
     SELECT authz.can_manage
     FROM private.current_internal_economy_authorization AS authz
   ), false)
-  OR (
-    created_by = (SELECT auth.uid())
-    AND COALESCE((
-      SELECT authz.is_executive
-      FROM private.current_user_authorization AS authz
-    ), false)
-  )
 );
 
 -- ===========================================================================

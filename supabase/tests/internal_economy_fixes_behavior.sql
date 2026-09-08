@@ -87,8 +87,12 @@ BEGIN
     AND NOT EXISTS (SELECT 1 FROM public.executive_assignments e WHERE e.user_id = p.id)
   ORDER BY p.created_at, p.id LIMIT 1;
 
-  IF v_student_1 IS NULL OR v_student_2 IS NULL THEN
-    RAISE EXCEPTION 'ORDINARY_STUDENT_FIXTURES_MISSING';
+  IF v_student_1 IS NULL
+     OR v_student_2 IS NULL
+     OR v_student_3 IS NULL
+     OR v_student_4 IS NULL
+     OR v_student_ignored IS NULL THEN
+    RAISE EXCEPTION 'ORDINARY_STUDENT_FIXTURES_MISSING: five active accepted non-executive students are required';
   END IF;
 
   -- =========================================================================
@@ -132,7 +136,6 @@ BEGIN
     );
     RAISE EXCEPTION 'Point 32 failed: MEDIA_HEAD was able to update FINANCE_HEAD activity';
   EXCEPTION WHEN SQLSTATE '42501' THEN
-    -- Expected rejection
     NULL;
   END;
 
@@ -151,7 +154,7 @@ BEGIN
     'evt-vice-1', 'Vice Title Initial', 'Desc', 'OPTIONAL', 10, 20, now() + interval '3 days'
   );
   v_act_row := public.upsert_event_activity(
-    'evt-vice-1', 'Vice Title Updated', 'Desc', 'OPTIONAL', 10, 20, now() + interval '3 days'
+    'evt-vice-1', 'Vice Title Updated', 'Desc Updated', 'OPTIONAL', 10, 20, now() + interval '3 days'
   );
   IF v_act_row.title <> 'Vice Title Updated' THEN
     RAISE EXCEPTION 'Point 27 failed: VICE_PRESIDENT could not update own activity';
@@ -217,165 +220,266 @@ BEGIN
   SET LOCAL ROLE authenticated;
   PERFORM public.review_activity_excuse(v_enrollment_id, 'PARTIAL');
 
-  -- Points 6 & 8: Student 3 received exactly -5 from excuse, and is NOT treated as ignored
-  SELECT amount INTO v_amount FROM public.points_ledger WHERE source_key = 'excuse:' || v_enrollment_id;
-  IF v_amount <> -5 THEN
+  SELECT amount INTO v_amount
+  FROM public.points_ledger
+  WHERE source_key = 'excuse:' || v_enrollment_id;
+
+  IF v_amount IS DISTINCT FROM -5 THEN
     RAISE EXCEPTION 'Point 6 failed: PARTIAL excuse did not award -5, got %', v_amount;
   END IF;
 
   -- Finalize the mandatory activity
   PERFORM public.finalize_activity_evaluation(v_mandatory_act);
 
-  -- Point 1: Ordinary student who did not respond received exactly -20 once
-  IF v_student_ignored IS NOT NULL THEN
-    SELECT amount INTO v_amount
-    FROM public.points_ledger
-    WHERE source_key = 'activity-result:' || v_mandatory_act || ':' || v_student_ignored;
-    IF v_amount <> -20 THEN
-      RAISE EXCEPTION 'Point 1 failed: Ignored student did not receive -20, got %', v_amount;
-    END IF;
+  -- Point 1: ignored ordinary student = exactly -20
+  SELECT amount INTO v_amount
+  FROM public.points_ledger
+  WHERE source_key = 'activity-result:' || v_mandatory_act || ':' || v_student_ignored;
+
+  IF v_amount IS DISTINCT FROM -20 THEN
+    RAISE EXCEPTION 'Point 1 failed: Ignored student did not receive -20, got %', v_amount;
   END IF;
 
-  -- Point 3 & 4: JOINING + ABSENT received -20 exactly once (NOT -40)
-  SELECT count(*), COALESCE(sum(amount), 0) INTO v_ledger_count, v_amount
+  -- JOINING + ABSENT = exactly one -20
+  SELECT count(*), COALESCE(sum(amount), 0)
+  INTO v_ledger_count, v_amount
   FROM public.points_ledger
   WHERE source_key LIKE 'activity-result:' || v_mandatory_act || ':' || v_student_1;
+
   IF v_ledger_count <> 1 OR v_amount <> -20 THEN
-    RAISE EXCEPTION 'Point 3/4 failed: JOINING + ABSENT count % sum % (expected 1 and -20)', v_ledger_count, v_amount;
+    RAISE EXCEPTION
+      'Point 3/4 failed: JOINING + ABSENT count % sum %',
+      v_ledger_count,
+      v_amount;
   END IF;
 
-  -- Point 8: Declining student 3 did NOT receive additional -20 ignored penalty
-  SELECT count(*) INTO v_ledger_count
+  -- Declining student must not also receive ignored penalty
+  SELECT count(*)
+  INTO v_ledger_count
   FROM public.points_ledger
   WHERE source_key = 'activity-result:' || v_mandatory_act || ':' || v_student_3;
+
   IF v_ledger_count <> 0 THEN
     RAISE EXCEPTION 'Point 8 failed: Declining student also received ignored penalty';
   END IF;
 
-  -- Point 11: Executive + MANDATORY + JOINING + ABSENT received 0 penalty
-  SELECT count(*) INTO v_ledger_count
+  -- Executive JOINING + ABSENT = 0
+  SELECT count(*)
+  INTO v_ledger_count
   FROM public.points_ledger
   WHERE source_key = 'activity-result:' || v_mandatory_act || ':' || v_media;
+
   IF v_ledger_count <> 0 THEN
     RAISE EXCEPTION 'Point 11 failed: Executive JOINING+ABSENT received penalty';
   END IF;
 
-  -- Point 2: Re-finalize same mandatory activity -> no duplicate penalty (idempotency)
+  -- Idempotency
   PERFORM public.finalize_activity_evaluation(v_mandatory_act);
-  IF v_student_ignored IS NOT NULL THEN
-    SELECT count(*) INTO v_ledger_count
-    FROM public.points_ledger
-    WHERE source_key = 'activity-result:' || v_mandatory_act || ':' || v_student_ignored;
-    IF v_ledger_count <> 1 THEN
-      RAISE EXCEPTION 'Point 2 failed: Idempotency violated on re-finalization';
-    END IF;
+
+  SELECT count(*)
+  INTO v_ledger_count
+  FROM public.points_ledger
+  WHERE source_key = 'activity-result:' || v_mandatory_act || ':' || v_student_ignored;
+
+  IF v_ledger_count <> 1 THEN
+    RAISE EXCEPTION 'Point 2 failed: Idempotency violated on re-finalization';
   END IF;
 
-  -- Point 34: Mandatory activity with ZERO JOINING students remains finalizable
+  -- Mandatory activity with zero joiners
   INSERT INTO public.activities (
     id, title, description, created_by, type, points_value, max_capacity, deadline
   ) VALUES (
-    v_mandatory_zero_joiners, 'نشاط بدون مسجلين', 'وصف', v_president, 'MANDATORY', 15, 30, now() + interval '2 days'
+    v_mandatory_zero_joiners,
+    'نشاط بدون مسجلين',
+    'وصف',
+    v_president,
+    'MANDATORY',
+    15,
+    30,
+    now() + interval '2 days'
   );
-  -- Zero joining students enrolled. Finalization must succeed.
+
   PERFORM public.finalize_activity_evaluation(v_mandatory_zero_joiners);
-  SELECT evaluation_closed_at INTO v_act_row.evaluation_closed_at
-  FROM public.activities WHERE id = v_mandatory_zero_joiners;
+
+  SELECT evaluation_closed_at
+  INTO v_act_row.evaluation_closed_at
+  FROM public.activities
+  WHERE id = v_mandatory_zero_joiners;
+
   IF v_act_row.evaluation_closed_at IS NULL THEN
     RAISE EXCEPTION 'Point 34 failed: Zero-joiner mandatory activity could not be finalized';
   END IF;
 
+  -- Return to privileged role before direct fixture inserts
+  RESET ROLE;
+
   -- =========================================================================
-  -- TASK EVALUATION & EXECUTIVE EXEMPTION TESTS (Points 16 - 24)
+  -- TASK EVALUATION & EXECUTIVE EXEMPTION TESTS
   -- =========================================================================
 
-  -- Task 1: Ordinary student task
+  -- Task 1
   INSERT INTO public.tasks (
-    id, title, description, points_reward, created_by, required_students, deadline
+    id,
+    title,
+    description,
+    points_reward,
+    created_by,
+    required_students,
+    deadline
   ) VALUES (
-    v_task_ord, 'مهمة الطلاب', 'وصف', 20, v_president, 5, now() + interval '2 days'
+    v_task_ord,
+    'مهمة الطلاب',
+    'وصف',
+    20,
+    v_president,
+    5,
+    now() + interval '2 days'
   );
 
-  INSERT INTO public.task_enrollments (task_id, student_id, completion_status)
+  INSERT INTO public.task_enrollments (
+    task_id,
+    student_id,
+    completion_status
+  )
   VALUES
     (v_task_ord, v_student_1, 'PERFECT'),
     (v_task_ord, v_student_2, 'PARTIAL'),
     (v_task_ord, v_student_3, 'FAILED');
 
+  -- Run RPC as authenticated president
+  PERFORM set_config('request.jwt.claim.sub', v_president::text, true);
+  SET LOCAL ROLE authenticated;
+
   PERFORM public.finalize_task_evaluation(v_task_ord);
 
-  -- Point 16: Ordinary student PERFECT -> full task reward (must be exactly 20)
-  SELECT amount INTO v_amount FROM public.points_ledger
+  -- PERFECT = 20
+  SELECT amount
+  INTO v_amount
+  FROM public.points_ledger
   WHERE source_key = 'task-result:' || v_task_ord || ':' || v_student_1;
+
   IF v_amount IS DISTINCT FROM 20 THEN
-    RAISE EXCEPTION 'Point 16 failed: PERFECT task reward was %, expected 20', v_amount;
+    RAISE EXCEPTION 'Point 16 failed: PERFECT reward %, expected 20', v_amount;
   END IF;
 
-  -- Point 17: Ordinary student PARTIAL -> 50% = 10
-  SELECT amount INTO v_amount FROM public.points_ledger
+  -- PARTIAL = 10
+  SELECT amount
+  INTO v_amount
+  FROM public.points_ledger
   WHERE source_key = 'task-result:' || v_task_ord || ':' || v_student_2;
+
   IF v_amount IS DISTINCT FROM 10 THEN
-    RAISE EXCEPTION 'Point 17 failed: PARTIAL task reward was %, expected 10', v_amount;
+    RAISE EXCEPTION 'Point 17 failed: PARTIAL reward %, expected 10', v_amount;
   END IF;
 
-  -- Point 18: Ordinary student FAILED -> 0 points (no ledger row)
-  SELECT count(*) INTO v_ledger_count FROM public.points_ledger
+  -- FAILED = 0
+  SELECT count(*)
+  INTO v_ledger_count
+  FROM public.points_ledger
   WHERE source_key = 'task-result:' || v_task_ord || ':' || v_student_3;
+
   IF v_ledger_count <> 0 THEN
     RAISE EXCEPTION 'Point 18 failed: FAILED task awarded points';
   END IF;
 
-  -- Point 20: Re-finalize ordinary task -> idempotency (each source_key exists exactly once)
+  -- Re-finalize ordinary task; no duplicates
   PERFORM public.finalize_task_evaluation(v_task_ord);
-  SELECT count(*) INTO v_ledger_count FROM public.points_ledger
+
+  SELECT count(*)
+  INTO v_ledger_count
+  FROM public.points_ledger
   WHERE source_key = 'task-result:' || v_task_ord || ':' || v_student_1;
+
   IF v_ledger_count <> 1 THEN
-    RAISE EXCEPTION 'Point 20 failed: Idempotency violated for PERFECT student, count = %', v_ledger_count;
-  END IF;
-  SELECT count(*) INTO v_ledger_count FROM public.points_ledger
-  WHERE source_key = 'task-result:' || v_task_ord || ':' || v_student_2;
-  IF v_ledger_count <> 1 THEN
-    RAISE EXCEPTION 'Point 20 failed: Idempotency violated for PARTIAL student, count = %', v_ledger_count;
+    RAISE EXCEPTION
+      'Point 20 failed: PERFECT idempotency count %',
+      v_ledger_count;
   END IF;
 
-  -- Task 2: Executive task participation
+  SELECT count(*)
+  INTO v_ledger_count
+  FROM public.points_ledger
+  WHERE source_key = 'task-result:' || v_task_ord || ':' || v_student_2;
+
+  IF v_ledger_count <> 1 THEN
+    RAISE EXCEPTION
+      'Point 20 failed: PARTIAL idempotency count %',
+      v_ledger_count;
+  END IF;
+
+  -- Back to privileged role for direct Task 2 fixtures
+  RESET ROLE;
+
+  -- Task 2: Executive participant
   INSERT INTO public.tasks (
-    id, title, description, points_reward, created_by, required_students, deadline
+    id,
+    title,
+    description,
+    points_reward,
+    created_by,
+    required_students,
+    deadline
   ) VALUES (
-    v_task_exec, 'مهمة إدارية مشتركة', 'وصف', 20, v_president, 5, now() + interval '2 days'
+    v_task_exec,
+    'مهمة إدارية مشتركة',
+    'وصف',
+    20,
+    v_president,
+    5,
+    now() + interval '2 days'
   );
 
-  -- Executive enrolled in task
-  INSERT INTO public.task_enrollments (task_id, student_id, completion_status)
-  VALUES (v_task_exec, v_media, 'PERFECT');
+  INSERT INTO public.task_enrollments (
+    task_id,
+    student_id,
+    completion_status
+  ) VALUES (
+    v_task_exec,
+    v_media,
+    'PERFECT'
+  );
+
+  -- Run RPC as authenticated president
+  PERFORM set_config('request.jwt.claim.sub', v_president::text, true);
+  SET LOCAL ROLE authenticated;
 
   PERFORM public.finalize_task_evaluation(v_task_exec);
 
-  -- Point 19: Executive PERFECT -> 0 points
-  SELECT count(*) INTO v_ledger_count FROM public.points_ledger
+  -- Executive PERFECT = zero ledger entries
+  SELECT count(*)
+  INTO v_ledger_count
+  FROM public.points_ledger
   WHERE source_key = 'task-result:' || v_task_exec || ':' || v_media;
+
   IF v_ledger_count <> 0 THEN
-    RAISE EXCEPTION 'Point 19 failed: Executive awarded points for PERFECT task';
+    RAISE EXCEPTION 'Point 19 failed: Executive awarded task points';
   END IF;
 
-  -- Point 22: Executive completion record is still stored normally
-  SELECT count(*) INTO v_ledger_count FROM public.task_enrollments
-  WHERE task_id = v_task_exec AND student_id = v_media AND completion_status = 'PERFECT';
+  -- Evaluation record remains stored
+  SELECT count(*)
+  INTO v_ledger_count
+  FROM public.task_enrollments
+  WHERE task_id = v_task_exec
+    AND student_id = v_media
+    AND completion_status = 'PERFECT';
+
   IF v_ledger_count <> 1 THEN
-    RAISE EXCEPTION 'Point 22 failed: Executive task completion record was not saved';
+    RAISE EXCEPTION 'Point 22 failed: Executive completion record missing';
   END IF;
 
-  -- Point 24: Re-finalizing task creates no duplicate ledger entry
+  -- Executive task finalization remains idempotent
   PERFORM public.finalize_task_evaluation(v_task_exec);
 
-  -- Point 35: Direct UPDATE of economic field on finalized activity is rejected by trigger
+  -- Direct UPDATE of finalized economic field must fail
   BEGIN
     UPDATE public.activities
     SET points_value = 999
     WHERE id = v_mandatory_act;
-    RAISE EXCEPTION 'Point 35 failed: Direct UPDATE of finalized activity economic field was not rejected';
+
+    RAISE EXCEPTION
+      'Point 35 failed: finalized activity economic field update was allowed';
+
   EXCEPTION WHEN SQLSTATE '23514' THEN
-    -- Expected: trigger blocked the mutation
     NULL;
   END;
 
