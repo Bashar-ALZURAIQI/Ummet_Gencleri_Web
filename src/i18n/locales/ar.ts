@@ -805,6 +805,8 @@ const ar = {
       confirmClose: 'سيتم إغلاق النشاط وتوزيع النقاط نهائياً. هل تريد المتابعة؟',
       closedSuccess: 'تم إغلاق النشاط وتوزيع النقاط بنجاح.',
       selectAttendance: 'اختر الحضور',
+      ignoredPenalty: 'لم يرد (-20)',
+      noStudentsEnrolled: 'لا يوجد طلاب مسجلون في هذا النشاط.',
       attendance: {
         onTime: 'في الوقت (100%)',
         late: 'تأخر قليلاً (75%)',

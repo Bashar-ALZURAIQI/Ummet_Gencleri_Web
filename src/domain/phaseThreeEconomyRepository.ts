@@ -55,14 +55,42 @@ function mapExcuse(row: unknown): PendingMandatoryExcuse | null {
 }
 
 function mapActivity(row: unknown): ActivityEvaluationRow | null {
-  if (!record(row) || !text(row.activity_id) || !text(row.activity_title)
-    || !['MANDATORY','OPTIONAL','PAID'].includes(String(row.activity_type)) || !integer(row.points_value)
-    || !text(row.deadline) || !text(row.student_id) || !text(row.student_name) || !nullableText(row.avatar_path)
-    || !(row.attendance_status === null || ATTENDANCE_STATUSES.includes(row.attendance_status as AttendanceStatus))) return null;
-  return { activityId: row.activity_id, activityTitle: row.activity_title,
-    activityType: row.activity_type as ActivityEvaluationRow['activityType'], pointsValue: row.points_value,
-    deadline: row.deadline, studentId: row.student_id, studentName: row.student_name,
-    avatarPath: row.avatar_path, attendanceStatus: row.attendance_status as AttendanceStatus | null };
+  if (
+    !record(row) ||
+    !text(row.activity_id) ||
+    !text(row.activity_title) ||
+    !['MANDATORY', 'OPTIONAL', 'PAID'].includes(String(row.activity_type)) ||
+    !integer(row.points_value) ||
+    !text(row.deadline) ||
+    !nullableText(row.student_id) ||
+    !nullableText(row.student_name) ||
+    !nullableText(row.avatar_path) ||
+    !(
+      row.attendance_status === null ||
+      row.attendance_status === undefined ||
+      ATTENDANCE_STATUSES.includes(row.attendance_status as AttendanceStatus)
+    )
+  ) {
+    return null;
+  }
+
+  const decision =
+    row.decision === 'IGNORED' || row.decision === 'JOINING' || row.decision === 'DECLINING'
+      ? row.decision
+      : (row.student_id ? 'JOINING' : null);
+
+  return {
+    activityId: row.activity_id,
+    activityTitle: row.activity_title,
+    activityType: row.activity_type as ActivityEvaluationRow['activityType'],
+    pointsValue: row.points_value,
+    deadline: row.deadline,
+    studentId: row.student_id ? String(row.student_id) : null,
+    studentName: row.student_name ? String(row.student_name) : null,
+    avatarPath: row.avatar_path ? String(row.avatar_path) : null,
+    attendanceStatus: (row.attendance_status as AttendanceStatus) ?? null,
+    decision,
+  };
 }
 
 function mapTask(row: unknown): TaskEvaluationRow | null {

@@ -18,8 +18,15 @@ export function memberNeedsWarning(points: number): boolean {
   return points <= -50;
 }
 
-export function activityDraftComplete(rows: Array<{ attendanceStatus: AttendanceStatus | null }>): boolean {
-  return rows.length > 0 && rows.every((row) => row.attendanceStatus !== null);
+export function activityDraftComplete(
+  rows: Array<{ attendanceStatus?: AttendanceStatus | null; decision?: string | null; studentId?: string | null }>,
+): boolean {
+  if (rows.length === 0) return false;
+  const joiningRows = rows.filter((row) => row.studentId !== null && row.decision !== 'IGNORED');
+  if (joiningRows.length === 0) {
+    return true;
+  }
+  return joiningRows.every((row) => row.attendanceStatus !== null && row.attendanceStatus !== undefined);
 }
 
 export function taskDraftComplete(rows: Array<{ completionStatus: TaskCompletionStatus }>): boolean {

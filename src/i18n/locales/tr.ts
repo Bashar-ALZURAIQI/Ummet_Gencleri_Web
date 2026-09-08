@@ -803,6 +803,8 @@ const tr: TranslationSchema = {
       confirmClose: 'Etkinlik kapatılacak ve puanlar kesin olarak dağıtılacaktır. Devam etmek istiyor musunuz?',
       closedSuccess: 'Etkinlik kapatıldı ve puanlar başarıyla dağıtıldı.',
       selectAttendance: 'Katılım Durumu Seçin',
+      ignoredPenalty: 'Yanıtlamadı (-20)',
+      noStudentsEnrolled: 'Bu etkinliğe kayıtlı öğrenci yok.',
       attendance: {
         onTime: 'Vaktinde (%100)',
         late: 'Biraz Gecikti (%75)',

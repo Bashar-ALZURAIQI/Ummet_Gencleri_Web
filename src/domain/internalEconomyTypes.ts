@@ -254,10 +254,11 @@ export interface ActivityEvaluationRow {
   activityType: ActivityType;
   pointsValue: number;
   deadline: string;
-  studentId: string;
-  studentName: string;
+  studentId: string | null;
+  studentName: string | null;
   avatarPath: string | null;
   attendanceStatus: AttendanceStatus | null;
+  decision?: ActivityDecision | null;
 }
 
 export interface TaskEvaluationRow {

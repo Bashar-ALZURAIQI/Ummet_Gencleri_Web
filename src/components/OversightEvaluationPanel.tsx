@@ -48,6 +48,7 @@ export default function OversightEvaluationPanel() {
   const activityGroups = useMemo(() => groupRows(activities, (row) => row.activityId), [activities]);
 
   const saveAttendance = async (row: ActivityEvaluationRow, status: AttendanceStatus) => {
+    if (!row.studentId) return;
     setBusy(`${row.activityId}:${row.studentId}`);
     const result = await saveActivityAttendance(row.activityId, row.studentId, status);
     setBusy(null);
@@ -118,23 +119,38 @@ export default function OversightEvaluationPanel() {
                 </button>
               </div>
               <div className="space-y-2">
-                {rows.map((row) => (
-                  <div key={row.studentId} className="flex flex-wrap items-center gap-3 rounded-xl bg-gray-50 p-3">
-                    <UserAvatar name={row.studentName} avatarPath={row.avatarPath} className="h-9 w-9" />
-                    <span className="min-w-36 flex-1 font-semibold">{row.studentName}</span>
-                    <select
-                      value={row.attendanceStatus ?? ''}
-                      disabled={busy === `${row.activityId}:${row.studentId}`}
-                      onChange={(e) => void saveAttendance(row, e.target.value as AttendanceStatus)}
-                      className="input-field max-w-xs"
-                    >
-                      <option value="" disabled>{t('admin.oversight.selectAttendance', 'اختر الحضور')}</option>
-                      {Object.entries(attendanceLabels).map(([v, l]) => (
-                        <option key={v} value={v}>{l}</option>
-                      ))}
-                    </select>
-                  </div>
-                ))}
+                {rows.map((row) => {
+                  if (!row.studentId) {
+                    return (
+                      <div key="no-students" className="rounded-xl bg-gray-50 p-4 text-center text-sm text-gray-500">
+                        {t('admin.oversight.noStudentsEnrolled', 'لا يوجد طلاب مسجلون في هذا النشاط.')}
+                      </div>
+                    );
+                  }
+                  return (
+                    <div key={row.studentId} className="flex flex-wrap items-center gap-3 rounded-xl bg-gray-50 p-3">
+                      <UserAvatar name={row.studentName ?? ''} avatarPath={row.avatarPath} className="h-9 w-9" />
+                      <span className="min-w-36 flex-1 font-semibold">{row.studentName}</span>
+                      {row.decision === 'IGNORED' ? (
+                        <span className="inline-flex items-center rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700 border border-rose-200">
+                          {t('admin.oversight.ignoredPenalty', 'لم يرد (-20)')}
+                        </span>
+                      ) : (
+                        <select
+                          value={row.attendanceStatus ?? ''}
+                          disabled={busy === `${row.activityId}:${row.studentId}`}
+                          onChange={(e) => void saveAttendance(row, e.target.value as AttendanceStatus)}
+                          className="input-field max-w-xs"
+                        >
+                          <option value="" disabled>{t('admin.oversight.selectAttendance', 'اختر الحضور')}</option>
+                          {Object.entries(attendanceLabels).map(([v, l]) => (
+                            <option key={v} value={v}>{l}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </article>
           );

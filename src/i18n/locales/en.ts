@@ -803,6 +803,8 @@ const en: TranslationSchema = {
       confirmClose: 'The activity will be closed and points distributed permanently. Do you wish to proceed?',
       closedSuccess: 'Activity closed and points distributed successfully.',
       selectAttendance: 'Select Attendance',
+      ignoredPenalty: 'No response (-20)',
+      noStudentsEnrolled: 'No students enrolled in this activity.',
       attendance: {
         onTime: 'On Time (100%)',
         late: 'Slightly Late (75%)',
