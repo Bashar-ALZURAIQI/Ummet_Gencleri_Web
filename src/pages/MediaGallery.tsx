@@ -13,7 +13,8 @@ import type { GalleryAlbum, GalleryCategory, GalleryMedia, SiteEditDiff } from '
 import ManagedFileField from '../components/ManagedFileField';
 import { CmsEntityTranslationTabs } from '../components/cmsLocalization/CmsEntityTranslationTabs';
 import { useCmsLocalizationRepository } from '../context/CmsLocalizationContext';
-import { computeSourceHash, type LocalizedCmsLocale, type JsonValue } from '../domain/cmsLocalization';
+import { type LocalizedCmsLocale } from '../domain/cmsLocalization';
+import { publishCmsEntityLocales } from '../domain/cmsLocalizationEditor';
 import { formatPublicDate } from '../domain/datePresentation';
 
 export default function MediaGallery() {
@@ -216,29 +217,16 @@ export default function MediaGallery() {
       const saved = await savePublishedSiteTarget('galleryAlbums', [newAlbum, ...(canonicalGalleryAlbums ?? galleryAlbums)]);
       if (!saved.ok) return;
 
-      // Bind drafted translations to authoritative new album ID
-      for (const loc of ['tr', 'en'] as const) {
-        const trData = albumTranslations[loc];
-        if (trData.title?.trim() || trData.location?.trim() || trData.description?.trim()) {
-          try {
-            const latest = await localizationRepo.getDraft('galleryAlbums', loc);
-            const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
-              ? JSON.parse(JSON.stringify(latest.payload))
-              : [];
-            list.push({ id: newAlbumId, ...trData });
-            await localizationRepo.saveDraft({
-              target: 'galleryAlbums',
-              locale: loc,
-              payload: list as unknown as JsonValue,
-              status: 'draft',
-              manualPaths: [`${newAlbumId}.title`],
-              sourceHash: computeSourceHash([newAlbum, ...(canonicalGalleryAlbums ?? galleryAlbums)]),
-              updatedAt: new Date().toISOString(),
-            });
-          } catch {
-            // non-blocking
-          }
-        }
+      try {
+        await publishCmsEntityLocales({
+          repository: localizationRepo, target: 'galleryAlbums',
+          canonicalPayload: [newAlbum, ...(canonicalGalleryAlbums ?? galleryAlbums)],
+          recordId: newAlbumId, translations: albumTranslations,
+        });
+        await refreshPublishedLocalizations();
+      } catch {
+        alert(t('cmsLocalization.publishFailed', 'تعذر نشر الترجمة.'));
+        return;
       }
     }
     setAlbumModalOpen(false);
@@ -320,29 +308,16 @@ export default function MediaGallery() {
       const saved = await savePublishedSiteTarget('galleryCategories', [...(canonicalGalleryCategories ?? galleryCategories), newCat]);
       if (!saved.ok) return;
 
-      // Bind drafted translations to authoritative new category ID
-      for (const loc of ['tr', 'en'] as const) {
-        const trData = categoryTranslations[loc];
-        if (trData.label?.trim()) {
-          try {
-            const latest = await localizationRepo.getDraft('galleryCategories', loc);
-            const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
-              ? JSON.parse(JSON.stringify(latest.payload))
-              : [];
-            list.push({ id: newCatId, ...trData });
-            await localizationRepo.saveDraft({
-              target: 'galleryCategories',
-              locale: loc,
-              payload: list as unknown as JsonValue,
-              status: 'draft',
-              manualPaths: [`${newCatId}.label`],
-              sourceHash: computeSourceHash([...(canonicalGalleryCategories ?? galleryCategories), newCat]),
-              updatedAt: new Date().toISOString(),
-            });
-          } catch {
-            // non-blocking
-          }
-        }
+      try {
+        await publishCmsEntityLocales({
+          repository: localizationRepo, target: 'galleryCategories',
+          canonicalPayload: [...(canonicalGalleryCategories ?? galleryCategories), newCat],
+          recordId: newCatId, translations: categoryTranslations,
+        });
+        await refreshPublishedLocalizations();
+      } catch {
+        alert(t('cmsLocalization.publishFailed', 'تعذر نشر الترجمة.'));
+        return;
       }
     }
     setCategoryModalOpen(false);
@@ -430,11 +405,20 @@ export default function MediaGallery() {
       setMediaModalOpen(false);
       return;
     }
-    const saved = await savePublishedSiteTarget(
-      'galleryAlbums',
-      (canonicalGalleryAlbums ?? galleryAlbums).map((album) => album.id === selectedAlbumId ? buildNext(album) : album),
-    );
+    const nextAlbums = (canonicalGalleryAlbums ?? galleryAlbums)
+      .map((album) => album.id === selectedAlbumId ? buildNext(album) : album);
+    const saved = await savePublishedSiteTarget('galleryAlbums', nextAlbums);
     if (!saved.ok) return;
+    try {
+      await publishCmsEntityLocales({
+        repository: localizationRepo, target: 'galleryAlbums', canonicalPayload: nextAlbums,
+        recordId: newMedia.id, translations: mediaTranslations,
+      });
+      await refreshPublishedLocalizations();
+    } catch {
+      alert(t('cmsLocalization.publishFailed', 'تعذر نشر الترجمة.'));
+      return;
+    }
     setMediaModalOpen(false);
   };
 

@@ -22,7 +22,8 @@ import {
 import { canCreateExecutiveContent } from '../domain/phaseThreeEconomy.ts';
 import { CmsEntityTranslationTabs } from '../components/cmsLocalization/CmsEntityTranslationTabs';
 import { useCmsLocalizationRepository } from '../context/CmsLocalizationContext';
-import { computeSourceHash, type JsonValue, type LocalizedCmsLocale } from '../domain/cmsLocalization';
+import { type LocalizedCmsLocale } from '../domain/cmsLocalization';
+import { publishCmsEntityLocales } from '../domain/cmsLocalizationEditor';
 import { getEventCategoryLabel } from '../domain/eventCategoryPresentation';
 
 type Tab = 'upcoming' | 'past';
@@ -270,38 +271,14 @@ export default function ProgramsPage() {
         const trData = translations[loc];
         if (trData.title?.trim() || trData.description?.trim() || trData.location?.trim()) {
           try {
-            const nextEvents = [newEvent, ...events];
-            const sourceHash = computeSourceHash(nextEvents);
-
-            // 1. Publish translation for the new published event via scoped publication
             await repository.publishEventLocalization(publicEventId, loc, trData);
-
-            // 2. Keep draft partition synchronized
-            const latestDraft = await repository.getDraft('events', loc);
-            const draftList: Record<string, unknown>[] = Array.isArray(latestDraft?.payload)
-              ? JSON.parse(JSON.stringify(latestDraft.payload))
-              : [];
-            const dIdx = draftList.findIndex((d) => d && typeof d === 'object' && (d as Record<string, unknown>).id === publicEventId);
-            if (dIdx >= 0) {
-              draftList[dIdx] = { ...draftList[dIdx], ...trData, id: publicEventId };
-            } else {
-              draftList.push({ id: publicEventId, ...trData });
-            }
-            await repository.saveDraft({
-              target: 'events',
-              locale: loc,
-              payload: draftList as unknown as JsonValue,
-              status: 'draft',
-              manualPaths: [`${publicEventId}.title`],
-              stalePaths: [],
-              sourceHash,
-              updatedAt: new Date().toISOString(),
-            });
           } catch {
-            // non-blocking
+            notify('error', t('cmsLocalization.publishFailed', 'تعذر نشر الترجمة.'));
+            return;
           }
         }
       }
+      await refreshPublishedLocalizations();
     }
     setModalOpen(false);
     notify('success', editId ? 'تم حفظ الفعالية وإعدادات التسجيل.' : 'تمت إضافة الفعالية وربطها بالتسجيل الدائم.');
@@ -345,26 +322,15 @@ export default function ProgramsPage() {
     }
     const saved = await savePublishedSiteTarget('programsContent', headerForm);
     if (!saved.ok) return;
-    for (const loc of ['tr', 'en'] as const) {
-      const trData = headerTranslations[loc];
-      if (trData.badge?.trim() || trData.title?.trim() || trData.description?.trim()) {
-        try {
-          const latest = await repository.getDraft('programsContent', loc);
-          const prevObj = (latest?.payload && typeof latest.payload === 'object') ? (latest.payload as Record<string, unknown>) : {};
-          const nextObj = { ...prevObj, ...trData };
-          await repository.saveDraft({
-            target: 'programsContent',
-            locale: loc,
-            payload: nextObj as unknown as JsonValue,
-            status: 'draft',
-            manualPaths: Object.keys(trData).filter((k) => trData[k]?.trim()),
-            sourceHash: computeSourceHash(headerForm),
-            updatedAt: new Date().toISOString(),
-          });
-        } catch {
-          // non-blocking
-        }
-      }
+    try {
+      await publishCmsEntityLocales({
+        repository, target: 'programsContent', canonicalPayload: headerForm,
+        recordId: 'header', translations: headerTranslations,
+      });
+      await refreshPublishedLocalizations();
+    } catch {
+      notify('error', t('cmsLocalization.publishFailed', 'تعذر نشر الترجمة.'));
+      return;
     }
     setEditingHeader(false);
   };

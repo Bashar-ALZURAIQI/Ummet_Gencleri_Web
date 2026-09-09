@@ -333,7 +333,7 @@ export default function ContactPage() {
           <CmsEntityTranslationTabs
             target="contactCards"
             recordId={editingCard?.id ?? null}
-            canonicalPayload={editingCard ? contactCards.map((c) => c.id === editingCard.id ? { ...c, ...cardForm } : c) : contactCards}
+            canonicalPayload={editingCard ? (canonicalContactCards ?? contactCards).map((c) => c.id === editingCard.id ? { ...c, ...cardForm } : c) : (canonicalContactCards ?? contactCards)}
             fields={[
               {
                 name: 'title',
@@ -400,7 +400,7 @@ export default function ContactPage() {
           <CmsEntityTranslationTabs
             target="contactMap"
             recordId="map"
-            canonicalPayload={{ ...contactMap, title: mapForm.title }}
+            canonicalPayload={{ ...(canonicalContactMap ?? contactMap), title: mapForm.title }}
             fields={[
               {
                 name: 'title',

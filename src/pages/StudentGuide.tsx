@@ -17,7 +17,8 @@ import { validateGuideContact, validateGuideItem, validateGuideSection } from '.
 import type { GuideSectionData, GuideItem, GuideContact, SiteEditDiff } from '../data/mockData';
 import { CmsEntityTranslationTabs } from '../components/cmsLocalization/CmsEntityTranslationTabs';
 import { useCmsLocalizationRepository } from '../context/CmsLocalizationContext';
-import { computeSourceHash, type LocalizedCmsLocale, type JsonValue } from '../domain/cmsLocalization';
+import { type LocalizedCmsLocale } from '../domain/cmsLocalization';
+import { publishCmsEntityLocales } from '../domain/cmsLocalizationEditor';
 
 const iconMap: Record<string, typeof BookOpen> = {
   BookOpen, Home, Bus, Library, GraduationCap, MapPin, Phone, Clock,
@@ -204,28 +205,15 @@ export default function StudentGuide() {
       if (!saved.ok) { alert(saved.error); return; }
       setActiveSectionId(newSection.id);
 
-      for (const loc of ['tr', 'en'] as const) {
-        const trData = secTranslations[loc];
-        if (trData.label?.trim() || trData.title?.trim() || trData.intro?.trim()) {
-          try {
-            const latest = await localizationRepo.getDraft('guideSections', loc);
-            const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
-              ? JSON.parse(JSON.stringify(latest.payload))
-              : [];
-            list.push({ id: newSecId, ...trData });
-            await localizationRepo.saveDraft({
-              target: 'guideSections',
-              locale: loc,
-              payload: list as unknown as JsonValue,
-              status: 'draft',
-              manualPaths: [`${newSecId}.label`],
-              sourceHash: computeSourceHash(nextSections),
-              updatedAt: new Date().toISOString(),
-            });
-          } catch {
-            // non-blocking
-          }
-        }
+      try {
+        await publishCmsEntityLocales({
+          repository: localizationRepo, target: 'guideSections', canonicalPayload: nextSections,
+          recordId: newSecId, translations: secTranslations,
+        });
+        await refreshPublishedLocalizations();
+      } catch {
+        alert(t('cmsLocalization.publishFailed', 'تعذر نشر الترجمة.'));
+        return;
       }
     }
     setSectionModalOpen(false);
@@ -312,36 +300,15 @@ export default function StudentGuide() {
     if (!saved.ok) { alert(saved.error); return; }
 
     if (!editingItem) {
-      for (const loc of ['tr', 'en'] as const) {
-        const trData = itemTranslations[loc];
-        if (trData.heading?.trim() || trData.body?.trim()) {
-          try {
-            const latest = await localizationRepo.getDraft('guideSections', loc);
-            const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
-              ? JSON.parse(JSON.stringify(latest.payload))
-              : [];
-            const secIdx = list.findIndex((s) => s && s.id === activeSectionId);
-            if (secIdx >= 0) {
-              const secObj = list[secIdx];
-              const items = Array.isArray(secObj.items) ? [...secObj.items] : [];
-              items.push({ id: newItemId, ...trData });
-              secObj.items = items;
-            } else {
-              list.push({ id: activeSectionId, items: [{ id: newItemId, ...trData }] });
-            }
-            await localizationRepo.saveDraft({
-              target: 'guideSections',
-              locale: loc,
-              payload: list as unknown as JsonValue,
-              status: 'draft',
-              manualPaths: [`${newItemId}.heading`],
-              sourceHash: computeSourceHash(nextSections),
-              updatedAt: new Date().toISOString(),
-            });
-          } catch {
-            // non-blocking
-          }
-        }
+      try {
+        await publishCmsEntityLocales({
+          repository: localizationRepo, target: 'guideSections', canonicalPayload: nextSections,
+          recordId: newItemId, translations: itemTranslations,
+        });
+        await refreshPublishedLocalizations();
+      } catch {
+        alert(t('cmsLocalization.publishFailed', 'تعذر نشر الترجمة.'));
+        return;
       }
     }
     setItemModalOpen(false);
@@ -442,16 +409,29 @@ export default function StudentGuide() {
       return;
     }
     let nextSections: GuideSectionData[];
+    const contactId = editingContact?.id ?? 'ct' + Date.now();
     if (editingContact) {
       nextSections = (canonicalGuideSections ?? guideSections).map((s) => s.id === activeSectionId ? {
         ...s, contacts: s.contacts.map((c) => c.id === editingContact.id ? { ...c, ...contactForm } : c),
       } : s);
     } else {
-      const newContact: GuideContact = { id: 'ct' + Date.now(), ...contactForm };
+      const newContact: GuideContact = { id: contactId, ...contactForm };
       nextSections = (canonicalGuideSections ?? guideSections).map((s) => s.id === activeSectionId ? { ...s, contacts: [...s.contacts, newContact] } : s);
     }
     const saved = await savePublishedSiteTarget('guideSections', nextSections);
     if (!saved.ok) { alert(saved.error); return; }
+    if (!editingContact) {
+      try {
+        await publishCmsEntityLocales({
+          repository: localizationRepo, target: 'guideSections', canonicalPayload: nextSections,
+          recordId: contactId, translations: contactTranslations,
+        });
+        await refreshPublishedLocalizations();
+      } catch {
+        alert(t('cmsLocalization.publishFailed', 'تعذر نشر الترجمة.'));
+        return;
+      }
+    }
     setContactModalOpen(false);
   };
 

@@ -40,6 +40,7 @@ import { getExecutiveRoleLabel, getExecutiveSectionLabel } from '../domain/execu
 import { CmsEntityTranslationTabs } from '../components/cmsLocalization/CmsEntityTranslationTabs';
 import { useCmsLocalizationRepository } from '../context/CmsLocalizationContext';
 import { computeSourceHash, type LocalizedCmsLocale, type JsonValue } from '../domain/cmsLocalization';
+import { publishCmsEntityLocales } from '../domain/cmsLocalizationEditor';
 import type { ManagedAssetReference } from '../services/managedAssetService';
 import type {
   ApplicationEmailEventType,
@@ -1539,7 +1540,7 @@ function GalleryTab({ galleryAlbums, setGalleryAlbums, galleryCategories, curren
   currentUser: ReturnType<typeof useApp>['currentUser'];
 }) {
   const { t, i18n } = useTranslation();
-  const { uploadManagedFile, savePublishedSiteTarget } = useApp();
+  const { uploadManagedFile, savePublishedSiteTarget, refreshPublishedLocalizations } = useApp();
   const repository = useCmsLocalizationRepository();
   // Scoped access: the president manages all albums; every other executive
   // member sees, adds, edits and deletes only the albums their role created
@@ -1643,11 +1644,22 @@ function GalleryTab({ galleryAlbums, setGalleryAlbums, galleryCategories, curren
         if (!saved.ok) return;
       } else setGalleryAlbums(next);
 
-      // Bind drafted translations to authoritative album ID
-      for (const loc of ['tr', 'en'] as const) {
-        const trData = translations[loc];
-        if (trData.title?.trim() || trData.location?.trim() || trData.description?.trim()) {
-          try {
+      if (isPresident) {
+        try {
+          await publishCmsEntityLocales({
+            repository, target: 'galleryAlbums', canonicalPayload: next,
+            recordId: newAlbumId, translations,
+          });
+          await refreshPublishedLocalizations();
+        } catch {
+          alert(t('cmsLocalization.publishFailed', 'تعذر نشر الترجمة.'));
+          return;
+        }
+      } else {
+        for (const loc of ['tr', 'en'] as const) {
+          const trData = translations[loc];
+          if (trData.title?.trim() || trData.location?.trim() || trData.description?.trim()) {
+            try {
             const latest = await repository.getDraft('galleryAlbums', loc);
             const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
               ? JSON.parse(JSON.stringify(latest.payload))
@@ -1658,12 +1670,16 @@ function GalleryTab({ galleryAlbums, setGalleryAlbums, galleryCategories, curren
               locale: loc,
               payload: list as unknown as JsonValue,
               status: 'draft',
-              manualPaths: [`${newAlbumId}.title`],
+              manualPaths: Object.keys(trData)
+                .filter((field) => trData[field as keyof typeof trData]?.trim())
+                .map((field) => `${newAlbumId}.${field}`),
               sourceHash: computeSourceHash(next),
               updatedAt: new Date().toISOString(),
             });
-          } catch {
-            // non-blocking
+            } catch {
+              alert(t('cmsLocalization.saveFailed', 'تعذر حفظ المسودة.'));
+              return;
+            }
           }
         }
       }
@@ -2030,7 +2046,7 @@ function EventsTab({ events, currentUser }: {
   currentUser: ReturnType<typeof useApp>['currentUser'];
 }) {
   const { t } = useTranslation();
-  const { uploadManagedFile, savePublishedSiteTarget, createPublishedEvent } = useApp();
+  const { uploadManagedFile, savePublishedSiteTarget, createPublishedEvent, refreshPublishedLocalizations } = useApp();
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -2120,38 +2136,14 @@ function EventsTab({ events, currentUser }: {
         const trData = translations[loc];
         if (trData.title?.trim() || trData.description?.trim() || trData.location?.trim()) {
           try {
-            const nextEvents = [newEvent, ...events];
-            const sourceHash = computeSourceHash(nextEvents);
-
-            // 1. Publish translation for the new published event via scoped publication
             await repository.publishEventLocalization(publicEventId, loc, trData);
-
-            // 2. Keep draft partition synchronized
-            const latestDraft = await repository.getDraft('events', loc);
-            const draftList: Record<string, unknown>[] = Array.isArray(latestDraft?.payload)
-              ? JSON.parse(JSON.stringify(latestDraft.payload))
-              : [];
-            const dIdx = draftList.findIndex((d) => d && typeof d === 'object' && (d as Record<string, unknown>).id === publicEventId);
-            if (dIdx >= 0) {
-              draftList[dIdx] = { ...draftList[dIdx], ...trData, id: publicEventId };
-            } else {
-              draftList.push({ id: publicEventId, ...trData });
-            }
-            await repository.saveDraft({
-              target: 'events',
-              locale: loc,
-              payload: draftList as unknown as JsonValue,
-              status: 'draft',
-              manualPaths: [`${publicEventId}.title`],
-              stalePaths: [],
-              sourceHash,
-              updatedAt: new Date().toISOString(),
-            });
           } catch {
-            // non-blocking
+            setToast({ id: Date.now(), type: 'error', text: t('cmsLocalization.publishFailed', 'تعذر نشر الترجمة.') });
+            return;
           }
         }
       }
+      await refreshPublishedLocalizations();
     }
     setModalOpen(false);
     setToast({ id: Date.now(), type: 'success', text: t('admin.events.savedSuccess', 'تم حفظ الفعالية وإعدادات التسجيل الدائم.') });
@@ -2386,7 +2378,7 @@ function NewsTab({ news, currentUser, submitSiteEdit }: {
 }) {
   const { t } = useTranslation();
   const repository = useCmsLocalizationRepository();
-  const { uploadManagedFile, savePublishedSiteTarget } = useApp();
+  const { uploadManagedFile, savePublishedSiteTarget, refreshPublishedLocalizations } = useApp();
   const isPresident = currentUser?.role === 'PRESIDENT';
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -2505,53 +2497,15 @@ function NewsTab({ news, currentUser, submitSiteEdit }: {
       const saved = await savePublishedSiteTarget('news', [newNews, ...news]);
       if (!saved.ok) return;
 
-      // Bind and publish entered translations to authoritative news ID for direct president publish
-      for (const loc of ['tr', 'en'] as const) {
-        const trData = translations[loc];
-        if (trData.title?.trim() || trData.excerpt?.trim() || trData.fullContent?.trim()) {
-          try {
-            const nextNewsList = [newNews, ...news];
-            const sourceHash = computeSourceHash(nextNewsList);
-
-            // 1. Publish translation for the directly published news
-            const latestPublished = await repository.getPublished('news', loc);
-            const pubList: Record<string, unknown>[] = Array.isArray(latestPublished?.payload)
-              ? JSON.parse(JSON.stringify(latestPublished.payload))
-              : [];
-            pubList.push({ id: newNewsId, ...trData });
-            await repository.savePublished({
-              target: 'news',
-              locale: loc,
-              payload: pubList as unknown as JsonValue,
-              status: 'fresh',
-              manualPaths: [`${newNewsId}.title`],
-              stalePaths: [],
-              sourceHash,
-              updatedAt: new Date().toISOString(),
-            });
-
-            // 2. Keep draft partition synchronized
-            const latestDraft = await repository.getDraft('news', loc);
-            const draftList: Record<string, unknown>[] = Array.isArray(latestDraft?.payload)
-              ? JSON.parse(JSON.stringify(latestDraft.payload))
-              : pubList;
-            if (!draftList.some((d) => d && typeof d === 'object' && (d as Record<string, unknown>).id === newNewsId)) {
-              draftList.push({ id: newNewsId, ...trData });
-            }
-            await repository.saveDraft({
-              target: 'news',
-              locale: loc,
-              payload: draftList as unknown as JsonValue,
-              status: 'draft',
-              manualPaths: [`${newNewsId}.title`],
-              stalePaths: [],
-              sourceHash,
-              updatedAt: new Date().toISOString(),
-            });
-          } catch {
-            // non-blocking
-          }
-        }
+      try {
+        await publishCmsEntityLocales({
+          repository, target: 'news', canonicalPayload: [newNews, ...news],
+          recordId: newNewsId, translations,
+        });
+        await refreshPublishedLocalizations();
+      } catch {
+        alert(t('cmsLocalization.publishFailed', 'تعذر نشر الترجمة.'));
+        return;
       }
     }
     setModalOpen(false);
@@ -3506,7 +3460,7 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
   currentUser: ReturnType<typeof useApp>['currentUser'];
 }) {
   const { t } = useTranslation();
-  const { uploadManagedFile, savePublishedSiteTarget } = useApp();
+  const { uploadManagedFile, savePublishedSiteTarget, refreshPublishedLocalizations } = useApp();
   const repository = useCmsLocalizationRepository();
   const isPresident = currentUser?.role === 'PRESIDENT';
 
@@ -3576,11 +3530,22 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
         if (!saved.ok) return;
       } else setPlans(next);
 
-      // Bind drafted translations to authoritative plan ID
-      for (const loc of ['tr', 'en'] as const) {
-        const trData = planTranslations[loc];
-        if (trData.title?.trim() || trData.description?.trim()) {
-          try {
+      if (isPresident) {
+        try {
+          await publishCmsEntityLocales({
+            repository, target: 'plans', canonicalPayload: next,
+            recordId: newPlanId, translations: planTranslations,
+          });
+          await refreshPublishedLocalizations();
+        } catch {
+          alert(t('cmsLocalization.publishFailed', 'تعذر نشر الترجمة.'));
+          return;
+        }
+      } else {
+        for (const loc of ['tr', 'en'] as const) {
+          const trData = planTranslations[loc];
+          if (trData.title?.trim() || trData.description?.trim()) {
+            try {
             const latest = await repository.getDraft('plans', loc);
             const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
               ? JSON.parse(JSON.stringify(latest.payload))
@@ -3591,12 +3556,16 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
               locale: loc,
               payload: list as unknown as JsonValue,
               status: 'draft',
-              manualPaths: [`${newPlanId}.title`],
+              manualPaths: Object.keys(trData)
+                .filter((field) => trData[field as keyof typeof trData]?.trim())
+                .map((field) => `${newPlanId}.${field}`),
               sourceHash: computeSourceHash(next),
               updatedAt: new Date().toISOString(),
             });
-          } catch {
-            // non-blocking
+            } catch {
+              alert(t('cmsLocalization.saveFailed', 'تعذر حفظ المسودة.'));
+              return;
+            }
           }
         }
       }
@@ -3654,11 +3623,22 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
         if (!saved.ok) return;
       } else setReports(next);
 
-      // Bind drafted translations to authoritative report ID
-      for (const loc of ['tr', 'en'] as const) {
-        const trData = reportTranslations[loc];
-        if (trData.title?.trim() || trData.summary?.trim() || trData.period?.trim()) {
-          try {
+      if (isPresident) {
+        try {
+          await publishCmsEntityLocales({
+            repository, target: 'reports', canonicalPayload: next,
+            recordId: newReportId, translations: reportTranslations,
+          });
+          await refreshPublishedLocalizations();
+        } catch {
+          alert(t('cmsLocalization.publishFailed', 'تعذر نشر الترجمة.'));
+          return;
+        }
+      } else {
+        for (const loc of ['tr', 'en'] as const) {
+          const trData = reportTranslations[loc];
+          if (trData.title?.trim() || trData.summary?.trim() || trData.period?.trim()) {
+            try {
             const latest = await repository.getDraft('reports', loc);
             const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
               ? JSON.parse(JSON.stringify(latest.payload))
@@ -3669,12 +3649,16 @@ function PlansTab({ plans, setPlans, reports, setReports, currentUser }: {
               locale: loc,
               payload: list as unknown as JsonValue,
               status: 'draft',
-              manualPaths: [`${newReportId}.title`],
+              manualPaths: Object.keys(trData)
+                .filter((field) => trData[field as keyof typeof trData]?.trim())
+                .map((field) => `${newReportId}.${field}`),
               sourceHash: computeSourceHash(next),
               updatedAt: new Date().toISOString(),
             });
-          } catch {
-            // non-blocking
+            } catch {
+              alert(t('cmsLocalization.saveFailed', 'تعذر حفظ المسودة.'));
+              return;
+            }
           }
         }
       }

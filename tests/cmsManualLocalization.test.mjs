@@ -70,7 +70,7 @@ test('7. CmsEntityTranslationTabs.tsx exposes manual save draft & publish action
   assert.match(code, /handleSaveDraft/);
   assert.match(code, /handlePublish/);
   assert.match(code, /repository\.saveDraft/);
-  assert.match(code, /repository\.savePublished/);
+  assert.match(code, /publishCmsEntityFields/);
 });
 
 test('8. CmsLocalizationContext.tsx contains NO translationProvider or useCmsTranslationProvider', async () => {

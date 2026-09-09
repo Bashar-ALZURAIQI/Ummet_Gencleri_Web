@@ -15,7 +15,8 @@ import {
   recordManualPath,
   updateNestedPayload,
   resolveDraftBasePayload,
-  executeCmsPublish,
+  publishCmsLocalizationPatch,
+  getPendingLocalizedFieldChange,
 } from '../../domain/cmsLocalizationEditor.ts';
 import {
   useCmsLocalizationRepository,
@@ -34,6 +35,11 @@ export interface CmsTranslationSectionProps {
   canPublish?: boolean;
   onDraftSaved?: (locale: LocalizedCmsLocale) => void;
   onPublished?: (locale: LocalizedCmsLocale) => void;
+  onPendingChange?: (
+    locale: LocalizedCmsLocale,
+    path: string,
+    value: string | null,
+  ) => void;
 }
 
 interface LocaleFieldState {
@@ -80,6 +86,7 @@ export function CmsTranslationSection({
   canPublish,
   onDraftSaved,
   onPublished,
+  onPendingChange,
 }: CmsTranslationSectionProps) {
   const { t } = useTranslation();
   const repository = useCmsLocalizationRepository();
@@ -91,6 +98,28 @@ export function CmsTranslationSection({
   const [isExpanded, setIsExpanded] = useState(false);
   const [trState, setTrState] = useState<LocaleFieldState>(createInitialLocaleState);
   const [enState, setEnState] = useState<LocaleFieldState>(createInitialLocaleState);
+
+  useEffect(() => {
+    const change = getPendingLocalizedFieldChange({
+      path,
+      value: trState.value,
+      publishedRecord: trState.publishedRecord,
+      isDirty: trState.isDirty,
+      hasDraft: trState.hasDraft,
+    });
+    onPendingChange?.('tr', path, change?.value ?? null);
+  }, [onPendingChange, path, trState.value, trState.publishedRecord, trState.isDirty, trState.hasDraft]);
+
+  useEffect(() => {
+    const change = getPendingLocalizedFieldChange({
+      path,
+      value: enState.value,
+      publishedRecord: enState.publishedRecord,
+      isDirty: enState.isDirty,
+      hasDraft: enState.hasDraft,
+    });
+    onPendingChange?.('en', path, change?.value ?? null);
+  }, [onPendingChange, path, enState.value, enState.publishedRecord, enState.isDirty, enState.hasDraft]);
 
   // Load existing draft or published records on mount / target-path change
   useEffect(() => {
@@ -246,34 +275,14 @@ export function CmsTranslationSection({
     updater((prev) => ({ ...prev, publishing: true, publishError: null }));
 
     try {
-      const [latestDraft, latestPublished] = await Promise.all([
-        repository.getDraft(target, locale),
-        repository.getPublished(target, locale),
-      ]);
-
-      const basePayload = resolveDraftBasePayload(
-        latestDraft,
-        latestPublished,
-        canonicalPayload,
-      );
-      const updatedPayload = updateNestedPayload(basePayload, path, currentState.value);
-
-      const latestActive = latestDraft ?? latestPublished ?? currentState.record;
-      const mergedManualPaths = [
-        ...(latestActive?.manualPaths ?? []),
-        ...currentState.manualPaths,
-      ];
-      const updatedManualPaths = recordManualPath(mergedManualPaths, path);
-
-      const saved = await executeCmsPublish({
+      const saved = await publishCmsLocalizationPatch({
         repository,
         target,
         locale,
         canonicalPayload,
-        payload: updatedPayload,
-        manualPaths: updatedManualPaths,
-        sourceVersion: latestActive?.sourceVersion ?? currentState.record?.sourceVersion,
+        changes: { [path]: currentState.value },
       });
+      const remainingDraft = await repository.getDraft(target, locale);
 
       updater((prev) => ({
         ...prev,
@@ -283,7 +292,7 @@ export function CmsTranslationSection({
         isStale: false,
         record: saved,
         publishedRecord: saved,
-        draftRecord: null,
+        draftRecord: remainingDraft,
         hasDraft: false,
         publishError: null,
       }));

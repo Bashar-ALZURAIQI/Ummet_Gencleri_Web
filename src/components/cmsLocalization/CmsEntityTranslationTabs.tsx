@@ -13,7 +13,7 @@ import type { CmsFieldKind } from '../../domain/cmsTranslatableFields.ts';
 import {
   recordManualPath,
   isTranslatableLocationValue,
-  executeCmsPublish,
+  publishCmsEntityFields,
 } from '../../domain/cmsLocalizationEditor.ts';
 import {
   useCmsLocalizationRepository,
@@ -455,32 +455,18 @@ export function CmsEntityTranslationTabs({
     updater((prev) => ({ ...prev, publishing: true, publishError: null }));
 
     try {
-      const [latestDraft, latestPublished] = await Promise.all([
-        repository.getDraft(target, locale),
-        repository.getPublished(target, locale),
-      ]);
-
-      const baseCandidate = latestDraft?.payload ?? latestPublished?.payload ?? canonicalPayload;
-      const nextPayload = buildUpdatedPayload(baseCandidate, recordId, target, localeTranslations);
-
-      const activeRecord = latestDraft ?? latestPublished;
-      let updatedManual = activeRecord?.manualPaths ? [...activeRecord.manualPaths] : [];
-      for (const f of fields) {
-        if (localeTranslations[f.name]?.trim()) {
-          const pathToAdd = recordId ? `${recordId}.${f.name}` : f.name;
-          updatedManual = recordManualPath(updatedManual, pathToAdd);
-        }
-      }
-
-      // Shared publish execution: delegates to executeCmsPublish (which calls repository.savePublished and repository.deleteDraft)
-      await executeCmsPublish({
+      const dirtyFields = Object.fromEntries(
+        fields
+          .filter((field) => localeTranslations[field.name] !== undefined)
+          .map((field) => [field.name, localeTranslations[field.name]]),
+      );
+      await publishCmsEntityFields({
         repository,
         target,
         locale,
         canonicalPayload,
-        payload: nextPayload,
-        manualPaths: updatedManual,
-        sourceVersion: activeRecord?.sourceVersion,
+        recordId,
+        fields: dirtyFields,
       });
 
       updater((prev) => ({

@@ -30,6 +30,7 @@ import { formatStatisticNumber } from '../domain/numberPresentation';
 import { CmsEntityTranslationTabs } from '../components/cmsLocalization/CmsEntityTranslationTabs';
 import { useCmsLocalizationRepository } from '../context/CmsLocalizationContext';
 import { computeSourceHash, type LocalizedCmsLocale, type JsonValue } from '../domain/cmsLocalization';
+import { publishCmsEntityLocales } from '../domain/cmsLocalizationEditor';
 
 const iconMap: Record<string, typeof Crown> = {
   Crown, UserCog, Megaphone, GraduationCap, ShieldCheck, CalendarDays, Wallet,
@@ -278,10 +279,27 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
     }))) return;
 
     if (!editingMember) {
-      for (const loc of ['tr', 'en'] as const) {
-        const trData = memberTranslations[loc];
-        if (trData.position?.trim()) {
-          try {
+      if (isPresident) {
+        try {
+          await publishCmsEntityLocales({
+            repository: localizationRepo, target: 'committees',
+            canonicalPayload: (canonicalCommittees ?? committees).map((committee) =>
+              committee.id === committeeId
+                ? { ...committee, members: [...(committee.members ?? []), { id: newMemberId, name: memberForm.name, position: memberForm.position, photo }] }
+                : committee,
+            ),
+            recordId: newMemberId, translations: memberTranslations,
+          });
+          await refreshPublishedLocalizations();
+        } catch {
+          alert(t('cmsLocalization.publishFailed', 'تعذر نشر الترجمة.'));
+          return;
+        }
+      } else {
+        for (const loc of ['tr', 'en'] as const) {
+          const trData = memberTranslations[loc];
+          if (trData.position?.trim()) {
+            try {
             const latest = await localizationRepo.getDraft('committees', loc);
             const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
               ? JSON.parse(JSON.stringify(latest.payload))
@@ -304,8 +322,9 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               sourceHash: computeSourceHash(committees),
               updatedAt: new Date().toISOString(),
             });
-          } catch {
-            // non-blocking
+            } catch {
+              // Draft-only roles keep their existing proposal workflow.
+            }
           }
         }
       }

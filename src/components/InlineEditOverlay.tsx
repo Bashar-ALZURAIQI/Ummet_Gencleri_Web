@@ -1,13 +1,14 @@
-import { useState, type ReactNode } from 'react';
+import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { Pencil, Save, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import Modal from './Modal';
 import ManagedFileField from './ManagedFileField';
 import { useApp } from '../context/AppContext';
 import { isCmsPathTranslatable, type CmsFieldKind } from '../domain/cmsTranslatableFields.ts';
-import { updateNestedPayload } from '../domain/cmsLocalizationEditor.ts';
-import type { JsonValue } from '../domain/cmsLocalization.ts';
+import { publishDirtyLocalizedFields, updateNestedPayload } from '../domain/cmsLocalizationEditor.ts';
+import type { JsonValue, LocalizedCmsLocale } from '../domain/cmsLocalization.ts';
 import { CmsTranslationSection } from './cmsLocalization/CmsTranslationSection.tsx';
+import { useCmsLocalizationRepository } from '../context/CmsLocalizationContext.tsx';
 
 export interface InlineEditConfig {
   path: string;
@@ -58,6 +59,14 @@ const ICON_OPTIONS = [
   'Globe', 'Mail', 'Phone', 'MapPin', 'CheckCircle2', 'Clock', 'FileText',
 ] as const;
 
+type PendingLocalizationMap = Partial<Record<LocalizedCmsLocale, Record<string, string>>>;
+
+function hasPendingLocalizations(changes: PendingLocalizationMap): boolean {
+  return Object.values(changes).some((localeChanges) =>
+    localeChanges && Object.keys(localeChanges).length > 0,
+  );
+}
+
 /**
  * Pure dot-notation getter to extract canonical Arabic values regardless of public locale.
  */
@@ -96,6 +105,8 @@ export function EditableField({
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const pendingLocalizations = useRef<PendingLocalizationMap>({});
+  const localizationRepository = useCmsLocalizationRepository();
 
   const { updateSiteField, updateAboutField } = useInlineEditContext();
   const {
@@ -127,9 +138,24 @@ export function EditableField({
     e.preventDefault();
     e.stopPropagation();
     setDraft(getCanonicalValue());
+    pendingLocalizations.current = {};
     setSaveError(null);
     setOpen(true);
   };
+
+  const handlePendingLocalizationChange = useCallback((
+    locale: LocalizedCmsLocale,
+    path: string,
+    value: string | null,
+  ) => {
+    const localeChanges = { ...(pendingLocalizations.current[locale] ?? {}) };
+    if (value !== null) localeChanges[path] = value;
+    else delete localeChanges[path];
+    pendingLocalizations.current = {
+      ...pendingLocalizations.current,
+      [locale]: localeChanges,
+    };
+  }, []);
 
   const isTranslatable =
     config.type !== 'image' &&
@@ -151,6 +177,21 @@ export function EditableField({
       if (!saved) {
         setSaveError(t('admin.siteEdits.saveFailed'));
         return;
+      }
+      if (canPublish && hasPendingLocalizations(pendingLocalizations.current)) {
+        try {
+          await publishDirtyLocalizedFields({
+            repository: localizationRepository,
+            target: config.target,
+            canonicalPayload,
+            changes: pendingLocalizations.current,
+          });
+          await refreshPublishedLocalizations();
+          pendingLocalizations.current = {};
+        } catch {
+          setSaveError(t('cmsLocalization.publishFailed', 'تعذر نشر الترجمة.'));
+          return;
+        }
       }
       setOpen(false);
     } catch {
@@ -228,6 +269,7 @@ export function EditableField({
               canonicalPayload={canonicalPayload}
               canEdit={canEdit}
               canPublish={canPublish}
+              onPendingChange={handlePendingLocalizationChange}
               onPublished={() => {
                 void refreshPublishedLocalizations();
               }}
@@ -278,6 +320,8 @@ export function EditableCard({
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const pendingLocalizations = useRef<PendingLocalizationMap>({});
+  const localizationRepository = useCmsLocalizationRepository();
 
   const { updateSiteFields, updateAboutFields } = useInlineEditContext();
   const {
@@ -313,9 +357,24 @@ export function EditableCard({
     e.preventDefault();
     e.stopPropagation();
     setDraft(getCanonicalCardValues());
+    pendingLocalizations.current = {};
     setSaveError(null);
     setOpen(true);
   };
+
+  const handlePendingLocalizationChange = useCallback((
+    locale: LocalizedCmsLocale,
+    path: string,
+    value: string | null,
+  ) => {
+    const localeChanges = { ...(pendingLocalizations.current[locale] ?? {}) };
+    if (value !== null) localeChanges[path] = value;
+    else delete localeChanges[path];
+    pendingLocalizations.current = {
+      ...pendingLocalizations.current,
+      [locale]: localeChanges,
+    };
+  }, []);
 
   let cardCanonicalPayload: JsonValue = canonicalBasePayload as unknown as JsonValue;
   for (const f of config.fields) {
@@ -341,6 +400,21 @@ export function EditableCard({
       if (!saved) {
         setSaveError(t('admin.siteEdits.saveGroupFailed'));
         return;
+      }
+      if (canPublish && hasPendingLocalizations(pendingLocalizations.current)) {
+        try {
+          await publishDirtyLocalizedFields({
+            repository: localizationRepository,
+            target: config.target,
+            canonicalPayload: cardCanonicalPayload,
+            changes: pendingLocalizations.current,
+          });
+          await refreshPublishedLocalizations();
+          pendingLocalizations.current = {};
+        } catch {
+          setSaveError(t('cmsLocalization.publishFailed', 'تعذر نشر الترجمة.'));
+          return;
+        }
       }
       setOpen(false);
     } catch {
@@ -429,6 +503,7 @@ export function EditableCard({
                     canonicalPayload={cardCanonicalPayload}
                     canEdit={canEdit}
                     canPublish={canPublish}
+                    onPendingChange={handlePendingLocalizationChange}
                     onPublished={() => {
                       void refreshPublishedLocalizations();
                     }}

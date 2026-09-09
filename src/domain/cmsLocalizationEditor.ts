@@ -195,22 +195,28 @@ export function updateNestedPayload(
     return newValue as JsonValue;
   }
 
-  // Clone or initialize base object
-  const base: Record<string, unknown> =
-    existingPayload && typeof existingPayload === 'object' && !Array.isArray(existingPayload)
+  const isArrayIndex = (segment: string) => /^\d+$/.test(segment);
+  const base: Record<string, unknown> | unknown[] =
+    existingPayload && typeof existingPayload === 'object'
       ? JSON.parse(JSON.stringify(existingPayload))
-      : {};
+      : isArrayIndex(segments[0]) ? [] : {};
 
-  let current: Record<string, unknown> = base;
+  let current: Record<string, unknown> | unknown[] = base;
   for (let i = 0; i < segments.length - 1; i++) {
     const seg = segments[i];
-    if (!current[seg] || typeof current[seg] !== 'object' || Array.isArray(current[seg])) {
-      current[seg] = {};
+    const key = Array.isArray(current) && isArrayIndex(seg) ? Number(seg) : seg;
+    const existing = current[key as keyof typeof current];
+    if (!existing || typeof existing !== 'object') {
+      current[key as keyof typeof current] = (isArrayIndex(segments[i + 1]) ? [] : {}) as never;
     }
-    current = current[seg] as Record<string, unknown>;
+    current = current[key as keyof typeof current] as Record<string, unknown> | unknown[];
   }
 
-  current[segments[segments.length - 1]] = newValue;
+  const finalSegment = segments[segments.length - 1];
+  const finalKey = Array.isArray(current) && isArrayIndex(finalSegment)
+    ? Number(finalSegment)
+    : finalSegment;
+  current[finalKey as keyof typeof current] = newValue as never;
   return base as JsonValue;
 }
 
@@ -256,6 +262,7 @@ export interface ExecuteCmsPublishParams {
   payload: JsonValue;
   manualPaths: readonly string[];
   sourceVersion?: string | number;
+  preserveDraft?: boolean;
 }
 
 /**
@@ -281,6 +288,7 @@ export async function executeCmsPublish(
     payload,
     manualPaths,
     sourceVersion,
+    preserveDraft = false,
   } = params;
 
   const recordToSave: CmsLocalizationRecord = {
@@ -298,11 +306,367 @@ export async function executeCmsPublish(
   const saved = await repository.savePublished(recordToSave);
 
   // Consume/delete draft so it never overrides fresh published record
-  try {
-    await repository.deleteDraft(target, locale);
-  } catch {
-    // Safe fallback if draft does not exist or delete is not permitted
+  if (!preserveDraft) {
+    try {
+      await repository.deleteDraft(target, locale);
+    } catch {
+      // Safe fallback if draft does not exist or delete is not permitted
+    }
   }
 
+  return saved;
+}
+
+export type DirtyLocalizedFields = Partial<
+  Record<LocalizedCmsLocale, Readonly<Record<string, string>>>
+>;
+
+export interface PendingLocalizedFieldParams {
+  path: string;
+  value: string;
+  publishedRecord: CmsLocalizationRecord | null | undefined;
+  isDirty: boolean;
+  hasDraft: boolean;
+}
+
+export function getPendingLocalizedFieldChange(
+  params: PendingLocalizedFieldParams,
+): { path: string; value: string } | null {
+  const { path, value, publishedRecord, isDirty, hasDraft } = params;
+  if (!isDirty && !hasDraft) return null;
+  const publishedValue = publishedRecord
+    ? deriveFieldLocalizationState(path, publishedRecord).value
+    : '';
+  return value === publishedValue ? null : { path, value };
+}
+
+export interface PublishDirtyLocalizedFieldsParams {
+  repository: Pick<
+    CmsLocalizationRepository,
+    'getDraft' | 'getPublished' | 'savePublished' | 'saveDraft' | 'deleteDraft'
+  >;
+  target: CmsTarget | string;
+  canonicalPayload: unknown;
+  changes: DirtyLocalizedFields;
+}
+
+/**
+ * Publishes an inline modal's pending localized fields once per locale.
+ * Each locale starts from its latest full draft/published payload so edited
+ * fields and already-published siblings cannot overwrite one another.
+ */
+export async function publishDirtyLocalizedFields(
+  params: PublishDirtyLocalizedFieldsParams,
+): Promise<Partial<Record<LocalizedCmsLocale, CmsLocalizationRecord>>> {
+  const { repository, target, canonicalPayload, changes } = params;
+  const published: Partial<Record<LocalizedCmsLocale, CmsLocalizationRecord>> = {};
+
+  for (const locale of ['tr', 'en'] as const) {
+    const localeChanges = Object.entries(changes[locale] ?? {});
+    if (localeChanges.length === 0) continue;
+
+    const [latestDraft, latestPublished] = await Promise.all([
+      repository.getDraft(target, locale),
+      repository.getPublished(target, locale),
+    ]);
+    const pendingChanges = localeChanges.filter(([path, value]) => {
+      const publishedValue = latestPublished
+        ? deriveFieldLocalizationState(path, latestPublished).value
+        : '';
+      return value !== publishedValue;
+    });
+    if (pendingChanges.length === 0) {
+      if (latestDraft && latestPublished) {
+        await reconcileConsumedDraft(
+          repository,
+          latestDraft,
+          latestPublished,
+          localeChanges.map(([path]) => path),
+        );
+      }
+      continue;
+    }
+
+    published[locale] = await publishCmsLocalizationPatch({
+      repository,
+      target,
+      locale,
+      canonicalPayload,
+      changes: Object.fromEntries(pendingChanges),
+    });
+  }
+
+  return published;
+}
+
+type PatchRepository = Pick<
+  CmsLocalizationRepository,
+  'getDraft' | 'getPublished' | 'savePublished' | 'saveDraft' | 'deleteDraft'
+>;
+
+function cloneJson<T>(value: T): T {
+  return value && typeof value === 'object'
+    ? JSON.parse(JSON.stringify(value)) as T
+    : value;
+}
+
+function isNumericKeyObject(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const keys = Object.keys(value);
+  return keys.length > 0 && keys.every((key) => /^\d+$/.test(key));
+}
+
+/** Rejects the production-corrupt shape where a canonical array became an object. */
+export function assertLocalizationShapeCompatible(
+  canonicalPayload: unknown,
+  localizedPayload: unknown,
+  path = 'root',
+): void {
+  if (localizedPayload === undefined || localizedPayload === null) return;
+  if (Array.isArray(canonicalPayload)) {
+    if (!Array.isArray(localizedPayload)) {
+      if (isNumericKeyObject(localizedPayload)) {
+        throw new Error(`Localization array shape mismatch at ${path}`);
+      }
+      throw new Error(`Localization array shape mismatch at ${path}`);
+    }
+    const localizedItems = localizedPayload as unknown[];
+    for (let index = 0; index < localizedItems.length; index += 1) {
+      const localizedItem = localizedItems[index];
+      const localizedId = localizedItem && typeof localizedItem === 'object'
+        ? (localizedItem as { id?: unknown }).id
+        : undefined;
+      const canonicalItem = localizedId !== undefined
+        ? canonicalPayload.find((item) => item && typeof item === 'object' && String((item as { id?: unknown }).id) === String(localizedId))
+        : canonicalPayload[index];
+      if (canonicalItem !== undefined) {
+        assertLocalizationShapeCompatible(canonicalItem, localizedItem, `${path}.${index}`);
+      }
+    }
+    return;
+  }
+  if (!canonicalPayload || typeof canonicalPayload !== 'object' || Array.isArray(localizedPayload)) return;
+  if (!localizedPayload || typeof localizedPayload !== 'object') return;
+  for (const [key, localizedValue] of Object.entries(localizedPayload as Record<string, unknown>)) {
+    if (key in (canonicalPayload as Record<string, unknown>)) {
+      assertLocalizationShapeCompatible(
+        (canonicalPayload as Record<string, unknown>)[key],
+        localizedValue,
+        `${path}.${key}`,
+      );
+    }
+  }
+}
+
+/** Fills missing canonical structure while preserving every existing localized value. */
+export function hydrateLocalizedPayload(canonicalPayload: unknown, localizedPayload: unknown): JsonValue {
+  if (localizedPayload === undefined || localizedPayload === null) return cloneJson(canonicalPayload) as JsonValue;
+  assertLocalizationShapeCompatible(canonicalPayload, localizedPayload);
+  if (Array.isArray(canonicalPayload)) {
+    const localizedItems = localizedPayload as unknown[];
+    return canonicalPayload.map((canonicalItem, index) => {
+      const canonicalId = canonicalItem && typeof canonicalItem === 'object'
+        ? (canonicalItem as { id?: unknown }).id
+        : undefined;
+      const localizedItem = canonicalId !== undefined
+        ? localizedItems.find((item) => item && typeof item === 'object' && String((item as { id?: unknown }).id) === String(canonicalId))
+        : localizedItems[index];
+      return hydrateLocalizedPayload(canonicalItem, localizedItem);
+    }) as JsonValue;
+  }
+  if (canonicalPayload && typeof canonicalPayload === 'object' && !Array.isArray(localizedPayload)) {
+    const canonicalObject = canonicalPayload as Record<string, unknown>;
+    const localizedObject = localizedPayload as Record<string, unknown>;
+    const result: Record<string, JsonValue> = {};
+    for (const [key, canonicalValue] of Object.entries(canonicalObject)) {
+      result[key] = hydrateLocalizedPayload(canonicalValue, localizedObject[key]);
+    }
+    for (const [key, localizedValue] of Object.entries(localizedObject)) {
+      if (!(key in result)) result[key] = cloneJson(localizedValue) as JsonValue;
+    }
+    return result;
+  }
+  return cloneJson(localizedPayload) as JsonValue;
+}
+
+function findEntityById(payload: unknown, recordId: string): Record<string, unknown> | null {
+  if (!payload || typeof payload !== 'object') return null;
+  if (!Array.isArray(payload) && String((payload as { id?: unknown }).id) === recordId) {
+    return payload as Record<string, unknown>;
+  }
+  const values = Array.isArray(payload) ? payload : Object.values(payload as Record<string, unknown>);
+  for (const value of values) {
+    const found = findEntityById(value, recordId);
+    if (found) return found;
+  }
+  return null;
+}
+
+function getLogicalPathValue(payload: unknown, path: string): unknown {
+  const direct = path.split('.').reduce<unknown>((current, segment) => {
+    if (!current || typeof current !== 'object') return undefined;
+    return (current as Record<string, unknown>)[segment];
+  }, payload);
+  if (direct !== undefined) return direct;
+  const [recordId, ...rest] = path.split('.');
+  const entity = findEntityById(payload, recordId);
+  if (!entity) return undefined;
+  return rest.reduce<unknown>((current, segment) => {
+    if (!current || typeof current !== 'object') return undefined;
+    return (current as Record<string, unknown>)[segment];
+  }, entity);
+}
+
+function updateLogicalPath(payload: JsonValue, path: string, value: unknown): JsonValue {
+  const [recordId, ...rest] = path.split('.');
+  const cloned = cloneJson(payload);
+  const entity = rest.length > 0 ? findEntityById(cloned, recordId) : null;
+  if (entity) {
+    const updatedEntity = updateNestedPayload(entity, rest.join('.'), value);
+    Object.keys(entity).forEach((key) => delete entity[key]);
+    Object.assign(entity, updatedEntity);
+    return cloned;
+  }
+  return updateNestedPayload(cloned, path, value);
+}
+
+async function reconcileConsumedDraft(
+  repository: PatchRepository,
+  draft: CmsLocalizationRecord | null,
+  published: CmsLocalizationRecord,
+  consumedPaths: readonly string[],
+): Promise<void> {
+  if (!draft) return;
+  const consumed = new Set(normalizeLocalizationPaths(consumedPaths));
+  const remainingPaths = normalizeLocalizationPaths(draft.manualPaths ?? [])
+    .filter((path) => !consumed.has(path));
+  if (remainingPaths.length === 0) {
+    await repository.deleteDraft(published.target, published.locale);
+    return;
+  }
+  let reconciledPayload = cloneJson(published.payload);
+  for (const path of remainingPaths) {
+    const value = getLogicalPathValue(draft.payload, path);
+    if (value !== undefined) reconciledPayload = updateLogicalPath(reconciledPayload, path, value);
+  }
+  assertLocalizationShapeCompatible(published.payload, reconciledPayload);
+  await repository.saveDraft({
+    ...draft,
+    payload: reconciledPayload,
+    partition: 'draft',
+    status: 'draft',
+    manualPaths: remainingPaths,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+export interface PublishCmsLocalizationPatchParams {
+  repository: PatchRepository;
+  target: CmsTarget | string;
+  locale: LocalizedCmsLocale;
+  canonicalPayload: unknown;
+  changes: Readonly<Record<string, string>>;
+}
+
+/** Publishes only explicit paths over latest published state; drafts are never a publish base. */
+export async function publishCmsLocalizationPatch(
+  params: PublishCmsLocalizationPatchParams,
+): Promise<CmsLocalizationRecord> {
+  const { repository, target, locale, canonicalPayload, changes } = params;
+  const [draft, latestPublished] = await Promise.all([
+    repository.getDraft(target, locale),
+    repository.getPublished(target, locale),
+  ]);
+  let payload = hydrateLocalizedPayload(canonicalPayload, latestPublished?.payload);
+  let manualPaths = [...(latestPublished?.manualPaths ?? [])];
+  for (const [path, value] of Object.entries(changes)) {
+    payload = updateNestedPayload(payload, path, value);
+    manualPaths = recordManualPath(manualPaths, path);
+  }
+  assertLocalizationShapeCompatible(canonicalPayload, payload);
+  const saved = await executeCmsPublish({
+    repository, target, locale, canonicalPayload, payload, manualPaths,
+    sourceVersion: latestPublished?.sourceVersion ?? draft?.sourceVersion,
+    preserveDraft: true,
+  });
+  await reconcileConsumedDraft(repository, draft, saved, Object.keys(changes));
+  return saved;
+}
+
+export interface PublishCmsEntityFieldsParams {
+  repository: PatchRepository;
+  target: CmsTarget | string;
+  locale: LocalizedCmsLocale;
+  canonicalPayload: unknown;
+  recordId: string | null;
+  fields: Readonly<Record<string, string>>;
+}
+
+export interface PublishCmsEntityLocalesParams extends Omit<PublishCmsEntityFieldsParams, 'locale' | 'fields'> {
+  translations: Partial<Record<LocalizedCmsLocale, Readonly<Record<string, string | undefined>>>>;
+}
+
+/** Publishes entered TR/EN values independently, once per locale, in deterministic order. */
+export async function publishCmsEntityLocales(
+  params: PublishCmsEntityLocalesParams,
+): Promise<Partial<Record<LocalizedCmsLocale, CmsLocalizationRecord>>> {
+  const { translations, ...shared } = params;
+  const results: Partial<Record<LocalizedCmsLocale, CmsLocalizationRecord>> = {};
+  for (const locale of ['tr', 'en'] as const) {
+    const fields = Object.fromEntries(
+      Object.entries(translations[locale] ?? {}).filter((entry): entry is [string, string] =>
+        typeof entry[1] === 'string' && entry[1].trim().length > 0,
+      ),
+    );
+    if (Object.keys(fields).length === 0) continue;
+    results[locale] = await publishCmsEntityFields({ ...shared, locale, fields });
+  }
+  return results;
+}
+
+/** Stable-ID entity patch publication preserving every unrelated entity and nested sibling. */
+export async function publishCmsEntityFields(
+  params: PublishCmsEntityFieldsParams,
+): Promise<CmsLocalizationRecord> {
+  const { repository, target, locale, canonicalPayload, recordId, fields } = params;
+  const patchesRootObject = !recordId || (
+    canonicalPayload !== null &&
+    typeof canonicalPayload === 'object' &&
+    !Array.isArray(canonicalPayload) &&
+    ['header', 'map', 'contactMap', 'generalInfo'].includes(recordId)
+  );
+  if (patchesRootObject) {
+    return publishCmsLocalizationPatch({ repository, target, locale, canonicalPayload, changes: fields });
+  }
+  const [draft, latestPublished] = await Promise.all([
+    repository.getDraft(target, locale),
+    repository.getPublished(target, locale),
+  ]);
+  const payload = hydrateLocalizedPayload(canonicalPayload, latestPublished?.payload);
+  let entity = findEntityById(payload, recordId);
+  if (!entity && recordId.includes('.stats.')) {
+    const [parentId, , indexText] = recordId.split('.');
+    const parent = findEntityById(payload, parentId);
+    const stats = parent?.stats;
+    if (Array.isArray(stats)) entity = stats[Number(indexText)] as Record<string, unknown> | undefined ?? null;
+  }
+  if (!entity) throw new Error(`Localization entity ${recordId} not found in canonical target ${target}`);
+  const consumedPaths: string[] = [];
+  let manualPaths = [...(latestPublished?.manualPaths ?? [])];
+  for (const [field, value] of Object.entries(fields)) {
+    const nextEntity = updateNestedPayload(entity, field, value);
+    Object.keys(entity).forEach((key) => delete entity[key]);
+    Object.assign(entity, nextEntity);
+    const logicalPath = `${recordId}.${field}`;
+    consumedPaths.push(logicalPath);
+    manualPaths = recordManualPath(manualPaths, logicalPath);
+  }
+  assertLocalizationShapeCompatible(canonicalPayload, payload);
+  const saved = await executeCmsPublish({
+    repository, target, locale, canonicalPayload, payload, manualPaths,
+    sourceVersion: latestPublished?.sourceVersion ?? draft?.sourceVersion,
+    preserveDraft: true,
+  });
+  await reconcileConsumedDraft(repository, draft, saved, consumedPaths);
   return saved;
 }

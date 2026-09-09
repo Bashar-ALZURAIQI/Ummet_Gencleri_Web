@@ -13,7 +13,8 @@ import { validateFaqCategory, validateFaqItem } from '../domain/cmsValidation';
 import type { FAQCategoryData, FAQItem, SiteEditDiff } from '../data/mockData';
 import { CmsEntityTranslationTabs } from '../components/cmsLocalization/CmsEntityTranslationTabs';
 import { useCmsLocalizationRepository } from '../context/CmsLocalizationContext';
-import { computeSourceHash, type LocalizedCmsLocale, type JsonValue } from '../domain/cmsLocalization';
+import { type LocalizedCmsLocale } from '../domain/cmsLocalization';
+import { publishCmsEntityLocales } from '../domain/cmsLocalizationEditor';
 
 const iconMap: Record<string, typeof HelpCircle> = {
   Users, ClipboardList, Shield, HelpCircle, Mail, BookOpen, Award, Heart, Megaphone, DollarSign,
@@ -142,28 +143,15 @@ export default function FAQPage() {
     if (!saved.ok) { alert(saved.error); return; }
 
     if (!editingCat) {
-      for (const loc of ['tr', 'en'] as const) {
-        const trData = catTranslations[loc];
-        if (trData.title?.trim()) {
-          try {
-            const latest = await localizationRepo.getDraft('faqCategories', loc);
-            const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
-              ? JSON.parse(JSON.stringify(latest.payload))
-              : [];
-            list.push({ id: newCatId, ...trData });
-            await localizationRepo.saveDraft({
-              target: 'faqCategories',
-              locale: loc,
-              payload: list as unknown as JsonValue,
-              status: 'draft',
-              manualPaths: [`${newCatId}.title`],
-              sourceHash: computeSourceHash(nextCategories),
-              updatedAt: new Date().toISOString(),
-            });
-          } catch {
-            // non-blocking
-          }
-        }
+      try {
+        await publishCmsEntityLocales({
+          repository: localizationRepo, target: 'faqCategories', canonicalPayload: nextCategories,
+          recordId: newCatId, translations: catTranslations,
+        });
+        await refreshPublishedLocalizations();
+      } catch {
+        alert(t('cmsLocalization.publishFailed', 'تعذر نشر الترجمة.'));
+        return;
       }
     }
 
@@ -261,36 +249,15 @@ export default function FAQPage() {
     if (!saved.ok) { alert(saved.error); return; }
 
     if (!editingQ) {
-      for (const loc of ['tr', 'en'] as const) {
-        const trData = qTranslations[loc];
-        if (trData.question?.trim() || trData.answer?.trim()) {
-          try {
-            const latest = await localizationRepo.getDraft('faqCategories', loc);
-            const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
-              ? JSON.parse(JSON.stringify(latest.payload))
-              : [];
-            const catIdx = list.findIndex((c) => c && c.id === qTargetCat);
-            if (catIdx >= 0) {
-              const catObj = list[catIdx];
-              const items = Array.isArray(catObj.items) ? [...catObj.items] : [];
-              items.push({ id: newItemId, ...trData });
-              catObj.items = items;
-            } else {
-              list.push({ id: qTargetCat, items: [{ id: newItemId, ...trData }] });
-            }
-            await localizationRepo.saveDraft({
-              target: 'faqCategories',
-              locale: loc,
-              payload: list as unknown as JsonValue,
-              status: 'draft',
-              manualPaths: [`${newItemId}.question`],
-              sourceHash: computeSourceHash(nextCategories),
-              updatedAt: new Date().toISOString(),
-            });
-          } catch {
-            // non-blocking
-          }
-        }
+      try {
+        await publishCmsEntityLocales({
+          repository: localizationRepo, target: 'faqCategories', canonicalPayload: nextCategories,
+          recordId: newItemId, translations: qTranslations,
+        });
+        await refreshPublishedLocalizations();
+      } catch {
+        alert(t('cmsLocalization.publishFailed', 'تعذر نشر الترجمة.'));
+        return;
       }
     }
 
