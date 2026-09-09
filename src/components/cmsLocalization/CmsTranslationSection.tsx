@@ -11,12 +11,12 @@ import {
 } from '../../domain/cmsLocalization.ts';
 import type { CmsFieldKind } from '../../domain/cmsTranslatableFields.ts';
 import {
-  deriveFieldLocalizationState,
   recordManualPath,
   updateNestedPayload,
-  resolveDraftBasePayload,
   publishCmsLocalizationPatch,
   getPendingLocalizedFieldChange,
+  hydrateLocalizedPayload,
+  resolveCmsLocalizationScope,
 } from '../../domain/cmsLocalizationEditor.ts';
 import {
   useCmsLocalizationRepository,
@@ -132,37 +132,31 @@ export function CmsTranslationSection({
           repository.getPublished(target, locale),
         ]);
 
-        const isDraftStaleComparedToPublished = Boolean(
-          publishedRecord &&
-          publishedRecord.status === 'fresh' &&
-          draftRecord &&
-          (!draftRecord.updatedAt || !publishedRecord.updatedAt || new Date(draftRecord.updatedAt) <= new Date(publishedRecord.updatedAt))
-        );
-
-        const hasDraft = Boolean(draftRecord && !isDraftStaleComparedToPublished);
-        // Precedence: draftRecord > publishedRecord (unless superseded by fresh publish)
-        const activeRecord = isDraftStaleComparedToPublished ? publishedRecord : (draftRecord ?? publishedRecord);
-        if (!activeRecord) {
+        const scope = resolveCmsLocalizationScope({
+          draftRecord,
+          publishedRecord,
+          recordId: null,
+          fieldPaths: [path],
+        });
+        if (!scope.record) {
           return {
             ...createInitialLocaleState(),
             draftRecord,
             publishedRecord,
-            hasDraft,
+            hasDraft: false,
           };
         }
-
-        const derived = deriveFieldLocalizationState(path, activeRecord);
         return {
-          value: derived.value,
-          status: derived.status,
-          isStale: derived.isStale,
-          isManual: derived.isManual,
+          value: scope.values[path] ?? '',
+          status: scope.status,
+          isStale: scope.isStale,
+          isManual: scope.isManual,
           isDirty: false,
-          manualPaths: activeRecord.manualPaths ?? [],
-          record: activeRecord,
+          manualPaths: scope.manualPaths,
+          record: scope.record,
           draftRecord,
           publishedRecord,
-          hasDraft,
+          hasDraft: scope.hasDraft,
           saving: false,
           saveError: null,
           publishing: false,
@@ -218,19 +212,12 @@ export function CmsTranslationSection({
         repository.getPublished(target, locale),
       ]);
 
-      const basePayload = resolveDraftBasePayload(
-        latestDraft,
-        latestPublished,
-        canonicalPayload,
-      );
+      let basePayload = hydrateLocalizedPayload(canonicalPayload, latestPublished?.payload);
+      if (latestDraft) basePayload = hydrateLocalizedPayload(basePayload, latestDraft.payload);
       const updatedPayload = updateNestedPayload(basePayload, path, currentState.value);
 
       const latestActive = latestDraft ?? latestPublished ?? currentState.record;
-      const mergedManualPaths = [
-        ...(latestActive?.manualPaths ?? []),
-        ...currentState.manualPaths,
-      ];
-      const updatedManualPaths = recordManualPath(mergedManualPaths, path);
+      const updatedManualPaths = recordManualPath(latestDraft?.manualPaths, path);
 
       const recordToSave: CmsLocalizationRecord = {
         target,
@@ -282,18 +269,30 @@ export function CmsTranslationSection({
         canonicalPayload,
         changes: { [path]: currentState.value },
       });
-      const remainingDraft = await repository.getDraft(target, locale);
+      const [remainingDraft, publishedRecord] = await Promise.all([
+        repository.getDraft(target, locale),
+        repository.getPublished(target, locale),
+      ]);
+      const scope = resolveCmsLocalizationScope({
+        draftRecord: remainingDraft,
+        publishedRecord,
+        recordId: null,
+        fieldPaths: [path],
+      });
 
       updater((prev) => ({
         ...prev,
         publishing: false,
         isDirty: false,
-        status: 'fresh',
-        isStale: false,
-        record: saved,
-        publishedRecord: saved,
+        value: scope.values[path] ?? prev.value,
+        status: scope.status,
+        isStale: scope.isStale,
+        isManual: scope.isManual,
+        manualPaths: scope.manualPaths,
+        record: scope.record ?? saved,
+        publishedRecord: publishedRecord ?? saved,
         draftRecord: remainingDraft,
-        hasDraft: false,
+        hasDraft: scope.hasDraft,
         publishError: null,
       }));
 

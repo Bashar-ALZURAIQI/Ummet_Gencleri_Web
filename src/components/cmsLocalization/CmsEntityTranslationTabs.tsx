@@ -4,16 +4,14 @@ import { Save, Globe, Info, CheckCircle2 } from 'lucide-react';
 import {
   type CmsTarget,
   type LocalizedCmsLocale,
-  type CmsLocalizationRecord,
   type LocalizationStatus,
-  type JsonValue,
-  computeSourceHash,
 } from '../../domain/cmsLocalization.ts';
 import type { CmsFieldKind } from '../../domain/cmsTranslatableFields.ts';
 import {
-  recordManualPath,
   isTranslatableLocationValue,
   publishCmsEntityFields,
+  resolveCmsLocalizationScope,
+  saveCmsEntityDraft,
 } from '../../domain/cmsLocalizationEditor.ts';
 import {
   useCmsLocalizationRepository,
@@ -66,152 +64,19 @@ const createInitialStatusState = (): LocaleStatusState => ({
   publishError: null,
 });
 
-function getFieldOrNestedValue(obj: Record<string, unknown>, path: string): string | undefined {
-  if (path in obj && typeof obj[path] === 'string') {
-    return obj[path] as string;
-  }
-  if (!path.includes('.')) {
-    return undefined;
-  }
-  const parts = path.split('.');
-  let curr: unknown = obj;
-  for (const part of parts) {
-    if (curr === null || curr === undefined) return undefined;
-    if (Array.isArray(curr)) {
-      const idx = parseInt(part, 10);
-      if (isNaN(idx)) return undefined;
-      curr = curr[idx];
-    } else if (typeof curr === 'object') {
-      curr = (curr as Record<string, unknown>)[part];
-    } else {
-      return undefined;
-    }
-  }
-  return typeof curr === 'string' ? curr : undefined;
-}
-
-function applyFieldTranslations(
-  targetObj: Record<string, unknown>,
-  translations: Record<string, string>,
-) {
-  for (const [key, val] of Object.entries(translations)) {
-    if (key.includes('.')) {
-      const parts = key.split('.');
-      let curr: Record<string, unknown> | unknown[] = targetObj;
-      for (let i = 0; i < parts.length - 1; i++) {
-        const p = parts[i];
-        const nextP = parts[i + 1];
-        const isNextIndex = /^\d+$/.test(nextP);
-        if (Array.isArray(curr)) {
-          const idx = parseInt(p, 10);
-          if (!curr[idx] || typeof curr[idx] !== 'object') {
-            curr[idx] = isNextIndex ? [] : {};
-          }
-          curr = curr[idx] as Record<string, unknown> | unknown[];
-        } else {
-          const obj = curr as Record<string, unknown>;
-          if (obj[p] === undefined || obj[p] === null || typeof obj[p] !== 'object') {
-            obj[p] = isNextIndex ? [] : {};
-          }
-          curr = obj[p] as Record<string, unknown> | unknown[];
-        }
-      }
-      const last = parts[parts.length - 1];
-      if (Array.isArray(curr)) {
-        const idx = parseInt(last, 10);
-        curr[idx] = val;
-      } else {
-        (curr as Record<string, unknown>)[last] = val;
-      }
-    } else {
-      targetObj[key] = val;
-    }
-  }
-}
-
-function buildUpdatedPayload(
-  baseCandidate: unknown,
-  recordId: string | null,
-  target: CmsTarget | string,
-  localeTranslations: Record<string, string>,
-): JsonValue {
-  if (Array.isArray(baseCandidate)) {
-    const list: Record<string, unknown>[] = JSON.parse(JSON.stringify(baseCandidate));
-    let found = false;
-    if (recordId && recordId.includes('.stats.')) {
-      const [commId, , sIdx] = recordId.split('.');
-      const comm = list.find((c) => c && c.id === commId);
-      if (comm) {
-        if (!Array.isArray(comm.stats)) comm.stats = [];
-        const statsList = comm.stats as Record<string, unknown>[];
-        const sIndex = parseInt(sIdx, 10);
-        if (!statsList[sIndex]) statsList[sIndex] = {};
-        applyFieldTranslations(statsList[sIndex], localeTranslations);
-        found = true;
-      }
-    } else {
-      const idx = list.findIndex((el) => el && el.id === recordId);
-      if (idx >= 0) {
-        applyFieldTranslations(list[idx], localeTranslations);
-        found = true;
-      } else {
-        // Check nested in items, members, or media
-        for (const el of list) {
-          if (el && typeof el === 'object') {
-            for (const key of ['items', 'members', 'media'] as const) {
-              if (Array.isArray(el[key])) {
-                const nestedList = el[key] as Record<string, unknown>[];
-                const nIdx = nestedList.findIndex((n) => n && n.id === recordId);
-                if (nIdx >= 0) {
-                  applyFieldTranslations(nestedList[nIdx], localeTranslations);
-                  found = true;
-                  break;
-                }
-              }
-            }
-            if (found) break;
-          }
-        }
-      }
-    }
-    if (!found && recordId && !recordId.includes('.stats.')) {
-      const newItem: Record<string, unknown> = { id: recordId };
-      applyFieldTranslations(newItem, localeTranslations);
-      list.push(newItem);
-    }
-    return list as unknown as JsonValue;
-  } else {
-    const obj: Record<string, unknown> =
-      baseCandidate && typeof baseCandidate === 'object'
-        ? JSON.parse(JSON.stringify(baseCandidate))
-        : {};
-    let found = false;
-    if (
-      obj.id === recordId ||
-      (!obj.id && (!recordId || recordId === 'map' || recordId === 'contactMap' || recordId === 'header' || target === 'programsContent' || target === 'site' || target === 'about' || target === 'generalInfo'))
-    ) {
-      applyFieldTranslations(obj, localeTranslations);
-      found = true;
-    } else {
-      for (const key of ['items', 'members', 'media'] as const) {
-        if (Array.isArray(obj[key])) {
-          const nestedList = obj[key] as Record<string, unknown>[];
-          const nIdx = nestedList.findIndex((n) => n && n.id === recordId);
-          if (nIdx >= 0) {
-            applyFieldTranslations(nestedList[nIdx], localeTranslations);
-            found = true;
-            break;
-          }
-        }
-      }
-    }
-    if (!found && recordId) {
-      const targetNested = ((obj[recordId] as Record<string, unknown>) ?? {});
-      applyFieldTranslations(targetNested, localeTranslations);
-      obj[recordId] = targetNested;
-    }
-    return obj as unknown as JsonValue;
-  }
+function statusStateFromScope(
+  scope: ReturnType<typeof resolveCmsLocalizationScope>,
+): LocaleStatusState {
+  return {
+    status: scope.status,
+    isStale: scope.isStale,
+    isManual: scope.isManual,
+    manualPaths: scope.manualPaths,
+    saving: false,
+    saveError: null,
+    publishing: false,
+    publishError: null,
+  };
 }
 
 export function CmsEntityTranslationTabs({
@@ -252,108 +117,15 @@ export function CmsEntityTranslationTabs({
           repository.getPublished(target, locale),
         ]);
 
-        // If published is fresh and equal or newer than draft, prefer publishedRecord
-        const isDraftStaleComparedToPublished = Boolean(
-          publishedRecord &&
-          publishedRecord.status === 'fresh' &&
-          draftRecord &&
-          (!draftRecord.updatedAt || !publishedRecord.updatedAt || new Date(draftRecord.updatedAt) <= new Date(publishedRecord.updatedAt))
-        );
-
-        const activeRecord = (isDraftStaleComparedToPublished ? publishedRecord : draftRecord) ?? publishedRecord;
-        if (!activeRecord || !recordId) {
-          return { statusState: createInitialStatusState(), loadedFields: {} };
-        }
-
-        // Find item in payload
-        let item: Record<string, unknown> | null = null;
-        if (Array.isArray(activeRecord.payload)) {
-          if (recordId && recordId.includes('.stats.')) {
-            const [commId, , sIdx] = recordId.split('.');
-            const comm = (activeRecord.payload as Record<string, unknown>[]).find(
-              (c) => c && c.id === commId,
-            );
-            if (comm && Array.isArray(comm.stats)) {
-              item = comm.stats[parseInt(sIdx, 10)] as Record<string, unknown>;
-            }
-          } else {
-            item = (activeRecord.payload as Record<string, unknown>[]).find(
-              (el) => el && typeof el === 'object' && el.id === recordId,
-            ) ?? null;
-            if (!item) {
-              for (const candidate of activeRecord.payload as Record<string, unknown>[]) {
-                if (candidate && typeof candidate === 'object') {
-                  for (const key of ['items', 'members', 'media'] as const) {
-                    if (Array.isArray(candidate[key])) {
-                      const nested = (candidate[key] as Record<string, unknown>[]).find(
-                        (n) => n && typeof n === 'object' && n.id === recordId,
-                      );
-                      if (nested) {
-                        item = nested;
-                        break;
-                      }
-                    }
-                  }
-                  if (item) break;
-                }
-              }
-            }
-          }
-        } else if (
-          activeRecord.payload &&
-          typeof activeRecord.payload === 'object'
-        ) {
-          const payloadObj = activeRecord.payload as Record<string, unknown>;
-          if (
-            payloadObj.id === recordId ||
-            (!payloadObj.id && (!recordId || recordId === 'map' || recordId === 'contactMap' || recordId === 'header' || target === 'programsContent' || target === 'site' || target === 'about' || target === 'generalInfo'))
-          ) {
-            item = payloadObj;
-          } else {
-            for (const key of ['items', 'members', 'media'] as const) {
-              if (Array.isArray(payloadObj[key])) {
-                const nestedList = (payloadObj[key] as Record<string, unknown>[]).find(
-                  (n) => n && typeof n === 'object' && n.id === recordId,
-                );
-                if (nestedList) {
-                  item = nestedList;
-                  break;
-                }
-              }
-            }
-            if (!item && recordId && payloadObj[recordId] && typeof payloadObj[recordId] === 'object') {
-              item = payloadObj[recordId] as Record<string, unknown>;
-            }
-          }
-        }
-
-        const loadedFields: Record<string, string> = {};
-        if (item) {
-          for (const f of fields) {
-            const val = getFieldOrNestedValue(item, f.name);
-            if (typeof val === 'string') {
-              loadedFields[f.name] = val;
-            }
-          }
-        }
-
-        const hasAnyContent = Object.values(loadedFields).some((v) => v.trim().length > 0);
-        const derivedStatus: LocalizationStatus = hasAnyContent
-          ? activeRecord.status
-          : 'missing';
-
+        const scope = resolveCmsLocalizationScope({
+          draftRecord,
+          publishedRecord,
+          recordId,
+          fieldPaths: fields.map((field) => field.name),
+        });
         return {
-          statusState: {
-            status: derivedStatus,
-            isStale: activeRecord.status === 'stale',
-            isManual: true,
-            manualPaths: activeRecord.manualPaths ?? [],
-            saving: false,
-            saveError: null,
-            publishing: false,
-            publishError: null,
-          },
-          loadedFields,
+          statusState: statusStateFromScope(scope),
+          loadedFields: scope.values,
         };
       } catch {
         return { statusState: createInitialStatusState(), loadedFields: {} };
@@ -399,41 +171,25 @@ export function CmsEntityTranslationTabs({
     updater((prev) => ({ ...prev, saving: true, saveError: null }));
 
     try {
-      const [latestDraft, latestPublished] = await Promise.all([
-        repository.getDraft(target, locale),
-        repository.getPublished(target, locale),
-      ]);
-
-      const baseCandidate = latestDraft?.payload ?? latestPublished?.payload ?? canonicalPayload;
-      const nextPayload = buildUpdatedPayload(baseCandidate, recordId, target, localeTranslations);
-
-      const activeRecord = latestDraft ?? latestPublished;
-      let updatedManual = activeRecord?.manualPaths ? [...activeRecord.manualPaths] : [];
-      for (const f of fields) {
-        if (localeTranslations[f.name]?.trim()) {
-          const pathToAdd = recordId ? `${recordId}.${f.name}` : f.name;
-          updatedManual = recordManualPath(updatedManual, pathToAdd);
-        }
-      }
-
-      const recordToSave: CmsLocalizationRecord = {
+      const saved = await saveCmsEntityDraft({
+        repository,
         target,
         locale,
-        payload: nextPayload,
-        status: 'draft',
-        manualPaths: updatedManual,
-        stalePaths: activeRecord?.stalePaths ?? [],
-        sourceHash: computeSourceHash(canonicalPayload),
-        sourceVersion: activeRecord?.sourceVersion,
-        updatedAt: new Date().toISOString(),
-      };
-
-      await repository.saveDraft(recordToSave);
+        canonicalPayload,
+        recordId,
+        fields: localeTranslations,
+      });
+      const publishedRecord = await repository.getPublished(target, locale);
+      const scope = resolveCmsLocalizationScope({
+        draftRecord: saved,
+        publishedRecord,
+        recordId,
+        fieldPaths: fields.map((field) => field.name),
+      });
 
       updater((prev) => ({
         ...prev,
-        saving: false,
-        status: 'draft',
+        ...statusStateFromScope(scope),
         saveError: null,
       }));
 
@@ -468,12 +224,20 @@ export function CmsEntityTranslationTabs({
         recordId,
         fields: dirtyFields,
       });
+      const [draftRecord, publishedRecord] = await Promise.all([
+        repository.getDraft(target, locale),
+        repository.getPublished(target, locale),
+      ]);
+      const scope = resolveCmsLocalizationScope({
+        draftRecord,
+        publishedRecord,
+        recordId,
+        fieldPaths: fields.map((field) => field.name),
+      });
 
       updater((prev) => ({
         ...prev,
-        publishing: false,
-        status: 'fresh',
-        isStale: false,
+        ...statusStateFromScope(scope),
         publishError: null,
       }));
 

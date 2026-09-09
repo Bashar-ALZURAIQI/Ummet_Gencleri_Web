@@ -558,10 +558,10 @@ test('42. CmsTranslationSection uses async cancellation cleanup to prevent race 
   assert.match(source, /getPublished/);
 });
 
-test('43. CmsTranslationSection prefers draft over published for initial editor state', async () => {
+test('43. CmsTranslationSection resolves initial state at the current field scope', async () => {
   const source = await readSectionSource();
-  // Checks draft first, falls back to published
-  assert.match(source, /draftRecord\s*\?\s*|draft\s*\?/);
+  assert.match(source, /resolveCmsLocalizationScope/);
+  assert.match(source, /fieldPaths:\s*\[path\]/);
 });
 
 test('44. CmsTranslationSection calls repository.saveDraft and never calls savePublished on draft save', async () => {
@@ -590,10 +590,10 @@ test('47. CmsTranslationSection respects canEdit=false by disabling inputs and a
   assert.match(source, /disabled=\{/);
 });
 
-test('48. CmsTranslationSection uses updateNestedPayload and resolveDraftBasePayload for safe payload updates', async () => {
+test('48. CmsTranslationSection hydrates published and draft payloads before safe nested updates', async () => {
   const source = await readSectionSource();
   assert.match(source, /updateNestedPayload/);
-  assert.match(source, /resolveDraftBasePayload/);
+  assert.match(source, /hydrateLocalizedPayload/);
 });
 
 test('49. CmsTranslationSection uses computeSourceHash on canonicalPayload, NOT canonicalValue', async () => {

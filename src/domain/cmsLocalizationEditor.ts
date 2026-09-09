@@ -526,17 +526,115 @@ export function hydrateLocalizedPayload(canonicalPayload: unknown, localizedPayl
   return cloneJson(localizedPayload) as JsonValue;
 }
 
-function findEntityById(payload: unknown, recordId: string): Record<string, unknown> | null {
+/** Recursively locates a CMS entity by stable id in any object/array nesting. */
+export function findCmsEntityById(payload: unknown, recordId: string): Record<string, unknown> | null {
   if (!payload || typeof payload !== 'object') return null;
   if (!Array.isArray(payload) && String((payload as { id?: unknown }).id) === recordId) {
     return payload as Record<string, unknown>;
   }
   const values = Array.isArray(payload) ? payload : Object.values(payload as Record<string, unknown>);
   for (const value of values) {
-    const found = findEntityById(value, recordId);
+    const found = findCmsEntityById(value, recordId);
     if (found) return found;
   }
   return null;
+}
+
+function findCmsEntityScope(payload: unknown, recordId: string): Record<string, unknown> | null {
+  if (recordId.includes('.stats.')) {
+    const [parentId, , indexText] = recordId.split('.');
+    const parent = findCmsEntityById(payload, parentId);
+    const stats = parent?.stats;
+    if (Array.isArray(stats)) {
+      const item = stats[Number(indexText)];
+      return item && typeof item === 'object' ? item as Record<string, unknown> : null;
+    }
+  }
+  return findCmsEntityById(payload, recordId);
+}
+
+function readScopeValues(
+  record: CmsLocalizationRecord | null | undefined,
+  recordId: string | null | undefined,
+  fieldPaths: readonly string[],
+): Record<string, string> {
+  if (!record) return {};
+  const scope = recordId ? findCmsEntityScope(record.payload, recordId) : record.payload;
+  const values: Record<string, string> = {};
+  for (const fieldPath of fieldPaths) {
+    const value = extractFieldValue(scope, fieldPath);
+    if (typeof value === 'string') values[fieldPath] = value;
+  }
+  return values;
+}
+
+function logicalScopePath(recordId: string | null | undefined, fieldPath: string): string {
+  return recordId ? `${recordId}.${fieldPath}` : fieldPath;
+}
+
+function pathsOverlap(left: string, right: string): boolean {
+  return left === right || left.startsWith(`${right}.`) || right.startsWith(`${left}.`);
+}
+
+export interface ResolveCmsLocalizationScopeParams {
+  draftRecord: CmsLocalizationRecord | null | undefined;
+  publishedRecord: CmsLocalizationRecord | null | undefined;
+  recordId?: string | null;
+  fieldPaths: readonly string[];
+}
+
+export interface CmsLocalizationScopeResolution {
+  record: CmsLocalizationRecord | null;
+  status: LocalizationStatus;
+  values: Record<string, string>;
+  hasDraft: boolean;
+  isStale: boolean;
+  isManual: boolean;
+  manualPaths: readonly string[];
+}
+
+/** Resolves draft/published state only for the currently edited entity or field paths. */
+export function resolveCmsLocalizationScope(
+  params: ResolveCmsLocalizationScopeParams,
+): CmsLocalizationScopeResolution {
+  const { draftRecord, publishedRecord, recordId, fieldPaths } = params;
+  const draftValues = readScopeValues(draftRecord, recordId, fieldPaths);
+  const publishedValues = readScopeValues(publishedRecord, recordId, fieldPaths);
+  const scopePaths = fieldPaths.map((fieldPath) => logicalScopePath(recordId, fieldPath));
+  const draftManualPaths = normalizeLocalizationPaths(draftRecord?.manualPaths ?? []);
+  const relevantDraftPaths = draftManualPaths.filter((manualPath) =>
+    scopePaths.some((scopePath) => pathsOverlap(manualPath, scopePath)),
+  );
+  const hasDraft = Boolean(draftRecord && relevantDraftPaths.some((manualPath) => {
+    const matchingIndex = scopePaths.findIndex((scopePath) => pathsOverlap(manualPath, scopePath));
+    if (matchingIndex < 0) return false;
+    const fieldPath = fieldPaths[matchingIndex];
+    return (draftValues[fieldPath] ?? '') !== (publishedValues[fieldPath] ?? '');
+  }));
+  const record = (hasDraft ? draftRecord : publishedRecord) ?? null;
+  const values = hasDraft ? draftValues : publishedValues;
+  const hasPublishedContent = Object.values(values).some((value) => value.trim().length > 0);
+  const status: LocalizationStatus = hasDraft
+    ? 'draft'
+    : record && hasPublishedContent
+      ? record.status
+      : 'missing';
+  const activeManualPaths = normalizeLocalizationPaths(record?.manualPaths ?? []);
+  const relevantActivePaths = activeManualPaths.filter((manualPath) =>
+    scopePaths.some((scopePath) => pathsOverlap(manualPath, scopePath)),
+  );
+  const relevantStalePaths = normalizeLocalizationPaths(record?.stalePaths ?? []).filter((stalePath) =>
+    scopePaths.some((scopePath) => pathsOverlap(stalePath, scopePath)),
+  );
+  return {
+    record,
+    status,
+    values,
+    hasDraft,
+    isStale: status === 'stale' || relevantStalePaths.length > 0,
+    isManual: relevantActivePaths.length > 0,
+    manualPaths: activeManualPaths,
+  };
 }
 
 function getLogicalPathValue(payload: unknown, path: string): unknown {
@@ -546,7 +644,7 @@ function getLogicalPathValue(payload: unknown, path: string): unknown {
   }, payload);
   if (direct !== undefined) return direct;
   const [recordId, ...rest] = path.split('.');
-  const entity = findEntityById(payload, recordId);
+  const entity = findCmsEntityById(payload, recordId);
   if (!entity) return undefined;
   return rest.reduce<unknown>((current, segment) => {
     if (!current || typeof current !== 'object') return undefined;
@@ -557,7 +655,7 @@ function getLogicalPathValue(payload: unknown, path: string): unknown {
 function updateLogicalPath(payload: JsonValue, path: string, value: unknown): JsonValue {
   const [recordId, ...rest] = path.split('.');
   const cloned = cloneJson(payload);
-  const entity = rest.length > 0 ? findEntityById(cloned, recordId) : null;
+  const entity = rest.length > 0 ? findCmsEntityById(cloned, recordId) : null;
   if (entity) {
     const updatedEntity = updateNestedPayload(entity, rest.join('.'), value);
     Object.keys(entity).forEach((key) => delete entity[key]);
@@ -593,6 +691,80 @@ async function reconcileConsumedDraft(
     partition: 'draft',
     status: 'draft',
     manualPaths: remainingPaths,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+function patchesRootEntity(payload: unknown, recordId: string | null): boolean {
+  return !recordId || (
+    payload !== null &&
+    typeof payload === 'object' &&
+    !Array.isArray(payload) &&
+    ['header', 'map', 'contactMap', 'generalInfo'].includes(recordId)
+  );
+}
+
+export interface UpdateCmsEntityFieldsParams {
+  payload: unknown;
+  target: CmsTarget | string;
+  recordId: string | null;
+  fields: Readonly<Record<string, string>>;
+}
+
+/** Applies field changes to one stable-id entity without creating root-level id keys. */
+export function updateCmsEntityFields(params: UpdateCmsEntityFieldsParams): JsonValue {
+  const { target, recordId, fields } = params;
+  const payload = cloneJson(params.payload) as JsonValue;
+  const rootPatch = patchesRootEntity(payload, recordId);
+  const entity = rootPatch
+    ? payload && typeof payload === 'object' && !Array.isArray(payload)
+      ? payload as Record<string, unknown>
+      : null
+    : recordId
+      ? findCmsEntityScope(payload, recordId)
+      : null;
+  if (!entity) throw new Error(`Localization entity ${String(recordId)} not found in target ${target}`);
+  for (const [field, value] of Object.entries(fields)) {
+    const nextEntity = updateNestedPayload(entity, field, value);
+    Object.keys(entity).forEach((key) => delete entity[key]);
+    Object.assign(entity, nextEntity);
+  }
+  return payload;
+}
+
+export interface SaveCmsEntityDraftParams extends Omit<UpdateCmsEntityFieldsParams, 'payload'> {
+  repository: Pick<CmsLocalizationRepository, 'getDraft' | 'getPublished' | 'saveDraft'>;
+  locale: LocalizedCmsLocale;
+  canonicalPayload: unknown;
+}
+
+/** Persists a scope-safe entity draft while preserving all published and unrelated draft content. */
+export async function saveCmsEntityDraft(
+  params: SaveCmsEntityDraftParams,
+): Promise<CmsLocalizationRecord> {
+  const { repository, target, locale, canonicalPayload, recordId, fields } = params;
+  const [latestDraft, latestPublished] = await Promise.all([
+    repository.getDraft(target, locale),
+    repository.getPublished(target, locale),
+  ]);
+  let basePayload = hydrateLocalizedPayload(canonicalPayload, latestPublished?.payload);
+  if (latestDraft) basePayload = hydrateLocalizedPayload(basePayload, latestDraft.payload);
+  const payload = updateCmsEntityFields({ payload: basePayload, target, recordId, fields });
+  let manualPaths = [...(latestDraft?.manualPaths ?? [])];
+  for (const field of Object.keys(fields)) {
+    manualPaths = recordManualPath(manualPaths, logicalScopePath(recordId, field));
+  }
+  assertLocalizationShapeCompatible(canonicalPayload, payload);
+  return repository.saveDraft({
+    target,
+    locale,
+    partition: 'draft',
+    payload,
+    status: 'draft',
+    manualPaths,
+    stalePaths: latestDraft?.stalePaths ?? latestPublished?.stalePaths ?? [],
+    sourceHash: computeSourceHash(canonicalPayload),
+    sourceVersion: latestDraft?.sourceVersion ?? latestPublished?.sourceVersion,
     updatedAt: new Date().toISOString(),
   });
 }
@@ -666,12 +838,7 @@ export async function publishCmsEntityFields(
   params: PublishCmsEntityFieldsParams,
 ): Promise<CmsLocalizationRecord> {
   const { repository, target, locale, canonicalPayload, recordId, fields } = params;
-  const patchesRootObject = !recordId || (
-    canonicalPayload !== null &&
-    typeof canonicalPayload === 'object' &&
-    !Array.isArray(canonicalPayload) &&
-    ['header', 'map', 'contactMap', 'generalInfo'].includes(recordId)
-  );
+  const patchesRootObject = patchesRootEntity(canonicalPayload, recordId);
   if (patchesRootObject) {
     return publishCmsLocalizationPatch({ repository, target, locale, canonicalPayload, changes: fields });
   }
@@ -680,13 +847,8 @@ export async function publishCmsEntityFields(
     repository.getPublished(target, locale),
   ]);
   const payload = hydrateLocalizedPayload(canonicalPayload, latestPublished?.payload);
-  let entity = findEntityById(payload, recordId);
-  if (!entity && recordId.includes('.stats.')) {
-    const [parentId, , indexText] = recordId.split('.');
-    const parent = findEntityById(payload, parentId);
-    const stats = parent?.stats;
-    if (Array.isArray(stats)) entity = stats[Number(indexText)] as Record<string, unknown> | undefined ?? null;
-  }
+  if (!recordId) throw new Error(`Localization entity id is required for target ${target}`);
+  const entity = findCmsEntityScope(payload, recordId);
   if (!entity) throw new Error(`Localization entity ${recordId} not found in canonical target ${target}`);
   const consumedPaths: string[] = [];
   let manualPaths = [...(latestPublished?.manualPaths ?? [])];

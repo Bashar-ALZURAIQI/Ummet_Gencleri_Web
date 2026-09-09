@@ -69,7 +69,7 @@ test('7. CmsEntityTranslationTabs.tsx exposes manual save draft & publish action
   const code = await readFile(new URL('../src/components/cmsLocalization/CmsEntityTranslationTabs.tsx', import.meta.url), 'utf8');
   assert.match(code, /handleSaveDraft/);
   assert.match(code, /handlePublish/);
-  assert.match(code, /repository\.saveDraft/);
+  assert.match(code, /saveCmsEntityDraft/);
   assert.match(code, /publishCmsEntityFields/);
 });
 
