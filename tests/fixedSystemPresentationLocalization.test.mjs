@@ -303,8 +303,8 @@ test('31. Unknown academic year falls back raw', async () => {
 
 test('32. Dynamic event title and description remain untouched', () => {
   const programs = read('src/pages/ProgramsPage.tsx');
-  assert.match(programs, /e\.title/);
-  assert.match(programs, /e\.description/);
+  assert.match(programs, /<EventCard[\s\S]*?event=\{e\}/);
+  assert.doesNotMatch(programs, /t\(e\.(?:title|description)/);
 });
 
 test('33. No Supabase schema/database changes or migrations introduced', () => {

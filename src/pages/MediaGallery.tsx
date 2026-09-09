@@ -14,7 +14,7 @@ import ManagedFileField from '../components/ManagedFileField';
 import { CmsEntityTranslationTabs } from '../components/cmsLocalization/CmsEntityTranslationTabs';
 import { useCmsLocalizationRepository } from '../context/CmsLocalizationContext';
 import { type LocalizedCmsLocale } from '../domain/cmsLocalization';
-import { publishCmsEntityLocales } from '../domain/cmsLocalizationEditor';
+import { publishCmsEntityLocales, resolveCanonicalEntityById } from '../domain/cmsLocalizationEditor';
 import { formatPublicDate } from '../domain/datePresentation';
 
 export default function MediaGallery() {
@@ -71,21 +71,22 @@ export default function MediaGallery() {
       return;
     }
     const loc = (i18n.language === 'tr' ? 'tr' : 'en') as LocalizedCmsLocale;
-    void Promise.all([
-      localizationRepo.getDraft('galleryCategories', loc),
-      localizationRepo.getPublished('galleryCategories', loc),
-    ]).then(([draft, pub]) => {
-      const rec = draft ?? pub;
+    let cancelled = false;
+    void localizationRepo.getPublished('galleryCategories', loc).then((rec) => {
+      if (cancelled) return;
+      const map: Record<string, string> = {};
       if (rec && Array.isArray(rec.payload)) {
-        const map: Record<string, string> = {};
         for (const item of rec.payload as Record<string, unknown>[]) {
           if (item && typeof item.id === 'string' && typeof item.label === 'string' && item.label.trim()) {
             map[item.id] = item.label;
           }
         }
-        setLocalizedCategories(map);
       }
+      setLocalizedCategories(map);
+    }).catch(() => {
+      if (!cancelled) setLocalizedCategories({});
     });
+    return () => { cancelled = true; };
   }, [i18n.language, localizationRepo, galleryCategories]);
 
   const [mediaForm, setMediaForm] = useState({
@@ -155,12 +156,13 @@ export default function MediaGallery() {
   };
 
   const openEditAlbum = (album: GalleryAlbum) => {
-    setEditingAlbum(album);
+    const canonicalAlbum = resolveCanonicalEntityById(canonicalGalleryAlbums ?? galleryAlbums, album);
+    setEditingAlbum(canonicalAlbum);
     setAlbumTranslations({ tr: {}, en: {} });
     setAlbumForm({
-      title: album.title, categoryId: album.categoryId, date: album.date,
-      location: album.location, coverImage: album.coverImage,
-      photoCount: album.photoCount, videoCount: album.videoCount, description: album.description,
+      title: canonicalAlbum.title, categoryId: canonicalAlbum.categoryId, date: canonicalAlbum.date,
+      location: canonicalAlbum.location, coverImage: canonicalAlbum.coverImage,
+      photoCount: canonicalAlbum.photoCount, videoCount: canonicalAlbum.videoCount, description: canonicalAlbum.description,
     });
     setAlbumModalOpen(true);
   };
@@ -234,7 +236,7 @@ export default function MediaGallery() {
 
   const deleteAlbum = async (id: string) => {
     if (!confirm('هل أنت متأكد من حذف هذا الألبوم بكامل محتوياته؟')) return;
-    const current = galleryAlbums.find((a) => a.id === id);
+    const current = (canonicalGalleryAlbums ?? galleryAlbums).find((a) => a.id === id);
     if (!current) return;
     if (currentUser?.role === 'MEDIA_HEAD') {
       await submitSiteEdit({
@@ -259,9 +261,10 @@ export default function MediaGallery() {
   };
 
   const openEditCategory = (cat: GalleryCategory) => {
-    setEditingCategory(cat);
+    const canonicalCategory = resolveCanonicalEntityById(canonicalGalleryCategories ?? galleryCategories, cat);
+    setEditingCategory(canonicalCategory);
     setCategoryTranslations({ tr: {}, en: {} });
-    setCategoryForm({ label: cat.label });
+    setCategoryForm({ label: canonicalCategory.label });
     setCategoryModalOpen(true);
   };
 
@@ -330,7 +333,7 @@ export default function MediaGallery() {
       return;
     }
     if (!confirm('هل أنت متأكد من حذف هذا التصنيف؟')) return;
-    const current = galleryCategories.find((c) => c.id === id);
+    const current = (canonicalGalleryCategories ?? galleryCategories).find((c) => c.id === id);
     if (currentUser?.role === 'MEDIA_HEAD' && current) {
       await submitSiteEdit({
         pageId: 'gallery', pageLabel: 'معرض الصور', sectionLabel: current.label,
@@ -385,7 +388,7 @@ export default function MediaGallery() {
       };
     };
     if (currentUser?.role === 'MEDIA_HEAD') {
-      const current = galleryAlbums.find((a) => a.id === selectedAlbumId);
+      const current = (canonicalGalleryAlbums ?? galleryAlbums).find((a) => a.id === selectedAlbumId);
       if (!current) return;
       const next = buildNext(current);
       const diffs: SiteEditDiff[] = [
@@ -425,7 +428,8 @@ export default function MediaGallery() {
   const deleteMedia = async (mediaId: string) => {
     if (!selectedAlbum) return;
     if (!confirm('هل أنت متأكد من حذف هذه الوسائط؟')) return;
-    const media = selectedAlbum.media.find((m) => m.id === mediaId);
+    const canonicalAlbum = resolveCanonicalEntityById(canonicalGalleryAlbums ?? galleryAlbums, selectedAlbum);
+    const media = canonicalAlbum.media.find((m) => m.id === mediaId);
     if (!media) return;
     const buildNext = (a: GalleryAlbum) => ({
       ...a,
@@ -434,13 +438,13 @@ export default function MediaGallery() {
       videoCount: media.type === 'video' ? a.videoCount - 1 : a.videoCount,
     });
     if (currentUser?.role === 'MEDIA_HEAD') {
-      const next = buildNext(selectedAlbum);
+      const next = buildNext(canonicalAlbum);
       const diffs: SiteEditDiff[] = [
         { label: 'حذف وسائط', oldValue: media.url, newValue: 'سيتم حذف هذه الوسائط', editable: false },
       ];
       await submitSiteEdit({
-        pageId: 'gallery', pageLabel: 'معرض الصور', sectionLabel: selectedAlbum.title,
-        target: 'galleryAlbums', op: 'update', recordId: selectedAlbum.id, recordValue: next, diffs,
+        pageId: 'gallery', pageLabel: 'معرض الصور', sectionLabel: canonicalAlbum.title,
+        target: 'galleryAlbums', op: 'update', recordId: canonicalAlbum.id, recordValue: next, diffs,
         nested: { parentField: 'media', itemId: mediaId, remove: true },
       });
       mediaNotice();
@@ -448,7 +452,7 @@ export default function MediaGallery() {
     }
     await savePublishedSiteTarget(
       'galleryAlbums',
-      (canonicalGalleryAlbums ?? galleryAlbums).map((album) => album.id === selectedAlbum.id ? buildNext(album) : album),
+      (canonicalGalleryAlbums ?? galleryAlbums).map((album) => album.id === canonicalAlbum.id ? buildNext(album) : album),
     );
   };
 

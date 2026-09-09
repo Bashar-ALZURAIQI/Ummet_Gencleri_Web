@@ -23,7 +23,7 @@ import { canCreateExecutiveContent } from '../domain/phaseThreeEconomy.ts';
 import { CmsEntityTranslationTabs } from '../components/cmsLocalization/CmsEntityTranslationTabs';
 import { useCmsLocalizationRepository } from '../context/CmsLocalizationContext';
 import { type LocalizedCmsLocale } from '../domain/cmsLocalization';
-import { publishCmsEntityLocales } from '../domain/cmsLocalizationEditor';
+import { publishCmsEntityLocales, resolveCanonicalEntityById } from '../domain/cmsLocalizationEditor';
 import { getEventCategoryLabel } from '../domain/eventCategoryPresentation';
 
 type Tab = 'upcoming' | 'past';
@@ -161,15 +161,16 @@ export default function ProgramsPage() {
   };
 
   const openEdit = (e: UEvent) => {
-    setEditId(e.id);
-    const d = new Date(e.date);
+    const canonicalEvent = resolveCanonicalEntityById(canonicalEvents ?? events, e);
+    setEditId(canonicalEvent.id);
+    const d = new Date(canonicalEvent.date);
     setForm({
-      title: e.title, category: e.category, date: e.date.slice(0, 10), time: d.toTimeString().slice(0, 5),
-      location: e.location, description: e.description, capacity: e.capacity, registered: e.registered,
-      status: e.status, image: e.image, showOnHomepage: e.showOnHomepage ?? false,
-      activityType: e.activityType ?? 'OPTIONAL',
-      pointsValue: e.pointsValue ?? 0,
-      registrationDeadline: toDateTimeLocalValue(e.registrationDeadline ?? e.date),
+      title: canonicalEvent.title, category: canonicalEvent.category, date: canonicalEvent.date.slice(0, 10), time: d.toTimeString().slice(0, 5),
+      location: canonicalEvent.location, description: canonicalEvent.description, capacity: canonicalEvent.capacity, registered: canonicalEvent.registered,
+      status: canonicalEvent.status, image: canonicalEvent.image, showOnHomepage: canonicalEvent.showOnHomepage ?? false,
+      activityType: canonicalEvent.activityType ?? 'OPTIONAL',
+      pointsValue: canonicalEvent.pointsValue ?? 0,
+      registrationDeadline: toDateTimeLocalValue(canonicalEvent.registrationDeadline ?? canonicalEvent.date),
     });
     setTranslations({
       tr: { title: '', description: '', location: '' },
@@ -227,7 +228,7 @@ export default function ProgramsPage() {
     const image = form.image;
     const publicEventId = editId ?? (draftEventId || crypto.randomUUID());
     if (editId) {
-      const current = events.find((ev) => ev.id === editId);
+      const current = (canonicalEvents ?? events).find((ev) => ev.id === editId);
       const next: UEvent = {
         ...current!,
         title: form.title, category: form.category, date: iso, location: form.location,
@@ -286,7 +287,7 @@ export default function ProgramsPage() {
 
   const removeEvent = async (id: string) => {
     if (!confirm('هل أنت متأكد من حذف هذه الفعالية؟')) return;
-    const current = events.find((e) => e.id === id);
+    const current = (canonicalEvents ?? events).find((e) => e.id === id);
     if (!current) return;
     if (currentUser?.role === 'MEDIA_HEAD') {
       await submitSiteEdit({

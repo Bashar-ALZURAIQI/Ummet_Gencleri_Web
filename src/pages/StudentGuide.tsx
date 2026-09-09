@@ -16,6 +16,7 @@ import { validateChecks, clearInvalid, isInvalid, fieldId } from '../utils/formV
 import { validateGuideContact, validateGuideItem, validateGuideSection } from '../domain/cmsValidation';
 import type { GuideSectionData, GuideItem, GuideContact, SiteEditDiff } from '../data/mockData';
 import { CmsEntityTranslationTabs } from '../components/cmsLocalization/CmsEntityTranslationTabs';
+import { CmsTranslationSection } from '../components/cmsLocalization/CmsTranslationSection';
 import { useCmsLocalizationRepository } from '../context/CmsLocalizationContext';
 import { type LocalizedCmsLocale } from '../domain/cmsLocalization';
 import { publishCmsEntityLocales } from '../domain/cmsLocalizationEditor';
@@ -44,6 +45,7 @@ export default function StudentGuide() {
   const { t } = useTranslation();
   const { currentUser, guideSections, guideQuickInfo, canonicalGuideSections, canonicalGuideQuickInfo, submitSiteEdit, savePublishedSiteTarget, refreshPublishedLocalizations } = useApp();
   const localizationRepo = useCmsLocalizationRepository();
+  const canonicalSections = canonicalGuideSections ?? guideSections;
   const [activeSectionId, setActiveSectionId] = useState(guideSections[0]?.id ?? '');
   const [sectionModalOpen, setSectionModalOpen] = useState(false);
   const [editingSection, setEditingSection] = useState<GuideSectionData | null>(null);
@@ -63,7 +65,7 @@ export default function StudentGuide() {
     tr: {},
     en: {},
   });
-  const [quickInfo, setQuickInfo] = useState(guideQuickInfo);
+  const [quickInfo, setQuickInfo] = useState(canonicalGuideQuickInfo ?? guideQuickInfo);
   const [editingQuickInfo, setEditingQuickInfo] = useState(false);
   const [invalid, setInvalid] = useState<string[]>([]);
 
@@ -221,7 +223,7 @@ export default function StudentGuide() {
 
   const deleteSection = async (id: string) => {
     if (!confirm('هل أنت متأكد من حذف هذا القسم بكامل محتوياته؟')) return;
-    const current = guideSections.find((s) => s.id === id);
+    const current = canonicalSections.find((s) => s.id === id);
     if (currentUser?.role === 'MEDIA_HEAD' && current) {
       await submitSiteEdit({
         pageId: 'guide', pageLabel: 'دليل الطالب', sectionLabel: current.label,
@@ -267,7 +269,7 @@ export default function StudentGuide() {
     const tips = itemForm.tips.filter((t) => t.trim());
     const newItemId = editingItem?.id ?? 'item' + Date.now();
     if (currentUser?.role === 'MEDIA_HEAD') {
-      const section = guideSections.find((s) => s.id === activeSectionId);
+      const section = canonicalSections.find((s) => s.id === activeSectionId);
       if (!section) return;
       const nextItem: GuideItem = { id: newItemId, heading: itemForm.heading, body: itemForm.body, tips };
       const next: GuideSectionData = editingItem
@@ -316,7 +318,7 @@ export default function StudentGuide() {
 
   const deleteItem = async (itemId: string) => {
     if (!confirm('هل أنت متأكد من حذف هذه المعلومة؟')) return;
-    const section = guideSections.find((s) => s.id === activeSectionId);
+    const section = canonicalSections.find((s) => s.id === activeSectionId);
     if (!section) return;
     const item = section.items.find((it) => it.id === itemId);
     if (currentUser?.role === 'MEDIA_HEAD') {
@@ -338,7 +340,7 @@ export default function StudentGuide() {
   };
 
   const moveItem = async (itemId: string, dir: -1 | 1) => {
-    const section = guideSections.find((s) => s.id === activeSectionId);
+    const section = canonicalSections.find((s) => s.id === activeSectionId);
     if (!section) return;
     const items = [...section.items];
     const idx = items.findIndex((it) => it.id === itemId);
@@ -387,7 +389,7 @@ export default function StudentGuide() {
     if (!validateChecks(validation.invalid.map((key) => ({ key, ok: false })), setInvalid)) return;
     if (!contactForm.label.trim() || !contactForm.value.trim()) return;
     if (currentUser?.role === 'MEDIA_HEAD') {
-      const section = guideSections.find((s) => s.id === activeSectionId);
+      const section = canonicalSections.find((s) => s.id === activeSectionId);
       if (!section) return;
       const contactId = editingContact?.id ?? 'ct' + Date.now();
       const nextContact: GuideContact = { id: contactId, ...contactForm };
@@ -436,7 +438,7 @@ export default function StudentGuide() {
   };
 
   const deleteContact = async (contactId: string) => {
-    const section = guideSections.find((s) => s.id === activeSectionId);
+    const section = canonicalSections.find((s) => s.id === activeSectionId);
     if (!section) return;
     const c = section.contacts.find((ct) => ct.id === contactId);
     if (currentUser?.role === 'MEDIA_HEAD') {
@@ -470,7 +472,7 @@ export default function StudentGuide() {
         const submitted = await submitSiteEdit({
           pageId: 'guide', pageLabel: 'دليل الطالب', sectionLabel: 'المعلومة السريعة',
           target: 'guideQuickInfo', op: 'update', recordId: 'quick', recordValue: quickInfo,
-          diffs: [{ label: 'المعلومة السريعة', path: 'value', oldValue: guideQuickInfo, newValue: quickInfo }],
+          diffs: [{ label: 'المعلومة السريعة', path: 'value', oldValue: canonicalGuideQuickInfo ?? guideQuickInfo, newValue: quickInfo }],
         });
         if (!submitted) return;
         mediaNotice();
@@ -568,7 +570,10 @@ export default function StudentGuide() {
                 </div>
                 {isPresidentOrMedia && !editingQuickInfo && (
                   <button
-                    onClick={() => setEditingQuickInfo(true)}
+                    onClick={() => {
+                      setQuickInfo(canonicalGuideQuickInfo ?? guideQuickInfo);
+                      setEditingQuickInfo(true);
+                    }}
                     className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/60 text-navy-600 hover:bg-white"
                     title={t('common.edit')}
                   >
@@ -585,6 +590,17 @@ export default function StudentGuide() {
                     value={quickInfo}
                     onChange={(e) => { setQuickInfo(e.target.value); clearInvalid(setInvalid, 'quickInfo'); }}
                   />
+                  <CmsTranslationSection
+                    target="guideQuickInfo"
+                    path="value"
+                    label={t('guide.quickInfo')}
+                    kind="description"
+                    canonicalValue={quickInfo}
+                    canonicalPayload={canonicalGuideQuickInfo ?? guideQuickInfo}
+                    canEdit={Boolean(isPresidentOrMedia)}
+                    canPublish={Boolean(isPresident)}
+                    onPublished={refreshPublishedLocalizations}
+                  />
                   <div className="flex gap-2">
                     <button
                       onClick={saveQuickInfo}
@@ -593,7 +609,7 @@ export default function StudentGuide() {
                       <Save className="h-3 w-3" /> {t('common.save')}
                     </button>
                     <button
-                      onClick={() => { setEditingQuickInfo(false); setQuickInfo(guideQuickInfo); }}
+                      onClick={() => { setEditingQuickInfo(false); setQuickInfo(canonicalGuideQuickInfo ?? guideQuickInfo); }}
                       className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50"
                     >
                       <X className="h-3 w-3" /> {t('common.cancel')}

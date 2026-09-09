@@ -5,7 +5,7 @@ import Modal from './Modal';
 import ManagedFileField from './ManagedFileField';
 import { useApp } from '../context/AppContext';
 import { isCmsPathTranslatable, type CmsFieldKind } from '../domain/cmsTranslatableFields.ts';
-import { publishDirtyLocalizedFields, updateNestedPayload } from '../domain/cmsLocalizationEditor.ts';
+import { getCanonicalEditorValue, publishDirtyLocalizedFields, updateNestedPayload } from '../domain/cmsLocalizationEditor.ts';
 import type { JsonValue, LocalizedCmsLocale } from '../domain/cmsLocalization.ts';
 import { CmsTranslationSection } from './cmsLocalization/CmsTranslationSection.tsx';
 import { useCmsLocalizationRepository } from '../context/CmsLocalizationContext.tsx';
@@ -67,30 +67,9 @@ function hasPendingLocalizations(changes: PendingLocalizationMap): boolean {
   );
 }
 
-/**
- * Pure dot-notation getter to extract canonical Arabic values regardless of public locale.
- */
-export function getCanonicalFieldValue(payload: unknown, path: string): string | number {
-  if (!payload || typeof payload !== 'object') return '';
-  const cleanPath = path.replace(/\[(\d+)\]/g, '.$1.');
-  const segments = cleanPath.split('.').map((s) => s.trim()).filter(Boolean);
-  let current: unknown = payload;
-  for (const seg of segments) {
-    if (current === null || current === undefined || typeof current !== 'object') {
-      return '';
-    }
-    current = (current as Record<string, unknown>)[seg];
-  }
-  if (typeof current === 'string' || typeof current === 'number') {
-    return current;
-  }
-  return '';
-}
-
 // Single-field edit button + centered modal
 export function EditableField({
   config,
-  currentValue,
   canEdit,
   canPublish: canPublishProp,
   children,
@@ -128,8 +107,7 @@ export function EditableField({
     : (canonicalAboutContent ?? aboutContent);
 
   const getCanonicalValue = () => {
-    const canon = getCanonicalFieldValue(canonicalBasePayload, config.path);
-    return canon !== '' ? String(canon) : currentValue;
+    return getCanonicalEditorValue(canonicalBasePayload, config.path);
   };
 
   const [draft, setDraft] = useState(getCanonicalValue);
@@ -303,7 +281,6 @@ export interface MultiFieldConfig {
 
 export function EditableCard({
   config,
-  currentValues,
   canEdit,
   canPublish: canPublishProp,
   children,
@@ -345,8 +322,7 @@ export function EditableCard({
   const getCanonicalCardValues = (): Record<string, string> => {
     const values: Record<string, string> = {};
     for (const f of config.fields) {
-      const canon = getCanonicalFieldValue(canonicalBasePayload, f.path);
-      values[f.path] = canon !== '' ? String(canon) : (currentValues[f.path] ?? '');
+      values[f.path] = getCanonicalEditorValue(canonicalBasePayload, f.path);
     }
     return values;
   };

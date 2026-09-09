@@ -12,7 +12,7 @@ import { validateRequired, clearInvalid, isInvalid, fieldId } from '../utils/for
 import { normalizeGoogleMapsInput } from '../domain/contactMap';
 import type { ContactCardData } from '../data/mockData';
 import { CmsEntityTranslationTabs } from '../components/cmsLocalization/CmsEntityTranslationTabs';
-import { isTranslatableLocationValue } from '../domain/cmsLocalizationEditor';
+import { isTranslatableLocationValue, resolveCanonicalEntityById } from '../domain/cmsLocalizationEditor';
 import type { LocalizedCmsLocale } from '../domain/cmsLocalization';
 
 const iconMap: Record<string, typeof Mail> = {
@@ -83,7 +83,7 @@ export default function ContactPage() {
   };
 
   const openEditCard = (card: ContactCardData) => {
-    const canon = canonicalContactCards?.find((c) => c.id === card.id) ?? card;
+    const canon = resolveCanonicalEntityById(canonicalContactCards ?? contactCards, card);
     setEditingCard(canon);
     setCardForm({ title: canon.title, value: canon.value, sub: canon.sub });
     setCardTranslations({ tr: {}, en: {} });
@@ -121,7 +121,7 @@ export default function ContactPage() {
     }
     const saved = await savePublishedSiteTarget(
       'contactCards',
-      contactCards.map((c) => c.id === editingCard.id ? next : c),
+      (canonicalContactCards ?? contactCards).map((c) => c.id === editingCard.id ? next : c),
     );
     if (!saved.ok) { alert(saved.error); return; }
     setCardModalOpen(false);
@@ -141,11 +141,12 @@ export default function ContactPage() {
     if (!mapForm.title.trim()) { setMapError(t('contact.editMapModal.titleRequired', 'عنوان الخريطة مطلوب.')); return; }
     if (!normalized.ok) { setMapError(normalized.error); return; }
     const next = { title: mapForm.title.trim(), embedUrl: normalized.embedUrl, openUrl: normalized.openUrl };
+    const canonicalMap = canonicalContactMap ?? contactMap;
     if (currentUser?.role === 'MEDIA_HEAD') {
       const fields = [
-        ['عنوان الخريطة', 'title', contactMap.title, next.title],
-        ['رابط تضمين الخريطة', 'embedUrl', contactMap.embedUrl, next.embedUrl],
-        ['رابط فتح الخريطة', 'openUrl', contactMap.openUrl, next.openUrl],
+        ['عنوان الخريطة', 'title', canonicalMap.title, next.title],
+        ['رابط تضمين الخريطة', 'embedUrl', canonicalMap.embedUrl, next.embedUrl],
+        ['رابط فتح الخريطة', 'openUrl', canonicalMap.openUrl, next.openUrl],
       ] as const;
       const diffs = fields.filter((row) => row[2] !== row[3]).map((row) => ({
         label: row[0], path: row[1], oldValue: row[2], newValue: row[3], editable: true,

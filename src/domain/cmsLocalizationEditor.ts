@@ -114,6 +114,43 @@ export function extractFieldValue(payload: unknown, path: string): string {
   return typeof current === 'string' ? current : '';
 }
 
+/** Resolves the canonical entity matching a displayed/effective entity by stable id. */
+export function resolveCanonicalEntityById<T extends { id: string }>(
+  canonicalEntities: readonly T[] | null | undefined,
+  displayedEntity: T,
+): T {
+  return canonicalEntities?.find((entity) => entity.id === displayedEntity.id) ?? displayedEntity;
+}
+
+/** Resolves a canonical nested entity by its parent and child stable ids. */
+export function resolveCanonicalNestedEntityById<
+  TParent extends { id: string },
+  TChild extends { id: string },
+>(
+  canonicalParents: readonly TParent[] | null | undefined,
+  parentId: string,
+  childrenKey: keyof TParent,
+  displayedEntity: TChild,
+): TChild {
+  const parent = canonicalParents?.find((entity) => entity.id === parentId);
+  const children = parent?.[childrenKey];
+  if (!Array.isArray(children)) return displayedEntity;
+  return (children as TChild[]).find((entity) => entity.id === displayedEntity.id) ?? displayedEntity;
+}
+
+/** Reads an editor value exclusively from canonical content, preserving legitimate empties. */
+export function getCanonicalEditorValue(payload: unknown, path: string): string {
+  if (!payload || typeof payload !== 'object') return '';
+  const cleanPath = path.replace(/\[(\d+)\]/g, '.$1.');
+  const segments = cleanPath.split('.').map((segment) => segment.trim()).filter(Boolean);
+  let current: unknown = payload;
+  for (const segment of segments) {
+    if (current === null || current === undefined || typeof current !== 'object') return '';
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return typeof current === 'string' || typeof current === 'number' ? String(current) : '';
+}
+
 /**
  * Derives UI-safe field localization state for a specific path given an optional record.
  */

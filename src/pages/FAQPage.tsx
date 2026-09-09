@@ -14,7 +14,7 @@ import type { FAQCategoryData, FAQItem, SiteEditDiff } from '../data/mockData';
 import { CmsEntityTranslationTabs } from '../components/cmsLocalization/CmsEntityTranslationTabs';
 import { useCmsLocalizationRepository } from '../context/CmsLocalizationContext';
 import { type LocalizedCmsLocale } from '../domain/cmsLocalization';
-import { publishCmsEntityLocales } from '../domain/cmsLocalizationEditor';
+import { publishCmsEntityLocales, resolveCanonicalEntityById, resolveCanonicalNestedEntityById } from '../domain/cmsLocalizationEditor';
 
 const iconMap: Record<string, typeof HelpCircle> = {
   Users, ClipboardList, Shield, HelpCircle, Mail, BookOpen, Award, Heart, Megaphone, DollarSign,
@@ -71,9 +71,10 @@ export default function FAQPage() {
   };
 
   const openEditCat = (cat: FAQCategoryData) => {
-    setEditingCat(cat);
+    const canonicalCategory = resolveCanonicalEntityById(canonicalCategories, cat);
+    setEditingCat(canonicalCategory);
     setCatTranslations({ tr: {}, en: {} });
-    setCatForm({ title: cat.title, icon: cat.icon, color: cat.color, bg: cat.bg });
+    setCatForm({ title: canonicalCategory.title, icon: canonicalCategory.icon, color: canonicalCategory.color, bg: canonicalCategory.bg });
     setCatModalOpen(true);
   };
 
@@ -160,7 +161,7 @@ export default function FAQPage() {
 
   const deleteCat = async (id: string) => {
     if (!confirm('هل أنت متأكد من حذف هذه الفئة بكامل أسئلتها؟')) return;
-    const current = faqCategories.find((c) => c.id === id);
+    const current = canonicalCategories.find((c) => c.id === id);
     if (currentUser?.role === 'MEDIA_HEAD' && current) {
       await submitSiteEdit({
         pageId: 'faq', pageLabel: 'الأسئلة الشائعة', sectionLabel: current.title,
@@ -184,10 +185,11 @@ export default function FAQPage() {
   };
 
   const openEditQ = (catId: string, item: FAQItem) => {
+    const canonicalItem = resolveCanonicalNestedEntityById(canonicalCategories, catId, 'items', item);
     setQTargetCat(catId);
-    setEditingQ(item);
+    setEditingQ(canonicalItem);
     setQTranslations({ tr: {}, en: {} });
-    setQForm({ question: item.question, answer: item.answer });
+    setQForm({ question: canonicalItem.question, answer: canonicalItem.answer });
     setQModalOpen(true);
   };
 

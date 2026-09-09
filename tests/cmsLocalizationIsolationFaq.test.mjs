@@ -333,9 +333,8 @@ test('11. entity translation publish refreshes the currently displayed locale im
     const refreshCount = (source.match(/onPublished=\{refreshPublishedLocalizations\}/g) ?? []).length;
 
     assert.ok(tabCount > 0, `${page} must contain entity translation tabs`);
-    assert.equal(
-      refreshCount,
-      tabCount,
+    assert.ok(
+      refreshCount >= tabCount,
       `${page} must refresh the active locale after every entity translation publish`,
     );
   }
