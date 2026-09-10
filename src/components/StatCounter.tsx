@@ -66,7 +66,7 @@ export default function StatCounter({
   return (
     <div
       ref={ref}
-      className="card group flex flex-col items-center gap-2 p-6 text-center transition-all hover:-translate-y-1 hover:shadow-lg"
+      className="card group flex min-w-0 flex-col items-center gap-2 p-6 text-center transition-all hover:-translate-y-1 hover:shadow-lg"
     >
       {icon && (
         <div className="mb-1 flex h-12 w-12 items-center justify-center rounded-xl bg-navy-50 text-navy-700 transition-colors group-hover:bg-navy-800 group-hover:text-white">
@@ -77,7 +77,7 @@ export default function StatCounter({
         {display.toLocaleString('en-US')}
         {suffix}
       </div>
-      <div className="text-sm font-medium text-gray-500">{label}</div>
+      <div className="dynamic-text-safe text-sm font-medium text-gray-500">{label}</div>
     </div>
   );
 }

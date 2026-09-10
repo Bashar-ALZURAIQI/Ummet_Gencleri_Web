@@ -37,10 +37,10 @@ export default function PublicRecognition() {
       ) : error ? (
         <p className="text-center text-rose-600">{t('recognition.error')}</p>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-3">
-          <div className="card p-6 lg:col-span-2">
+        <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="card min-w-0 p-6 lg:col-span-2">
             <h3 className="mb-4 flex items-center gap-2 font-extrabold text-navy-900">
-              <Trophy className="h-5 w-5 text-gold-500" />
+              <Trophy className="h-5 w-5 shrink-0 text-gold-500" />
               {t('recognition.topTen')}
             </h3>
             {leaders.length === 0 ? (
@@ -48,11 +48,11 @@ export default function PublicRecognition() {
             ) : (
               <div className="grid gap-3 sm:grid-cols-2">
                 {leaders.map((row) => (
-                  <div key={row.studentId} className="flex items-center gap-3 rounded-xl bg-gray-50 p-3">
-                    <span className="w-6 text-center font-extrabold text-gold-600">{row.rank}</span>
+                  <div key={row.studentId} className="flex min-w-0 items-center gap-3 rounded-xl bg-gray-50 p-3">
+                    <span className="w-6 shrink-0 text-center font-extrabold text-gold-600">{row.rank}</span>
                     <UserAvatar name={row.studentName} avatarPath={row.avatarPath} className="h-10 w-10" />
-                    <div className="min-w-0">
-                      <p className="truncate font-bold text-navy-900">{row.studentName}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="person-name-two-lines font-bold text-navy-900">{row.studentName}</p>
                       <p className="text-xs text-gray-500">
                         {row.totalPoints} {t('recognition.points')}
                       </p>
@@ -62,7 +62,7 @@ export default function PublicRecognition() {
               </div>
             )}
           </div>
-          <div className="card relative overflow-hidden bg-gradient-to-br from-gold-50 to-amber-100 p-6 text-center">
+          <div className="card relative min-w-0 overflow-hidden bg-gradient-to-br from-gold-50 to-amber-100 p-6 text-center">
             <Crown className="mx-auto h-9 w-9 text-gold-600" />
             <h3 className="mt-2 font-extrabold text-navy-900">{t('recognition.monthlyStar')}</h3>
             {star ? (
@@ -73,7 +73,7 @@ export default function PublicRecognition() {
                   className="mx-auto mt-5 h-20 w-20"
                   fallbackClassName="bg-gold-500 text-2xl text-white"
                 />
-                <p className="mt-3 text-lg font-extrabold text-navy-900">{star.studentName}</p>
+                <p className="person-name-two-lines mx-auto mt-3 max-w-full text-lg font-extrabold text-navy-900">{star.studentName}</p>
                 <p className="text-sm font-bold text-gold-700">
                   <Star className="ml-1 inline h-4 w-4" />
                   {star.pointsLast30Days} {t('recognition.pointsLast30Days')}

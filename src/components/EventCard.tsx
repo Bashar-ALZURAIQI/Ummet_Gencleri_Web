@@ -29,7 +29,7 @@ export default function EventCard({ event, activity, activityLoading = false, ac
   const timeStr = formatPublicTime(event.date, i18n.language);
 
   return (
-    <article className="card group flex flex-col overflow-hidden transition-all hover:-translate-y-1 hover:shadow-xl">
+    <article className="card group flex min-w-0 flex-col overflow-hidden transition-all hover:-translate-y-1 hover:shadow-xl">
       <div className="relative h-44 overflow-hidden">
         <img
           src={event.image}
@@ -51,26 +51,26 @@ export default function EventCard({ event, activity, activityLoading = false, ac
       </div>
 
       <div className="flex flex-1 flex-col p-5">
-        <h3 className="text-lg font-bold leading-snug text-navy-900 transition-colors group-hover:text-navy-700">
+        <h3 className="dynamic-text-safe text-lg font-bold leading-snug text-navy-900 transition-colors group-hover:text-navy-700">
           {event.title}
         </h3>
-        <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-gray-500">
+        <p className="dynamic-text-safe mt-2 line-clamp-2 text-sm leading-relaxed text-gray-500">
           {event.description}
         </p>
 
         <div className="mt-4 space-y-2 text-xs text-gray-500">
           <div className="flex items-center gap-2">
-            <CalendarDays className="h-4 w-4 text-navy-500" />
+            <CalendarDays className="h-4 w-4 shrink-0 text-navy-500" />
             <span>{dateStr}</span>
-            <Clock className="h-4 w-4 text-navy-500" />
+            <Clock className="h-4 w-4 shrink-0 text-navy-500" />
             <span>{timeStr}</span>
           </div>
           <div className="flex items-center gap-2">
-            <MapPin className="h-4 w-4 text-navy-500" />
-            <span>{event.location}</span>
+            <MapPin className="h-4 w-4 shrink-0 text-navy-500" />
+            <span className="dynamic-text-safe">{event.location}</span>
           </div>
           <div className="flex items-center gap-2">
-            <Users className="h-4 w-4 text-navy-500" />
+            <Users className="h-4 w-4 shrink-0 text-navy-500" />
             <span>
               {formatEnrollmentCount(registered, capacity, t)}
             </span>

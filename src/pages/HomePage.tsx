@@ -64,29 +64,29 @@ export default function HomePage() {
               <Sparkles className="h-3.5 w-3.5" />
               <EditableField config={{ path: 'hero.badge', label: 'شارة الهيرو', target: 'site' }} currentValue={sc.hero.badge} canEdit={canEdit}>{sc.hero.badge}</EditableField>
             </span>
-            <h1 className="mt-6 text-4xl font-extrabold leading-tight text-white lg:text-6xl">
+            <h1 className="dynamic-text-safe mt-6 text-4xl font-extrabold leading-tight text-white lg:text-6xl">
               <EditableField config={{ path: 'hero.title', label: 'العنوان الرئيسي', target: 'site' }} currentValue={sc.hero.title} canEdit={canEdit}>{sc.hero.title}</EditableField>
               <span className="mt-2 block bg-gradient-to-l from-gold-300 to-gold-500 bg-clip-text text-2xl font-bold text-transparent lg:text-3xl">
                 <EditableField config={{ path: 'hero.subtitle', label: 'العنوان الفرعي', target: 'site' }} currentValue={sc.hero.subtitle} canEdit={canEdit}>{sc.hero.subtitle}</EditableField>
               </span>
             </h1>
-            <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-gray-300 lg:mx-0 lg:text-lg">
+            <p className="dynamic-text-safe mx-auto mt-6 max-w-xl text-base leading-relaxed text-gray-300 lg:mx-0 lg:text-lg">
               <EditableField config={{ path: 'hero.description', label: 'وصف الهيرو', type: 'textarea', target: 'site' }} currentValue={sc.hero.description} canEdit={canEdit}>{sc.hero.description}</EditableField>
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3 lg:justify-start">
-              <button onClick={() => setView({ kind: 'programs' })} className="btn-gold">
+              <button onClick={() => setView({ kind: 'programs' })} className="btn-gold w-full sm:w-auto max-w-full">
                 <EditableField config={{ path: 'hero.primaryBtn', label: 'الزر الأساسي', target: 'site' }} currentValue={sc.hero.primaryBtn} canEdit={canEdit}>{sc.hero.primaryBtn}</EditableField>
                 <ArrowLeft className="h-4 w-4" />
               </button>
               <button
                 onClick={() => setView({ kind: 'about' })}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/5 px-6 py-3 text-sm font-semibold text-white backdrop-blur-sm transition-all hover:bg-white/10"
+                className="inline-flex w-full sm:w-auto max-w-full items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/5 px-6 py-3 text-sm font-semibold text-white backdrop-blur-sm transition-all hover:bg-white/10"
               >
                 <EditableField config={{ path: 'hero.secondaryBtn', label: 'الزر الثانوي', target: 'site' }} currentValue={sc.hero.secondaryBtn} canEdit={canEdit}>{sc.hero.secondaryBtn}</EditableField>
               </button>
               <button
                 onClick={() => setView({ kind: 'board' })}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-gold-400/30 bg-gold-500/10 px-6 py-3 text-sm font-semibold text-gold-200 backdrop-blur-sm transition-all hover:bg-gold-500/20"
+                className="inline-flex w-full sm:w-auto max-w-full items-center justify-center gap-2 rounded-xl border border-gold-400/30 bg-gold-500/10 px-6 py-3 text-sm font-semibold text-gold-200 backdrop-blur-sm transition-all hover:bg-gold-500/20"
               >
                 <EditableField config={{ path: 'hero.tertiaryBtn', label: 'الزر الثالث', target: 'site' }} currentValue={sc.hero.tertiaryBtn} canEdit={canEdit}>{sc.hero.tertiaryBtn}</EditableField>
               </button>
@@ -170,7 +170,7 @@ export default function HomePage() {
 
       {/* Stats */}
       <section className="container-app -mt-2 py-12">
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="grid min-w-0 grid-cols-2 gap-4 lg:grid-cols-4">
           {sc.stats.map((s, i) => {
             const Icon = iconMap[s.icon] || Users;
             return (

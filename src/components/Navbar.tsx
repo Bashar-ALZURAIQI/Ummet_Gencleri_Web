@@ -127,13 +127,14 @@ export default function Navbar() {
         {/* Logo */}
         <button
           onClick={() => go({ kind: 'home' })}
-          className="flex shrink-0 items-center gap-2.5 transition-transform hover:scale-[1.02] sm:gap-3"
+          className="flex min-w-0 flex-1 items-center gap-2.5 transition-transform hover:scale-[1.02] sm:gap-3"
         >
           <BrandMark
             logoUrl={siteContent.brand.logoUrl}
             logoIcon={siteContent.brand.logoIcon}
           />
           <EditableCard
+            className="min-w-0"
             canEdit={canEdit}
             config={{
               label: 'اسم الاتحاد',
@@ -145,12 +146,12 @@ export default function Navbar() {
             }}
             currentValues={{ 'brand.name': siteContent.brand.name, 'brand.nameTr': siteContent.brand.nameTr }}
           >
-            <div className="text-start whitespace-nowrap">
-              <div className="text-sm font-extrabold leading-tight text-navy-900 sm:text-base lg:text-lg">
+            <div className="text-start min-w-0 whitespace-nowrap">
+              <div className="truncate text-sm font-extrabold leading-tight text-navy-900 sm:text-base lg:text-lg">
                 {resolvePublicBrandName(i18n.language, siteContent.brand)}
               </div>
               {i18n.language === 'ar' && (
-                <div className="text-[10px] font-medium text-gray-500 lg:text-xs">
+                <div className="truncate text-[10px] font-medium text-gray-500 lg:text-xs">
                   {siteContent.brand.nameTr}
                 </div>
               )}
@@ -364,6 +365,15 @@ export default function Navbar() {
               <LayoutDashboard className="h-5 w-5" />
               {t('dashboard.studentPortal')}
             </button>
+            {!currentUser && (
+              <button
+                onClick={() => go({ kind: 'login' })}
+                className="flex w-full items-center gap-3 rounded-xl bg-navy-800 px-4 py-3 text-sm font-semibold text-white hover:bg-navy-700"
+              >
+                <LogIn className="h-5 w-5" />
+                {t('auth.login')}
+              </button>
+            )}
             {currentUser && adminUiAllowed && (
               <button
                 onClick={goAdmin}

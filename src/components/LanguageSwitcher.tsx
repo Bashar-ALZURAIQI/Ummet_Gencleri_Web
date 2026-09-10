@@ -99,12 +99,12 @@ export function LanguageSwitcher({
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         aria-label={t('common.language', 'اللغة')}
-        className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:border-gray-300 hover:bg-gray-50 hover:text-navy-800 focus:outline-none focus:ring-2 focus:ring-navy-600/20"
+        className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-2 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:border-gray-300 hover:bg-gray-50 hover:text-navy-800 focus:outline-none focus:ring-2 focus:ring-navy-600/20 sm:px-3"
       >
         <Globe className="h-4 w-4 text-navy-600 shrink-0" aria-hidden="true" />
-        <span>{currentOption.nativeName}</span>
+        <span className="hidden sm:inline">{currentOption.nativeName}</span>
         <ChevronDown
-          className={`h-3.5 w-3.5 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          className={`hidden h-3.5 w-3.5 text-gray-400 transition-transform sm:block ${isOpen ? 'rotate-180' : ''}`}
           aria-hidden="true"
         />
       </button>

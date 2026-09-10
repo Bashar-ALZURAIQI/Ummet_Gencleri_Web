@@ -59,9 +59,9 @@ export default function BoardPage() {
               <button
                 key={id}
                 onClick={() => go({ kind: 'committee', committeeId: id })}
-                className="group w-full max-w-sm"
+                className="group min-w-0 w-full max-w-sm"
               >
-                <div className="card flex items-center gap-4 p-5 transition-all hover:-translate-y-1 hover:shadow-xl">
+                <div className="card flex min-w-0 items-center gap-4 p-5 transition-all hover:-translate-y-1 hover:shadow-xl">
                   <UserAvatar
                     name={c.head?.name}
                     photo={c.head?.photo}
@@ -70,12 +70,12 @@ export default function BoardPage() {
                     className="h-14 w-14"
                     fallbackClassName={`bg-gradient-to-br ${c.color || 'from-navy-700 to-navy-950'} text-lg text-white shadow-lg`}
                   />
-                  <div className="text-right">
-                    <div className="text-base font-extrabold text-navy-900">{c.head?.name || '—'}</div>
-                    <div className="text-sm font-semibold text-navy-600">{getExecutiveRoleLabel(c.head?.role, t) || '—'}</div>
-                    <div className="mt-0.5 text-xs text-gray-400">{getExecutiveSectionLabel(c.id, t) || '—'}</div>
+                  <div className="min-w-0 flex-1 text-start">
+                    <div className="person-name-two-lines text-base font-extrabold text-navy-900">{c.head?.name || '—'}</div>
+                    <div className="dynamic-text-safe text-sm font-semibold text-navy-600">{getExecutiveRoleLabel(c.head?.role, t) || '—'}</div>
+                    <div className="dynamic-text-safe mt-0.5 text-xs text-gray-400">{getExecutiveSectionLabel(c.id, t) || '—'}</div>
                   </div>
-                  <ChevronLeft className="mr-auto h-5 w-5 text-gray-300 transition-transform group-hover:-translate-x-1 group-hover:text-navy-600" />
+                  <ChevronLeft className="h-5 w-5 shrink-0 text-gray-300 transition-transform group-hover:-translate-x-1 group-hover:text-navy-600" />
                 </div>
               </button>
             );
@@ -102,7 +102,7 @@ export default function BoardPage() {
                 <button
                   key={id}
                   onClick={() => go({ kind: 'committee', committeeId: id })}
-                  className="card group flex flex-col items-center p-6 text-center transition-all hover:-translate-y-1 hover:shadow-xl"
+                  className="card group flex min-w-0 flex-col items-center p-6 text-center transition-all hover:-translate-y-1 hover:shadow-xl"
                 >
                   <UserAvatar
                     name={c.head?.name}
@@ -112,8 +112,8 @@ export default function BoardPage() {
                     className="h-16 w-16 transition-transform group-hover:scale-110"
                     fallbackClassName={`bg-gradient-to-br ${c.color || 'from-navy-700 to-navy-950'} text-xl text-white shadow-lg`}
                   />
-                  <h3 className="mt-4 text-lg font-bold text-navy-900">{getExecutiveSectionLabel(c.id, t) || '—'}</h3>
-                  <p className="mt-1 text-sm font-bold text-navy-700">{c.head?.name || t('board.noHeadAssigned')}</p>
+                  <h3 className="dynamic-text-safe mt-4 text-lg font-bold text-navy-900">{getExecutiveSectionLabel(c.id, t) || '—'}</h3>
+                  <p className="person-name-two-lines mt-1 text-sm font-bold text-navy-700">{c.head?.name || t('board.noHeadAssigned')}</p>
                   <p className="text-xs text-gray-400">{getExecutiveRoleLabel(c.head?.role, t) || ''}</p>
                   <p className="mt-1 line-clamp-2 text-sm text-gray-500">{getExecutiveSectionDescription(c.id, t, c.description) || ''}</p>
                   <div className="mt-4 flex items-center gap-2 text-xs text-gray-400">
