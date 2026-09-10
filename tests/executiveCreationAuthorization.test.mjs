@@ -3,6 +3,49 @@ import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
 
 const rootUrl = new URL('../', import.meta.url);
+const executiveRoles = [
+  'PRESIDENT',
+  'VICE_PRESIDENT',
+  'MEDIA_HEAD',
+  'FINANCE_HEAD',
+  'AUDIT_HEAD',
+  'ACADEMIC_HEAD',
+  'ACTIVITIES_HEAD',
+];
+
+test('all seven current executive roles reach the durable event, activity, and task RPC paths while students do not', async () => {
+  const { canCreateExecutiveContent } = await import('../src/domain/phaseThreeEconomy.ts');
+  const { createSectionContentRepository } = await import('../src/domain/sectionContentRepository.ts');
+  const { createInternalEconomyRepository } = await import('../src/domain/internalEconomyRepository.ts');
+
+  for (const role of [...executiveRoles, 'STUDENT']) {
+    const calls = [];
+    const client = {
+      from() { throw new Error('not used'); },
+      rpc(name, args) {
+        calls.push([name, args]);
+        if (name === 'create_published_event') {
+          return Promise.resolve({ data: { target: 'events', payload: [{ id: 'event-1' }], version: 2, updated_at: '2026-09-10T00:00:00Z' }, error: null });
+        }
+        if (name === 'upsert_event_activity') {
+          return Promise.resolve({ data: { id: 'activity-1', public_event_id: 'event-1' }, error: null });
+        }
+        return Promise.resolve({ data: { id: 'task-1', title: 'Task' }, error: null });
+      },
+    };
+
+    if (canCreateExecutiveContent(role)) {
+      await createSectionContentRepository(client).createEvent({ id: 'event-1' }, 1);
+      const economy = createInternalEconomyRepository(client);
+      await economy.upsertEventActivity({ publicEventId: 'event-1', title: 'Event', description: 'Description', type: 'OPTIONAL', pointsValue: 0, maxCapacity: 10, deadline: '2026-10-01T00:00:00Z' });
+      await economy.createTask({ title: 'Task', description: 'Description', pointsReward: 1, requiredStudents: 1, deadline: '2026-10-01T00:00:00Z' });
+      assert.deepEqual(calls.map(([name]) => name), ['create_published_event', 'upsert_event_activity', 'create_internal_task'], role);
+    } else {
+      assert.equal(role, 'STUDENT');
+      assert.deepEqual(calls, []);
+    }
+  }
+});
 
 test('activity and task creation controls use the shared all-executive predicate', async () => {
   const programs = await readFile(new URL('src/pages/ProgramsPage.tsx', rootUrl), 'utf8');
@@ -28,4 +71,11 @@ test('latest migration grants insert and creation RPCs to every current executiv
   assert.match(sql, /CREATE OR REPLACE FUNCTION public\.create_published_event[\s\S]+private\.is_current_executive\(\)/i);
   assert.doesNotMatch(sql, /CREATE OR REPLACE FUNCTION public\.list_pending_mandatory_excuses/i);
   assert.doesNotMatch(sql, /CREATE OR REPLACE FUNCTION public\.list_managed_tasks/i);
+});
+
+test('latest activity update authorization follows the original creator UUID rather than a transferred role', async () => {
+  const sql = await readFile(new URL('supabase/migrations/20260908120000_fix_internal_economy_semantics.sql', rootUrl), 'utf8');
+  assert.match(sql, /activity\.created_by[\s\S]+v_existing_created_by[\s\S]+v_existing_created_by\s*<>\s*v_user_id/i);
+  assert.match(sql, /v_position NOT IN \('PRESIDENT', 'ACADEMIC_HEAD', 'AUDIT_HEAD'\)/i);
+  assert.doesNotMatch(sql, /v_existing_created_by[\s\S]{0,120}createdByRole/i);
 });
