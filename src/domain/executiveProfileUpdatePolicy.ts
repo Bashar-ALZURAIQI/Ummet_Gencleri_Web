@@ -1,3 +1,5 @@
+import { isLeadershipRole, type CommitteeId, type UserRole } from '../data/mockData.ts';
+
 export interface ExecutiveProfileChanges {
   name?: unknown;
   email?: unknown;
@@ -13,6 +15,17 @@ export interface ExecutiveProfileChanges {
 export type OwnExecutiveProfileUpdate =
   | { ok: true; data: Record<string, string> }
   | { ok: false; code: 'OWN_PROFILE_ONLY' | 'NO_EDITABLE_FIELDS' };
+
+export function resolveOwnExecutiveProfileTarget(
+  owner: { userId: string; role: UserRole; committee?: CommitteeId },
+  committeeId: CommitteeId,
+): string | null {
+  return owner.userId
+    && isLeadershipRole(owner.role)
+    && owner.committee === committeeId
+    ? owner.userId
+    : null;
+}
 
 const PROFILE_FIELDS: Array<[
   keyof ExecutiveProfileChanges,

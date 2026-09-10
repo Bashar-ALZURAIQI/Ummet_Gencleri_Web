@@ -44,3 +44,22 @@ test('an executive profile update rejects missing ownership instead of becoming 
     changes: { name: 'لن يحفظ' },
   }), { ok: false, code: 'OWN_PROFILE_ONLY' });
 });
+
+test('profile editing authority follows the confirmed assignment, never a copied committee head', () => {
+  assert.equal(typeof policy.resolveOwnExecutiveProfileTarget, 'function');
+  assert.equal(policy.resolveOwnExecutiveProfileTarget({
+    userId: ownerId,
+    role: 'VICE_PRESIDENT',
+    committee: 'vice-presidency',
+  }, 'vice-presidency'), ownerId);
+  assert.equal(policy.resolveOwnExecutiveProfileTarget({
+    userId: ownerId,
+    role: 'VICE_PRESIDENT',
+    committee: 'vice-presidency',
+  }, 'media'), null);
+  assert.equal(policy.resolveOwnExecutiveProfileTarget({
+    userId: ownerId,
+    role: 'STUDENT',
+    committee: 'vice-presidency',
+  }, 'vice-presidency'), null);
+});

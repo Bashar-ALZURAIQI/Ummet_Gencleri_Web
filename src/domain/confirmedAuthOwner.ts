@@ -1,10 +1,11 @@
-import type { UserRole } from '../data/mockData.ts';
+import type { CommitteeId, UserRole } from '../data/mockData.ts';
 
 export interface ConfirmedAuthOwner {
   epoch: number;
   userId: string;
   loginEmail: string;
   role: UserRole;
+  committee?: CommitteeId;
 }
 
 export class ConfirmedAuthOwnerStore {

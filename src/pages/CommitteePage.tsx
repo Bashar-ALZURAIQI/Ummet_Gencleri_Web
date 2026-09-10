@@ -31,6 +31,7 @@ import { CmsEntityTranslationTabs } from '../components/cmsLocalization/CmsEntit
 import { useCmsLocalizationRepository } from '../context/CmsLocalizationContext';
 import { computeSourceHash, type LocalizedCmsLocale, type JsonValue } from '../domain/cmsLocalization';
 import { publishCmsEntityLocales } from '../domain/cmsLocalizationEditor';
+import { resolveOwnExecutiveProfileTarget } from '../domain/executiveProfileUpdatePolicy';
 
 const iconMap: Record<string, typeof Crown> = {
   Crown, UserCog, Megaphone, GraduationCap, ShieldCheck, CalendarDays, Wallet,
@@ -44,12 +45,13 @@ type SubmissionFeedback = { id: number; type: 'success' | 'error'; text: string 
 export default function CommitteePage({ committeeId }: { committeeId: CommitteeId }) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language;
-  const { committees, canonicalCommittees, currentUser, setView, pendingProfileEdits, submitProfileEdit, updateBoardHead, uploadManagedFile, savePublishedSiteTarget, refreshPublishedLocalizations } = useApp();
+  const { committees, canonicalCommittees, currentUser, setView, pendingProfileEdits, submitProfileEdit, updateBoardHead, uploadOwnAvatar, uploadManagedFile, savePublishedSiteTarget, refreshPublishedLocalizations } = useApp();
   const localizationRepo = useCmsLocalizationRepository();
 
   // Modals
   const [headModal, setHeadModal] = useState(false);
   const [headForm, setHeadForm] = useState<HeadForm>({ name: '', role: '', bio: '', photo: '', email: '' });
+  const [headAvatarFile, setHeadAvatarFile] = useState<File | null>(null);
 
   const [respModal, setRespModal] = useState(false);
   const [respIdx, setRespIdx] = useState<number>(-1);
@@ -92,7 +94,9 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
   const allowedCommitteeManager = currentUser?.role === 'PRESIDENT' ||
     (!!currentUser && isLeadershipRole(currentUser.role) && currentUser.committee === committeeId);
   const isPresident = currentUser?.role === 'PRESIDENT';
-  const canEditPersonalProfile = !!currentUser?.userId && committee.head?.id === currentUser.userId;
+  const canEditPersonalProfile = !!currentUser && (
+    resolveOwnExecutiveProfileTarget(currentUser, committeeId) === currentUser.userId
+  );
   const Icon = iconMap[committee.icon] || Crown;
 
   const idx = committeeOrder.indexOf(committeeId);
@@ -181,22 +185,42 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
 
   // Head
   const openHead = () => {
-    const h = canonicalCommittee?.head ?? committee.head ?? {};
     setHeadTranslations({ tr: {}, en: {} });
-    setHeadForm({ name: h.name ?? '', role: h.role ?? '', bio: h.bio ?? '', photo: h.photo ?? '', email: h.email ?? '' });
+    setHeadAvatarFile(null);
+    setHeadForm({
+      name: currentUser?.name ?? '',
+      role: committee.head?.role ?? '',
+      bio: currentUser?.bio ?? '',
+      photo: currentUser?.avatarPath ?? currentUser?.photo ?? '',
+      email: currentUser?.contactEmail ?? '',
+    });
     setHeadModal(true);
   };
   const saveHead = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canEditPersonalProfile) return;
-    if (!validateRequired(headForm, ['name', 'role', 'bio', 'photo', 'email'], setInvalid)) return;
+    if (!validateRequired(headForm, ['name', 'role', 'bio', 'email'], setInvalid)) return;
+    setContentSubmitting(true);
+    setSubmissionFeedback(null);
     const updated = await updateBoardHead(committeeId, {
       name: headForm.name,
       bio: headForm.bio,
-      photo: headForm.photo,
       email: headForm.email,
     });
-    if (!updated.ok) return;
+    if (!updated.ok) {
+      setContentSubmitting(false);
+      setSubmissionFeedback({ id: Date.now(), type: 'error', text: updated.error });
+      return;
+    }
+    if (headAvatarFile) {
+      const avatar = await uploadOwnAvatar(headAvatarFile);
+      if (!avatar.ok) {
+        setContentSubmitting(false);
+        setSubmissionFeedback({ id: Date.now(), type: 'error', text: avatar.error });
+        return;
+      }
+    }
+    setContentSubmitting(false);
     setHeadModal(false);
   };
 
@@ -347,14 +371,14 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
             <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-white backdrop-blur-sm">
               <Icon className="h-8 w-8" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span className="rounded-full bg-white/15 px-3 py-0.5 text-xs font-bold text-white backdrop-blur-sm">
                   {committeeId === 'presidency' || committeeId === 'vice-presidency' ? t('committee.executiveOffice') : t('committee.committeeTag')}
                 </span>
               </div>
-              <h1 className="mt-2 text-3xl font-extrabold text-white lg:text-4xl">{getExecutiveSectionLabel(committee.id, t) || committee.name}</h1>
-              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/80">{getExecutiveSectionDescription(committee.id, t, committee.description)}</p>
+              <h1 className="dynamic-text-safe mt-2 text-3xl font-extrabold text-white lg:text-4xl">{getExecutiveSectionLabel(committee.id, t) || committee.name}</h1>
+              <p className="dynamic-text-safe mt-2 max-w-2xl text-sm leading-relaxed text-white/80">{getExecutiveSectionDescription(committee.id, t, committee.description)}</p>
             </div>
           </div>
         </div>
@@ -380,7 +404,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
         <div className="grid gap-8 lg:grid-cols-3">
           {/* Head profile */}
           <div className="lg:col-span-1">
-            <div className="group/head card relative overflow-hidden">
+            <div className="group/head card relative min-w-0 overflow-hidden">
               {canEditPersonalProfile && (
                 <button
                   onClick={openHead}
@@ -400,12 +424,12 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
                   className="mx-auto h-24 w-24 border-4 border-white shadow-lg"
                   fallbackClassName="bg-navy-700 text-2xl text-white"
                 />
-                <h3 className="mt-3 text-lg font-extrabold text-navy-900">{committee.head?.name || '—'}</h3>
+                <h3 className="person-name-two-lines mx-auto mt-3 max-w-full text-lg font-extrabold text-navy-900">{committee.head?.name || '—'}</h3>
                 <p className="text-sm font-semibold text-navy-600">{getExecutiveRoleLabel(committee.head?.role, t) || '—'}</p>
                 <p className="mt-3 text-xs leading-relaxed text-gray-500">{committee.head?.bio || ''}</p>
-                <div className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-gray-50 px-3 py-2 text-xs text-gray-500">
-                  <Mail className="h-3.5 w-3.5" />
-                  <span dir="ltr">{committee.head?.email || '—'}</span>
+                <div className="mt-4 flex min-w-0 items-center justify-center gap-2 rounded-xl bg-gray-50 px-3 py-2 text-xs text-gray-500">
+                  <Mail className="h-3.5 w-3.5 shrink-0" />
+                  <span className="dynamic-text-safe" dir="ltr">{committee.head?.email || '—'}</span>
                 </div>
               </div>
             </div>
@@ -422,7 +446,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
                     <Edit3 className="absolute left-1.5 top-1.5 h-3 w-3 text-gray-300 opacity-0 transition-opacity group-hover/stat:opacity-100" />
                   )}
                   <div className="text-lg font-extrabold text-navy-900">{formatStatisticNumber(s.value, locale)}</div>
-                  <div className="text-[10px] text-gray-500">{getExecutiveMetricLabel(s.label, t)}</div>
+                  <div className="dynamic-text-safe text-[10px] text-gray-500">{getExecutiveMetricLabel(s.label, t)}</div>
                 </button>
               ))}
             </div>
@@ -467,7 +491,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
                 {(committee.responsibilities ?? []).map((r, i) => (
                   <li key={i} className="group/item flex items-start gap-3 text-sm leading-relaxed text-gray-600">
                     <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
-                    <span className="flex-1">{r ?? ''}</span>
+                    <span className="dynamic-text-safe min-w-0 flex-1">{r ?? ''}</span>
                     {canEditContent && (
                       <div className="flex gap-1 opacity-0 transition-opacity group-hover/item:opacity-100">
                         <button onClick={() => openEditResp(i)} className="flex h-6 w-6 items-center justify-center rounded-md text-navy-600 hover:bg-navy-50" title={t('common.edit')}>
@@ -497,11 +521,11 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               </div>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 {(committee.members ?? []).map((m) => (
-                  <div key={m.id || m.name || ''} className="group/memitem relative flex items-center gap-3 rounded-xl border border-gray-100 p-3 transition-colors hover:bg-gray-50">
+                  <div key={m.id || m.name || ''} className="group/memitem relative flex min-w-0 items-center gap-3 rounded-xl border border-gray-100 p-3 transition-colors hover:bg-gray-50">
                     <UserAvatar name={m.name} photo={m.photo} avatarPath={m.photo} className="h-12 w-12" />
-                    <div>
-                      <div className="text-sm font-bold text-navy-900">{m.name || '—'}</div>
-                      <div className="text-xs text-gray-500">{m.position || ''}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="person-name-two-lines text-sm font-bold text-navy-900">{m.name || '—'}</div>
+                      <div className="dynamic-text-safe text-xs text-gray-500">{m.position || ''}</div>
                     </div>
                     {canEditContent && (
                       <div className="absolute left-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover/memitem:opacity-100">
@@ -602,25 +626,24 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
                 <textarea id={fieldId('bio')} required rows={3} className={`input-field resize-none ${isInvalid(invalid, 'bio')}`} value={headForm.bio} onChange={(e) => { setHeadForm({ ...headForm, bio: e.target.value }); clearInvalid(setInvalid, 'bio'); }} />
               </div>
             </CmsEntityTranslationTabs>
-            <ManagedFileField
-              usage="avatar"
-              label={t('committee.headModal.photo', 'الصورة الشخصية')}
-              currentUrl={headForm.photo}
-              required
-              error={isInvalid(invalid, 'photo') ? t('committee.headModal.photoError', 'يرجى رفع صورة شخصية.') : null}
-              onUpload={(file, onProgress) => uploadManagedFile('avatar', file, onProgress)}
-              onUploaded={(asset) => {
-                setHeadForm((current) => ({ ...current, photo: asset.publicUrl }));
-                clearInvalid(setInvalid, 'photo');
-              }}
-            />
+            <div>
+              <label htmlFor={fieldId('photo')} className="label-field">{t('committee.headModal.photo', 'الصورة الشخصية')}</label>
+              <input
+                id={fieldId('photo')}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="input-field"
+                onChange={(event) => setHeadAvatarFile(event.target.files?.[0] ?? null)}
+              />
+              {headAvatarFile && <p className="mt-1 text-xs text-gray-500" dir="ltr">{headAvatarFile.name}</p>}
+            </div>
             <div>
               <label htmlFor={fieldId('email')} className="label-field">{t('committee.headModal.officialEmail', 'البريد الإلكتروني الرسمي')} <RequiredMark /></label>
               <input id={fieldId('email')} required type="email" dir="ltr" className={`input-field ${isInvalid(invalid, 'email')}`} value={headForm.email} onChange={(e) => { setHeadForm({ ...headForm, email: e.target.value }); clearInvalid(setInvalid, 'email'); }} />
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => setHeadModal(false)} className="btn-ghost">{t('common.cancel', 'إلغاء')}</button>
-              <button type="submit" className="btn-primary"><Save className="h-4 w-4" /> {t('common.save', 'حفظ')}</button>
+              <button type="submit" disabled={contentSubmitting} className="btn-primary disabled:cursor-not-allowed disabled:opacity-60"><Save className="h-4 w-4" /> {contentSubmitting ? t('common.saving', 'جارٍ الحفظ...') : t('common.save', 'حفظ')}</button>
             </div>
           </form>
         </Modal>

@@ -154,11 +154,15 @@ import {
 import { classifySignupResult } from '../domain/signupResult';
 import {
   buildAccountDirectoryDisplay,
+  mergeInstitutionalCommitteeContent,
   synchronizeProfileIdentityByUserId,
   stripPrivateExecutiveEmailsForCache,
   stripPrivateLoginEmailsForCache,
 } from '../domain/accountDirectoryDisplay';
-import { prepareOwnExecutiveProfileUpdate } from '../domain/executiveProfileUpdatePolicy';
+import {
+  prepareOwnExecutiveProfileUpdate,
+  resolveOwnExecutiveProfileTarget,
+} from '../domain/executiveProfileUpdatePolicy';
 import {
   executeExecutiveTransfer,
   type TransferMemberRoleResult,
@@ -1498,7 +1502,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (Array.isArray(bundle.news)) setNews(bundle.news);
     if (Array.isArray(bundle.plans)) setPlans(bundle.plans);
     if (Array.isArray(bundle.reports)) setReports(bundle.reports);
-    if (Array.isArray(bundle.committees)) setCommittees(bundle.committees);
+    if (Array.isArray(bundle.committees)) {
+      setCommittees((current) => mergeInstitutionalCommitteeContent(current, bundle.committees!));
+    }
   }, []);
 
   useEffect(() => {
@@ -1944,6 +1950,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       userId: confirmedUser.userId,
       loginEmail: confirmedUser.loginEmail,
       role: confirmedUser.role,
+      committee: confirmedUser.committee,
     }, (epoch) => authEpoch.isCurrent(epoch))) {
       return { ok: false, error: 'تم استبدال محاولة تحميل الجلسة بمحاولة أحدث.' };
     }
@@ -2240,6 +2247,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           userId: confirmedUser.userId,
           loginEmail: confirmedUser.loginEmail,
           role: confirmedUser.role,
+          committee: confirmedUser.committee,
         }, (epoch) => authEpoch.isCurrent(epoch))) return;
         synchronizeConfirmedProfileDisplay({
           currentUser: confirmedUser,
@@ -2801,8 +2809,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Executive identity is profile-owned. The president manages assignments via
   // the transfer RPC, but may not write another account's mutable profile.
   const updateBoardHead: AppContextValue['updateBoardHead'] = async (committeeId, data) => {
-    const targetUserId = committees.find((committee) => committee.id === committeeId)?.head?.id ?? '';
     const owner = captureConfirmedAuthOwner();
+    const targetUserId = owner
+      ? resolveOwnExecutiveProfileTarget(owner, committeeId) ?? ''
+      : '';
     const prepared = prepareOwnExecutiveProfileUpdate({
       actorUserId: owner?.userId ?? '',
       targetUserId,
@@ -3247,7 +3257,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       case 'news': setNews(value as NewsItem[]); break;
       case 'plans': setPlans(value as AdminPlan[]); break;
       case 'reports': setReports(value as AdminReport[]); break;
-      case 'committees': setCommittees(value as Committee[]); break;
+      case 'committees': setCommittees((current) => (
+        mergeInstitutionalCommitteeContent(current, value as Committee[])
+      )); break;
     }
   };
 

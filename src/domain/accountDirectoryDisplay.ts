@@ -199,6 +199,23 @@ export function synchronizeProfileIdentityByUserId<
   };
 }
 
+/**
+ * Published committee content owns institutional fields only. Executive identity
+ * is resolved separately from executive_assignments + profiles and must survive
+ * content reloads, realtime publications, and approval writes.
+ */
+export function mergeInstitutionalCommitteeContent<
+  T extends { id: string; head?: unknown },
+>(current: T[], published: T[]): T[] {
+  const currentById = new Map(current.map((committee) => [committee.id, committee]));
+  return published.map((committee) => {
+    const currentCommittee = currentById.get(committee.id);
+    return currentCommittee?.head === undefined
+      ? committee
+      : { ...committee, head: currentCommittee.head };
+  });
+}
+
 export function stripPrivateLoginEmailsForCache<T extends { id: string; email: string }>(
   members: T[],
 ): T[] {

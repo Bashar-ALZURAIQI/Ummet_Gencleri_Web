@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 const {
   buildAccountDirectoryDisplay,
+  mergeInstitutionalCommitteeContent,
   synchronizeProfileIdentityByUserId,
   stripPrivateExecutiveEmailsForCache,
   stripPrivateLoginEmailsForCache,
@@ -10,6 +11,7 @@ const {
 
 const viceId = '11111111-1111-4111-8111-111111111111';
 const studentId = '22222222-2222-4222-8222-222222222222';
+const otherId = '33333333-3333-4333-8333-333333333333';
 
 test('builds UUID-backed members and executive heads from confirmed safe projections', () => {
   const result = buildAccountDirectoryDisplay(
@@ -124,4 +126,34 @@ test('strips stale executive login emails from initial and cached public committ
     { id: 'presidency', head: { id: viceId, name: 'الرئيس', email: '' } },
     { id: 'media', head: { id: studentId, name: 'الإعلامي', email: '' } },
   ]);
+});
+
+test('institutional committee refresh preserves profile-owned current holder identity', () => {
+  assert.equal(typeof mergeInstitutionalCommitteeContent, 'function');
+  const currentHolder = {
+    id: viceId,
+    name: 'الحامل الحالي',
+    bio: 'نبذة حديثة',
+    photo: `${viceId}/avatar.webp`,
+    email: 'current@example.org',
+  };
+
+  const merged = mergeInstitutionalCommitteeContent([
+    { id: 'vice-presidency', title: 'قديم', responsibilities: ['قديم'], head: currentHolder },
+    { id: 'media', title: 'الإعلام', head: { id: studentId, name: 'الإعلامي' } },
+  ], [
+    {
+      id: 'vice-presidency',
+      title: 'مؤسسي محدث',
+      responsibilities: ['مهمة جديدة'],
+      head: { id: otherId, name: 'الحامل السابق', bio: 'قديم', photo: 'old.webp' },
+    },
+    { id: 'media', title: 'إعلام محدث', head: { id: studentId, name: 'نسخة قديمة' } },
+  ]);
+
+  assert.equal(merged[0].title, 'مؤسسي محدث');
+  assert.deepEqual(merged[0].responsibilities, ['مهمة جديدة']);
+  assert.deepEqual(merged[0].head, currentHolder);
+  assert.equal(merged[1].title, 'إعلام محدث');
+  assert.equal(merged[1].head.name, 'الإعلامي');
 });
