@@ -54,7 +54,7 @@ const PROFILE_UPDATE_FIELDS = [
 ] as const;
 
 const ALLOWED_AVATAR_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+const MAX_AVATAR_BYTES = 10 * 1024 * 1024;
 
 export function resolveAssignedRole(assignment: ExecutiveAssignment | null | undefined): UserRole {
   return assignment?.role ?? 'STUDENT';

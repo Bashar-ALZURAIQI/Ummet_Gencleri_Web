@@ -61,9 +61,10 @@ test('maps avatar MIME and size validation to safe Arabic messages', () => {
     ok: false,
     error: 'صيغة الصورة غير مدعومة. استخدم JPEG أو PNG أو WebP.',
   });
-  assert.deepEqual(policy.validateProfileAvatar({ type: 'image/png', size: 5 * 1024 * 1024 + 1 }), {
+  assert.deepEqual(policy.validateProfileAvatar({ type: 'image/png', size: 10 * 1024 * 1024 + 1 }), {
     ok: false,
-    error: 'حجم الصورة أكبر من 5 ميجابايت.',
+    error: 'حجم الصورة أكبر من 10 ميجابايت.',
   });
   assert.deepEqual(policy.validateProfileAvatar({ type: 'image/webp', size: 5 * 1024 * 1024 }), { ok: true });
+  assert.deepEqual(policy.validateProfileAvatar({ type: 'image/webp', size: 10 * 1024 * 1024 }), { ok: true });
 });

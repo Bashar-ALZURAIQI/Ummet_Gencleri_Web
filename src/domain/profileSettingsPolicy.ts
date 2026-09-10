@@ -61,5 +61,5 @@ export function validateProfileAvatar(file: AvatarFileLike): ProfileValidation {
   if (result.valid) return { ok: true };
   return result.error === 'unsupported-type'
     ? { ok: false, error: 'صيغة الصورة غير مدعومة. استخدم JPEG أو PNG أو WebP.' }
-    : { ok: false, error: 'حجم الصورة أكبر من 5 ميجابايت.' };
+    : { ok: false, error: 'حجم الصورة أكبر من 10 ميجابايت.' };
 }

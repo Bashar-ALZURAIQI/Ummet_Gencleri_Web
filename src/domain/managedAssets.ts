@@ -38,6 +38,11 @@ export const MANAGED_FILE_LIMITS: Readonly<Record<ManagedAssetKind, number>> = {
   video: 50 * MB,
   document: 20 * MB,
 };
+export const MAX_AVATAR_BYTES = 10 * 1024 * 1024;
+
+export function maxManagedFileBytes(kind: ManagedAssetKind, usage?: ManagedAssetUsage): number {
+  return usage === 'avatar' ? MAX_AVATAR_BYTES : MANAGED_FILE_LIMITS[kind];
+}
 
 interface MimeRule {
   extension: string;
@@ -69,9 +74,12 @@ const MIME_RULES: Readonly<Record<ManagedAssetKind, Readonly<Record<string, Mime
 };
 
 const SITE_LOGO_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+const AVATAR_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 
 function acceptsMimeForUsage(usage: ManagedAssetUsage | undefined, mimeType: string): boolean {
-  return usage !== 'site-logo' || SITE_LOGO_MIME_TYPES.includes(mimeType as typeof SITE_LOGO_MIME_TYPES[number]);
+  if (usage === 'avatar') return (AVATAR_MIME_TYPES as readonly string[]).includes(mimeType);
+  if (usage === 'site-logo') return (SITE_LOGO_MIME_TYPES as readonly string[]).includes(mimeType);
+  return true;
 }
 
 const ROUTES: Readonly<Record<ManagedAssetUsage, ManagedAssetRoute>> = {
@@ -105,7 +113,7 @@ export function validateManagedFile(
   if (!Number.isFinite(file.size) || file.size <= 0) {
     return { ok: false, code: 'FILE_EMPTY', message: 'الملف فارغ أو حجمه غير صالح.' };
   }
-  const maxBytes = MANAGED_FILE_LIMITS[kind];
+  const maxBytes = maxManagedFileBytes(kind, usage);
   if (file.size > maxBytes) {
     return { ok: false, code: 'FILE_TOO_LARGE', message: 'حجم الملف أكبر من الحد المسموح.' };
   }
@@ -154,6 +162,7 @@ export function isOwnedManagedPath(path: string, ownerId: string): boolean {
 
 export function acceptForUsage(usage: ManagedAssetUsage): string {
   if (usage === 'site-logo') return SITE_LOGO_MIME_TYPES.join(',');
+  if (usage === 'avatar') return AVATAR_MIME_TYPES.join(',');
   const route = routeForUsage(usage);
   return Object.keys(MIME_RULES[route.kind]).join(',');
 }

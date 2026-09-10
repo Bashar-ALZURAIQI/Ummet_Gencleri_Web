@@ -1460,7 +1460,7 @@ const ar = {
   },
   profile: {
     avatarHeading: 'الصورة الشخصية',
-    avatarHelp: 'JPEG أو PNG أو WebP، وبحد أقصى 5 ميجابايت. اختيار الصورة لا يرفعها تلقائياً.',
+    avatarHelp: 'JPEG أو PNG أو WebP، وبحد أقصى 10 ميجابايت. اختيار الصورة لا يرفعها تلقائياً.',
     uploadAvatar: 'رفع / استبدال الصورة',
     uploadingAvatar: 'جارٍ التنفيذ...',
     deleteAvatar: 'حذف الصورة',

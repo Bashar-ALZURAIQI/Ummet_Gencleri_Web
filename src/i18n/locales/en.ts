@@ -1458,7 +1458,7 @@ const en: TranslationSchema = {
   },
   profile: {
     avatarHeading: 'Profile Photo',
-    avatarHelp: 'JPEG, PNG, or WebP, max 5 MB. Selecting a photo does not upload it automatically.',
+    avatarHelp: 'JPEG, PNG, or WebP, max 10 MB. Selecting a photo does not upload it automatically.',
     uploadAvatar: 'Upload / Replace Photo',
     uploadingAvatar: 'Processing...',
     deleteAvatar: 'Delete Photo',

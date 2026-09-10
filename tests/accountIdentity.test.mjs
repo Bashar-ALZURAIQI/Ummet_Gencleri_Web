@@ -362,13 +362,15 @@ test('sanitizeProfileUpdates preserves editable contact fields but excludes logi
   );
 });
 
-test('validateAvatarFile accepts JPEG, PNG, and WebP files no larger than 5MB', () => {
+test('validateAvatarFile accepts JPEG, PNG, and WebP files up to 10MB', () => {
   for (const type of ['image/jpeg', 'image/png', 'image/webp']) {
     assert.deepEqual(identity.validateAvatarFile({ type, size: 5 * 1024 * 1024 }), { valid: true });
+    assert.deepEqual(identity.validateAvatarFile({ type, size: 10 * 1024 * 1024 }), { valid: true });
   }
 });
 
-test('validateAvatarFile rejects unsupported formats and files over 5MB', () => {
+test('validateAvatarFile rejects unsupported formats and files over 10MB', () => {
   assert.equal(identity.validateAvatarFile({ type: 'image/gif', size: 1024 }).valid, false);
-  assert.equal(identity.validateAvatarFile({ type: 'image/jpeg', size: 5 * 1024 * 1024 + 1 }).valid, false);
+  assert.equal(identity.validateAvatarFile({ type: 'image/svg+xml', size: 1024 }).valid, false);
+  assert.equal(identity.validateAvatarFile({ type: 'image/jpeg', size: 10 * 1024 * 1024 + 1 }).valid, false);
 });

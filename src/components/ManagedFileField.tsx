@@ -76,6 +76,7 @@ export default function ManagedFileField({
       : <FileText className="h-5 w-5" />;
   const helper = useMemo(() => {
     if (usage === 'site-logo') return t('managedFiles.helperLogo', 'JPEG أو PNG أو WebP، بحد أقصى 5 MB.');
+    if (usage === 'avatar') return t('managedFiles.helperAvatar', 'JPEG أو PNG أو WebP، بحد أقصى 10 MB.');
     if (route.kind === 'image') return t('managedFiles.helperImage', 'JPEG أو PNG أو WebP أو GIF، بحد أقصى 5 MB.');
     if (route.kind === 'video') return t('managedFiles.helperVideo', 'MP4 أو WebM أو MOV، بحد أقصى 50 MB.');
     return t('managedFiles.helperDoc', 'PDF أو Word أو Excel أو PowerPoint أو TXT، بحد أقصى 20 MB.');

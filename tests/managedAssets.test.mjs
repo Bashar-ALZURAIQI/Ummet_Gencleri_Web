@@ -78,3 +78,21 @@ test('site logo paths reject GIF MIME types even when generic images allow them'
   assert.equal(assets.buildManagedAssetPath({ usage: 'site-logo', ownerId, assetId, mimeType: 'image/gif' }).ok, false);
   assert.equal(assets.buildManagedAssetPath({ usage: 'gallery-image', ownerId, assetId, mimeType: 'image/gif' }).ok, true);
 });
+
+test('avatar usage allows 10MB images while generic and logo images stay at 5MB', () => {
+  assert.equal(assets.validateManagedFile({ name: 'a.jpg', type: 'image/jpeg', size: 10 * 1024 * 1024 }, 'image', 'avatar').ok, true);
+  assert.equal(assets.validateManagedFile({ name: 'a.png', type: 'image/png', size: 10 * 1024 * 1024 }, 'image', 'avatar').ok, true);
+  assert.equal(assets.validateManagedFile({ name: 'a.webp', type: 'image/webp', size: 10 * 1024 * 1024 }, 'image', 'avatar').ok, true);
+  assert.equal(assets.validateManagedFile({ name: 'a.jpg', type: 'image/jpeg', size: 10 * 1024 * 1024 + 1 }, 'image', 'avatar').ok, false);
+  assert.equal(assets.validateManagedFile({ name: 'a.gif', type: 'image/gif', size: 100 }, 'image', 'avatar').ok, false);
+  assert.equal(assets.validateManagedFile({ name: 'b.jpg', type: 'image/jpeg', size: 10 * 1024 * 1024 }, 'image').ok, false);
+  assert.equal(assets.validateManagedFile({ name: 'logo.jpg', type: 'image/jpeg', size: 10 * 1024 * 1024 }, 'image', 'site-logo').ok, false);
+  assert.equal(assets.maxManagedFileBytes('image', 'avatar'), 10 * 1024 * 1024);
+  assert.equal(assets.maxManagedFileBytes('image'), 5 * 1024 * 1024);
+});
+
+test('avatar paths and accept lists exclude GIF while avatars stay browser-safe', () => {
+  assert.equal(assets.acceptForUsage('avatar'), 'image/jpeg,image/png,image/webp');
+  assert.equal(assets.buildManagedAssetPath({ usage: 'avatar', ownerId, assetId, mimeType: 'image/gif' }).ok, false);
+  assert.equal(assets.buildManagedAssetPath({ usage: 'avatar', ownerId, assetId, mimeType: 'image/webp' }).ok, true);
+});

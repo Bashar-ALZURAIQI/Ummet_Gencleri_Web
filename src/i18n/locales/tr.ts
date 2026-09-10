@@ -1458,7 +1458,7 @@ const tr: TranslationSchema = {
   },
   profile: {
     avatarHeading: 'Profil Fotoğrafı',
-    avatarHelp: 'JPEG, PNG veya WebP, maks 5 MB. Fotoğraf seçimi otomatik yükleme yapmaz.',
+    avatarHelp: 'JPEG, PNG veya WebP, maks 10 MB. Fotoğraf seçimi otomatik yükleme yapmaz.',
     uploadAvatar: 'Fotoğraf Yükle / Değiştir',
     uploadingAvatar: 'İşleniyor...',
     deleteAvatar: 'Fotoğrafı Sil',

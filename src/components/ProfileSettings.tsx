@@ -261,7 +261,7 @@ export default function ProfileSettings({
               className="block w-full text-sm text-gray-600 file:ml-3 file:rounded-lg file:border-0 file:bg-navy-50 file:px-4 file:py-2 file:font-bold file:text-navy-700"
               disabled={avatarBusy}
             />
-            <p className="text-xs text-gray-500">{t('profile.avatarHelp', 'JPEG أو PNG أو WebP، وبحد أقصى 5 ميجابايت. اختيار الصورة لا يرفعها تلقائياً.')}</p>
+            <p className="text-xs text-gray-500">{t('profile.avatarHelp', 'JPEG أو PNG أو WebP، وبحد أقصى 10 ميجابايت. اختيار الصورة لا يرفعها تلقائياً.')}</p>
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={uploadAvatar} disabled={!selectedAvatar || avatarBusy} className="btn-primary disabled:cursor-not-allowed disabled:opacity-50">
                 <Camera className="h-4 w-4" /> {avatarBusy ? t('profile.uploadingAvatar', 'جارٍ التنفيذ...') : t('profile.uploadAvatar', 'رفع / استبدال الصورة')}
