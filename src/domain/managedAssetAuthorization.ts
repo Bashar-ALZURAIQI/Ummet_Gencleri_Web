@@ -18,11 +18,11 @@ export type ManagedAssetFolder =
 
 const ALLOWED_FOLDERS_BY_ROLE: Readonly<Record<ManagedAssetRole, readonly ManagedAssetFolder[]>> = {
   PRESIDENT: ['news', 'events', 'albums', 'site', 'documents', 'videos'],
-  VICE_PRESIDENT: ['documents'],
-  MEDIA_HEAD: ['news', 'albums', 'site', 'documents', 'videos'],
+  VICE_PRESIDENT: ['documents', 'events'],
+  MEDIA_HEAD: ['news', 'albums', 'site', 'documents', 'videos', 'events'],
   ACADEMIC_HEAD: ['events', 'documents'],
-  FINANCE_HEAD: ['documents'],
-  AUDIT_HEAD: ['documents'],
+  FINANCE_HEAD: ['documents', 'events'],
+  AUDIT_HEAD: ['documents', 'events'],
   ACTIVITIES_HEAD: ['events', 'documents'],
   STUDENT: [],
 };

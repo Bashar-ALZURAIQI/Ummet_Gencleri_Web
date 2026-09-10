@@ -12,8 +12,13 @@ assert.ok(fileName, 'missing avatar upload limit migration');
 const sql = readFileSync(fileURLToPath(new URL(fileName, migrationsUrl)), 'utf8');
 const normalized = sql.toLowerCase();
 
-test('avatars bucket limit migration is applied after every existing migration', () => {
-  assert.ok(migrations.indexOf(fileName) === migrations.length - 1, 'avatar limit migration must be the newest migration');
+test('avatars bucket limit migration is applied after the migration that set the 5 MB limit', () => {
+  const identityHistory = migrations.find((name) => name === '20260822000000_identity_roles_profiles_history.sql');
+  assert.ok(identityHistory, 'missing identity history migration');
+  assert.ok(
+    migrations.indexOf(fileName) > migrations.indexOf(identityHistory),
+    'avatar limit migration must be applied after the 5 MB avatars bucket definition',
+  );
 });
 
 test('raises only the avatars bucket file_size_limit to 10 MB while keeping MIME types', () => {
