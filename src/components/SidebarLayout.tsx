@@ -7,11 +7,13 @@ import {
   toggleSidebar,
   type SidebarDrawerState,
 } from '../domain/sidebarNavigation';
+import { SidebarBadge } from './SidebarBadge';
 
 export interface SidebarItem<TId extends string> {
   id: TId;
   label: string;
   icon: LucideIcon;
+  badge?: number;
 }
 
 export interface SidebarLayoutProps<TId extends string> {
@@ -128,6 +130,7 @@ export function SidebarLayout<TId extends string>({
           >
             <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
             <span>{item.label}</span>
+            <SidebarBadge count={item.badge} surface={mobile ? 'mobile' : 'desktop'} />
           </button>
         );
       })}

@@ -7,6 +7,45 @@ import type {
 export const APPLICATION_EMAIL_DELAY_WARNING =
   'تم حفظ العملية بنجاح، لكن تعذر إرسال إشعار البريد حالياً. يمكنك إعادة المحاولة من لوحة الطلبات.';
 
+export const getPendingApplicationBadge = (
+  role: string | null | undefined,
+  applications: readonly { status: string }[],
+): number | undefined => {
+  if (role !== 'PRESIDENT') return undefined;
+  const pendingCount = applications.filter((application) => application.status === 'pending').length;
+  return pendingCount > 0 ? pendingCount : undefined;
+};
+
+interface PresidentApplicationRefreshOptions {
+  role: string | null | undefined;
+  refresh: () => void | Promise<void>;
+  eventTarget: {
+    addEventListener: (event: 'focus', listener: () => void) => void;
+    removeEventListener: (event: 'focus', listener: () => void) => void;
+  };
+  scheduleInterval: (callback: () => void, milliseconds: number) => unknown;
+  clearScheduledInterval: (handle: unknown) => void;
+}
+
+export function startPresidentApplicationRefresh({
+  role,
+  refresh,
+  eventTarget,
+  scheduleInterval,
+  clearScheduledInterval,
+}: PresidentApplicationRefreshOptions): () => void {
+  if (role !== 'PRESIDENT') return () => {};
+
+  const refreshApplications = () => { void refresh(); };
+  eventTarget.addEventListener('focus', refreshApplications);
+  const intervalHandle = scheduleInterval(refreshApplications, 30_000);
+
+  return () => {
+    eventTarget.removeEventListener('focus', refreshApplications);
+    clearScheduledInterval(intervalHandle);
+  };
+}
+
 export const eventTypeForApplicationStatus = (
   status: ApplicationStatus,
 ): ApplicationEmailEventType => {

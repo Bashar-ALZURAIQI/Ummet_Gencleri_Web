@@ -89,7 +89,10 @@ import type {
   ApplicationEmailEventType,
   ApplicationEmailNotification,
 } from '../domain/applicationEmailNotification';
-import { deliverApplicationEmailAfterCommit } from '../domain/applicationEmailWorkflow';
+import {
+  deliverApplicationEmailAfterCommit,
+  startPresidentApplicationRefresh,
+} from '../domain/applicationEmailWorkflow';
 import { canUseMemberFeatures, resolveStudentAccess, type StudentAccessState } from '../domain/studentAccess';
 import { executeMemberRemoval } from '../domain/memberRemoval';
 import {
@@ -1657,23 +1660,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setApplicationsLoading(Boolean(currentUser?.userId));
     if (!currentUser?.userId) return () => { active = false; };
 
-    void listVisibleStudentApplications()
-      .then((result) => {
+    const refreshApplications = async () => {
+      try {
+        const result = await listVisibleStudentApplications();
         if (!active) return;
         if (!result.ok) {
           console.error('Failed to load RLS-visible applications.', { code: result.error.code });
           return;
         }
         setApplications(result.data);
-      })
-      .catch(() => {
+      } catch {
         if (active) console.error('Failed to load RLS-visible applications unexpectedly.');
-      })
-      .finally(() => {
-        if (active) setApplicationsLoading(false);
-      });
+      }
+    };
 
-    return () => { active = false; };
+    void refreshApplications().finally(() => {
+      if (active) setApplicationsLoading(false);
+    });
+
+    const stopPresidentRefresh = startPresidentApplicationRefresh({
+      role: currentUser?.role,
+      refresh: refreshApplications,
+      eventTarget: {
+        addEventListener: (_event, listener) => window.addEventListener('focus', listener),
+        removeEventListener: (_event, listener) => window.removeEventListener('focus', listener),
+      },
+      scheduleInterval: (callback, milliseconds) => window.setInterval(callback, milliseconds),
+      clearScheduledInterval: (handle) => window.clearInterval(handle as number),
+    });
+
+    return () => {
+      active = false;
+      stopPresidentRefresh();
+    };
   }, [currentUser?.userId, currentUser?.role]);
 
   const refreshApplicationEmailNotifications = useCallback(async () => {

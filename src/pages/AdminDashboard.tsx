@@ -46,6 +46,7 @@ import type {
   ApplicationEmailEventType,
   ApplicationEmailNotification,
 } from '../domain/applicationEmailNotification';
+import { getPendingApplicationBadge } from '../domain/applicationEmailWorkflow';
 import type { ActivityType } from '../domain/internalEconomyTypes.ts';
 import { toDateTimeLocalValue } from '../domain/internalEconomyInteraction.ts';
 import { canCreateExecutiveContent, canManageExcuses, canManageMemberPoints, canManageOversight, canManageTasks } from '../domain/phaseThreeEconomy.ts';
@@ -84,8 +85,10 @@ export default function AdminDashboard() {
     authInitializing, identityRefreshing,
   } = useApp();
 
+  const pendingApplicationBadge = getPendingApplicationBadge(currentUser?.role, applications);
+
   const visibleTabs = useMemo(() => {
-    const tabs: { id: AdminTab; label: string; icon: typeof BarChart3; show: boolean }[] = [
+    const tabs: { id: AdminTab; label: string; icon: typeof BarChart3; show: boolean; badge?: number }[] = [
       { id: 'stats', label: 'الإحصائيات', icon: BarChart3, show: !!currentUser && isLeadershipRole(currentUser.role) },
       { id: 'board', label: 'الهيئة التنفيذية', icon: Crown, show: canEditSection('board') },
       { id: 'pending-edits', label: 'طلبات تعديل الهيئة', icon: ClipboardCheck, show: currentUser?.role === 'PRESIDENT' },
@@ -96,7 +99,7 @@ export default function AdminDashboard() {
       { id: 'gallery', label: 'إدارة معرض الصور', icon: Images, show: !!currentUser && isLeadershipRole(currentUser.role) },
       { id: 'news', label: 'إدارة الأخبار', icon: FileText, show: canEditSection('news') },
       { id: 'members', label: 'إدارة الأعضاء', icon: Users, show: currentUser?.role === 'PRESIDENT' },
-      { id: 'applications', label: 'طلبات الانضمام', icon: Inbox, show: currentUser?.role === 'PRESIDENT' },
+      { id: 'applications', label: 'طلبات الانضمام', icon: Inbox, show: currentUser?.role === 'PRESIDENT', badge: pendingApplicationBadge },
       { id: 'inbox', label: 'رسائل الزوار / البريد الوارد', icon: Mail, show: canAccessContactInbox(currentUser?.role) },
       { id: 'plans', label: 'الخطط والتقارير', icon: ClipboardList, show: canEditSection('plans') },
       { id: 'suggestions', label: 'الاقتراحات والشكاوى', icon: Lightbulb, show: !!currentUser && isLeadershipRole(currentUser.role) },
@@ -139,7 +142,7 @@ export default function AdminDashboard() {
         ...tabItem,
         label: adminTabLabels[tabItem.id] ?? tabItem.label,
       }));
-  }, [currentUser, canEditSection, t]);
+  }, [currentUser, canEditSection, pendingApplicationBadge, t]);
 
   const permittedTabIds = useMemo(() => visibleTabs.map((item) => item.id), [visibleTabs]);
   const requestedTab = view.kind === 'admin' ? view.tab : undefined;

@@ -151,7 +151,7 @@ const assertAdminSidebarContracts = (admin) => {
 
   for (const { id, navigationGuard, contentGuard, component } of guardedTabContracts) {
     const navigation = new RegExp(
-      `\\{\\s*id\\s*:\\s*'${id}'\\s*,[^{}]*?show\\s*:\\s*${navigationGuard.source}\\s*\\}`,
+      `\\{\\s*id\\s*:\\s*'${id}'\\s*,[^{}]*?show\\s*:\\s*${navigationGuard.source}[^{}]*\\}`,
     );
     const content = new RegExp(
       `\\{\\s*tab\\s*===\\s*'${id}'\\s*&&\\s*${contentGuard.source}\\s*&&\\s*<${component}\\b`,
@@ -171,7 +171,7 @@ const assertAdminSidebarContracts = (admin) => {
 
   for (const { id, navigationGuard, content } of navigationOnlyContracts) {
     const navigation = new RegExp(
-      `\\{\\s*id\\s*:\\s*'${id}'\\s*,[^{}]*?show\\s*:\\s*${navigationGuard.source}\\s*\\}`,
+      `\\{\\s*id\\s*:\\s*'${id}'\\s*,[^{}]*?show\\s*:\\s*${navigationGuard.source}[^{}]*\\}`,
     );
     assert.match(admin, navigation, `expected ${id} navigation to retain its current access guard`);
     assert.match(admin, content, `expected ${id} content branch to retain its current contract`);
