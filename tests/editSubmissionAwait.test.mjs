@@ -33,11 +33,11 @@ test('every edit submission call waits for server confirmation', () => {
 
 test('committee submission reports success or failure and closes only after confirmed success', () => {
   const committee = readFileSync(new URL('../src/pages/CommitteePage.tsx', import.meta.url), 'utf8');
-  assert.match(committee, /const\s+result\s*=\s*await\s+submitProfileEdit/);
+  assert.match(committee, /const\s+result\s*=\s*await\s+persistOwnCommitteeEdit/);
   assert.match(committee, /if\s*\(\s*!result\.ok\s*\)/);
   assert.match(committee, /console\.error\s*\(/);
   assert.match(committee, /setSubmissionFeedback\s*\(/);
-  assert.match(committee, /PROFILE_EDIT_SUBMITTED_MESSAGE/);
+  assert.match(committee, /admin\.vision\.savedSuccess/);
   assert.match(committee, /if\s*\(\s*!\(await\s+submitOrApply/);
 });
 

@@ -22,3 +22,6 @@ export const publishCmsTarget = (target: string, payload: unknown, expectedVersi
 export const createPublishedEvent = (event: unknown, expectedVersion: number) => (
   repository.createEvent(event, expectedVersion)
 );
+export const publishOwnCommittee = (committeeId: string, snapshot: unknown, expectedVersion: number) => (
+  repository.publishOwnCommittee(committeeId, snapshot, expectedVersion)
+);

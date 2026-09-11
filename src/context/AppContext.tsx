@@ -45,6 +45,7 @@ import {
   loadFaqContent,
   loadStudentGuideContent,
   createPublishedEvent as createPublishedEventService,
+  publishOwnCommittee,
   publishCmsTarget,
 } from '../services/sectionContentService';
 import {
@@ -160,6 +161,7 @@ import {
   stripPrivateLoginEmailsForCache,
 } from '../domain/accountDirectoryDisplay';
 import {
+  canManageCouncilContent,
   prepareOwnExecutiveProfileUpdate,
   resolveOwnExecutiveProfileTarget,
 } from '../domain/executiveProfileUpdatePolicy';
@@ -717,6 +719,10 @@ interface AppContextValue {
   savePublishedSiteTarget: (
     target: PublishedContentTarget,
     value: unknown,
+  ) => Promise<{ ok: boolean; error?: string }>;
+  saveOwnCommitteeContent: (
+    committeeId: CommitteeId,
+    snapshot: ExecutiveContentSnapshot,
   ) => Promise<{ ok: boolean; error?: string }>;
   createPublishedEvent: (event: UEvent) => Promise<{ ok: boolean; error?: string }>;
   canonicalSiteContent?: SiteContent;
@@ -3313,6 +3319,43 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return { ok: true };
   };
 
+  /**
+   * Direct own-committee save for any current executive. Only the governing
+   * committee's institutional content is sent; the server enforces the
+   * assignment and replaces just that committee element under a version lock.
+   */
+  const saveOwnCommitteeContent: AppContextValue['saveOwnCommitteeContent'] = async (committeeId, snapshot) => {
+    const owner = captureConfirmedAuthOwner();
+    if (!owner
+      || !currentUser
+      || currentUser.userId !== owner.userId
+      || !canManageCouncilContent(owner, committeeId)) {
+      return { ok: false, error: 'يمكنك تعديل محتوى لجنتك الحالية فقط عبر حساب مرتبط بتكليف حالي.' };
+    }
+    const expectedVersion = selectCmsExpectedVersion('committees', currentCmsVersions());
+    if (expectedVersion < 1) {
+      return { ok: false, error: 'لم تكتمل مزامنة النسخة الرسمية بعد. حدّث الصفحة ثم أعد المحاولة.' };
+    }
+    const result = await publishOwnCommittee(committeeId, snapshot, expectedVersion);
+    const currentOwner = captureConfirmedAuthOwner();
+    if (!currentOwner
+      || currentOwner.userId !== owner.userId
+      || currentOwner.epoch !== owner.epoch
+      || !canManageCouncilContent(currentOwner, committeeId)) {
+      return { ok: false, error: 'تغير تكليفك أثناء الحفظ؛ لم تُنشر النتيجة في هذه الجلسة.' };
+    }
+    if (!result.ok) {
+      const error = result.error.code === 'CONTENT_VERSION_CONFLICT'
+        ? result.error.message
+        : result.error.message || 'تعذر حفظ محتوى الهيئة في قاعدة البيانات.';
+      setContentError(error);
+      return { ok: false, error };
+    }
+    applyCmsPublication('committees', result.data.payload, result.data.version);
+    setContentError(null);
+    return { ok: true };
+  };
+
   const createPublishedEvent: AppContextValue['createPublishedEvent'] = async (event) => {
     const owner = captureConfirmedAuthOwner();
     if (!owner || !isLeadershipRole(owner.role)) {
@@ -3864,6 +3907,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       replaceSiteLogo,
       replaceManagedMemberAvatar,
       savePublishedSiteTarget,
+      saveOwnCommitteeContent,
       createPublishedEvent,
   };
 

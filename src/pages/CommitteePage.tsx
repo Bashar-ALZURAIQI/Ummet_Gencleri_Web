@@ -10,16 +10,17 @@ import Modal from '../components/Modal';
 import ProfileEditsPanel from '../components/ProfileEditsPanel';
 import DismissibleToast from '../components/DismissibleToast';
 import UserAvatar from '../components/UserAvatar';
-import { committeeOrder, committeeMeta, type CommitteeId, type CommitteeMember, type Committee, isLeadershipRole } from '../data/mockData';
+import { committeeOrder, committeeMeta, type CommitteeId, type CommitteeMember, type Committee } from '../data/mockData';
 import RequiredMark from '../components/RequiredMark';
 import ManagedFileField from '../components/ManagedFileField';
 import { validateRequired, clearInvalid, isInvalid, fieldId } from '../utils/formValidation';
 import {
-  PROFILE_EDIT_SUBMITTED_MESSAGE,
   projectExecutiveContentSnapshot,
-  resolveExecutiveContentEditState,
 } from '../domain/executiveEditWorkflow';
-import { persistPresidentCommitteeEdit } from '../domain/executiveEditCoordinator';
+import {
+  persistOwnCommitteeEdit,
+  persistPresidentCommitteeEdit,
+} from '../domain/executiveEditCoordinator';
 import {
   getExecutiveSectionLabel,
   getExecutiveSectionDescription,
@@ -31,7 +32,7 @@ import { CmsEntityTranslationTabs } from '../components/cmsLocalization/CmsEntit
 import { useCmsLocalizationRepository } from '../context/CmsLocalizationContext';
 import { computeSourceHash, type LocalizedCmsLocale, type JsonValue } from '../domain/cmsLocalization';
 import { publishCmsEntityLocales } from '../domain/cmsLocalizationEditor';
-import { resolveOwnExecutiveProfileTarget } from '../domain/executiveProfileUpdatePolicy';
+import { resolveOwnExecutiveProfileTarget, canManageCouncilContent } from '../domain/executiveProfileUpdatePolicy';
 
 const iconMap: Record<string, typeof Crown> = {
   Crown, UserCog, Megaphone, GraduationCap, ShieldCheck, CalendarDays, Wallet,
@@ -45,7 +46,7 @@ type SubmissionFeedback = { id: number; type: 'success' | 'error'; text: string 
 export default function CommitteePage({ committeeId }: { committeeId: CommitteeId }) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language;
-  const { committees, canonicalCommittees, currentUser, setView, pendingProfileEdits, submitProfileEdit, updateBoardHead, uploadOwnAvatar, uploadManagedFile, savePublishedSiteTarget, refreshPublishedLocalizations } = useApp();
+  const { committees, canonicalCommittees, currentUser, setView, pendingProfileEdits, updateBoardHead, uploadOwnAvatar, uploadManagedFile, savePublishedSiteTarget, saveOwnCommitteeContent, refreshPublishedLocalizations } = useApp();
   const localizationRepo = useCmsLocalizationRepository();
 
   // Modals
@@ -91,8 +92,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
   const canonicalCommittee = (canonicalCommittees ?? committees).find((c) => c.id === committeeId);
   if (!committee) return null;
 
-  const allowedCommitteeManager = currentUser?.role === 'PRESIDENT' ||
-    (!!currentUser && isLeadershipRole(currentUser.role) && currentUser.committee === committeeId);
+  const allowedCommitteeManager = !!currentUser && canManageCouncilContent(currentUser, committeeId);
   const isPresident = currentUser?.role === 'PRESIDENT';
   const canEditPersonalProfile = !!currentUser && (
     resolveOwnExecutiveProfileTarget(currentUser, committeeId) === currentUser.userId
@@ -109,14 +109,10 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
   const myPendingEdit = !!currentUser && pendingProfileEdits.find(
     (e) => e.committeeId === committeeId && e.submittedByUserId === currentUser.userId && e.status === 'PENDING_APPROVAL'
   );
-  const contentEditState = resolveExecutiveContentEditState({
-    isPresident,
-    hasPendingRequest: !!myPendingEdit,
-  });
-  const canEditContent = allowedCommitteeManager && contentEditState.canEditContent;
+  const canEditContent = allowedCommitteeManager;
 
-  // The president publishes directly; committee heads queue a pending edit that
-  // waits for the president's approval before becoming public.
+  // The president publishes directly; every other current executive publishes
+  // directly to their own committee through the SQL-enforced own-committee RPC.
   const submitOrApply = async (mutate: (c: Committee) => Committee): Promise<boolean> => {
     if (!canEditContent || contentSubmitting) return false;
     const next = mutate(committee);
@@ -151,7 +147,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
     const snapshot = projectExecutiveContentSnapshot(next);
     if (!snapshot) {
       const error = 'تعذر تجهيز بيانات التعديل للإرسال. راجع الحقول وحاول مرة أخرى.';
-      console.error('[ExecutiveBoardEditModal] Invalid profile edit payload', next);
+      console.error('[ExecutiveBoardEditModal] Invalid committee content payload', next);
       setSubmissionFeedback({ id: Date.now(), type: 'error', text: error });
       return false;
     }
@@ -159,23 +155,22 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
     setContentSubmitting(true);
     setSubmissionFeedback(null);
     try {
-      const result = await submitProfileEdit(committeeId, snapshot);
+      const result = await persistOwnCommitteeEdit({
+        publish: (_committeeId, snap) => saveOwnCommitteeContent(committeeId, snap),
+      }, committeeId, next);
       if (!result.ok) {
-        console.error(
-          '[ExecutiveBoardEditModal] Supabase profile edit submission failed',
-          result.diagnostic ?? result.error,
-        );
-        setSubmissionFeedback({ id: Date.now(), type: 'error', text: result.error });
+        console.error('[ExecutiveBoardEditModal] Own committee publication failed', result.error);
+        setSubmissionFeedback({ id: Date.now(), type: 'error', text: result.error ?? 'تعذر حفظ بيانات الهيئة في قاعدة البيانات.' });
         return false;
       }
-      setSubmissionFeedback({ id: Date.now(), type: 'success', text: PROFILE_EDIT_SUBMITTED_MESSAGE });
+      setSubmissionFeedback({ id: Date.now(), type: 'success', text: t('admin.vision.savedSuccess', 'تم الحفظ بنجاح') });
       return true;
     } catch (error) {
-      console.error('[ExecutiveBoardEditModal] Unexpected profile edit submission failure', error);
+      console.error('[ExecutiveBoardEditModal] Unexpected own committee publication failure', error);
       setSubmissionFeedback({
         id: Date.now(),
         type: 'error',
-        text: 'تعذر الاتصال بالخادم أثناء إرسال التعديل. بقيت النافذة مفتوحة للمحاولة مرة أخرى.',
+        text: 'تعذر الاتصال بالخادم أثناء حفظ بيانات الهيئة. بقيت النافذة مفتوحة للمحاولة مرة أخرى.',
       });
       return false;
     } finally {
@@ -397,7 +392,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
           </DismissibleToast>
         ) : myPendingEdit && currentUser && (
           <DismissibleToast dismissKey={`ug_toast_profile_pending_${currentUser.email}_${committeeId}_${myPendingEdit.id}`} type="info" icon={<Hourglass className="h-5 w-5 shrink-0" />}>
-            {PROFILE_EDIT_SUBMITTED_MESSAGE}
+            {t('committee.directEditPendingNote', 'لديك طلب سابق قيد مراجعة رئيس الاتحاد، لكن تعديلات محتوى اللجنة تُنشر مباشرة الآن.')}
           </DismissibleToast>
         )}
 

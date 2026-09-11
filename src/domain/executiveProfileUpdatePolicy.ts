@@ -16,6 +16,19 @@ export type OwnExecutiveProfileUpdate =
   | { ok: true; data: Record<string, string> }
   | { ok: false; code: 'OWN_PROFILE_ONLY' | 'NO_EDITABLE_FIELDS' };
 
+/**
+ * Institutional content authority for a committee. The president governs every
+ * committee; any other leadership role governs only their own assigned one.
+ * Students and assignment-less actors can never manage committee content.
+ */
+export function canManageCouncilContent(
+  owner: { role: UserRole; committee?: CommitteeId },
+  committeeId: CommitteeId,
+): boolean {
+  return owner.role === 'PRESIDENT'
+    || (isLeadershipRole(owner.role) && owner.committee === committeeId);
+}
+
 export function resolveOwnExecutiveProfileTarget(
   owner: { userId: string; role: UserRole; committee?: CommitteeId },
   committeeId: CommitteeId,

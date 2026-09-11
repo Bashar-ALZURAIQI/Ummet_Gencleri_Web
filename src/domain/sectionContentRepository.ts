@@ -48,7 +48,7 @@ interface SingletonQuery {
 export interface SectionContentClient {
   from(table: 'student_guide' | 'faq'): SingletonQuery;
   rpc(
-    name: 'publish_cms_target' | 'create_published_event',
+    name: 'publish_cms_target' | 'create_published_event' | 'publish_own_committee',
     args: Record<string, unknown>,
   ): Promise<QueryResponse>;
 }
@@ -201,6 +201,39 @@ export function createSectionContentRepository(client: SectionContentClient) {
       return publication?.target === 'events'
         ? { ok: true, data: publication }
         : fail('SECTION_CONTENT_RESPONSE_INVALID', 'أعاد الخادم نتيجة إنشاء فعالية غير صالحة.');
+    },
+
+    async publishOwnCommittee(committeeId: string, snapshot: unknown, expectedVersion: number): Promise<RepositoryResult<CmsPublication>> {
+      const response = await client.rpc('publish_own_committee', {
+        p_committee_id: committeeId,
+        p_snapshot: snapshot,
+        p_expected_version: expectedVersion,
+      });
+      if (response.error) {
+        const conflict = response.error.code === '40001'
+          || response.error.message === 'CONTENT_VERSION_CONFLICT';
+        const forbidden = response.error.code === '42501'
+          || (typeof response.error.message === 'string' && response.error.message.includes('OWN_COMMITTEE_FORBIDDEN'));
+        return fail(
+          conflict
+            ? 'CONTENT_VERSION_CONFLICT'
+            : forbidden
+              ? 'OWN_COMMITTEE_FORBIDDEN'
+              : typeof response.error.code === 'string'
+                ? response.error.code
+                : 'OWN_COMMITTEE_PUBLISH_FAILED',
+          conflict
+            ? 'نُشر تعديل أحدث. حدّث الصفحة ثم أعد المحاولة.'
+            : forbidden
+              ? 'يمكنك تعديل محتوى لجنتك الحالية فقط.'
+              : 'تعذر حفظ محتوى الهيئة على الخادم.',
+          response.error,
+        );
+      }
+      const publication = parseCmsPublication(response.data);
+      return publication?.target === 'committees'
+        ? { ok: true, data: publication }
+        : fail('SECTION_CONTENT_RESPONSE_INVALID', 'أعاد الخادم نتيجة نشر غير صالحة.');
     },
   };
 }

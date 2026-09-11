@@ -3,7 +3,10 @@ import type {
   EditRequest,
   ProfileApprovalResult,
 } from './editRequestGateway.ts';
-import type { ExecutiveContentSnapshot } from './executiveEditWorkflow.ts';
+import {
+  projectExecutiveContentSnapshot,
+  type ExecutiveContentSnapshot,
+} from './executiveEditWorkflow.ts';
 
 export interface ExecutiveEditError {
   code: string;
@@ -40,6 +43,10 @@ interface PresidentCommitteePersistenceDependencies<TCommittee, TResult> {
   publishCommittees(committees: TCommittee[]): Promise<TResult>;
 }
 
+interface OwnCommitteePersistenceDependencies<TResult> {
+  publish(committeeId: string, snapshot: ExecutiveContentSnapshot): Promise<TResult>;
+}
+
 export async function persistPresidentCommitteeEdit<
   TCommittee extends { id: string },
   TResult,
@@ -53,6 +60,24 @@ export async function persistPresidentCommitteeEdit<
     committee.id === committeeId ? nextCommittee : committee
   ));
   return dependencies.publishCommittees(nextCommittees);
+}
+
+/**
+ * Own-committee direct save: projects the richer committee model into the strict
+ * institutional snapshot and delegates to the caller's narrow publish callback,
+ * which must await the server confirmation before resolving.
+ */
+export async function persistOwnCommitteeEdit<
+  TCommittee extends { id: string },
+  TResult,
+>(
+  dependencies: OwnCommitteePersistenceDependencies<TResult>,
+  committeeId: string,
+  nextCommittee: TCommittee,
+): Promise<TResult> {
+  const snapshot = projectExecutiveContentSnapshot(nextCommittee);
+  if (!snapshot) throw new Error('OWN_COMMITTEE_INVALID_SNAPSHOT');
+  return dependencies.publish(committeeId, snapshot);
 }
 
 export async function runExecutiveEditSubmission(

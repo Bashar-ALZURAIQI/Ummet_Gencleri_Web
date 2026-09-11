@@ -595,8 +595,10 @@ test('38. Invariant 6: Committee/other special direct-publish permissions exactl
   // Committee page translation tabs canPublish is President-only
   assert.match(committeeCode, /canPublish=\{Boolean\(isPresident\)\}/);
 
-  // Committee content edits by non-president go through submitProfileEdit proposal workflow
-  assert.match(committeeCode, /const result = await submitProfileEdit\(committeeId, snapshot\);/);
+  // Committee institutional edits by a current executive publish directly to their
+  // own committee through the narrow publish_own_committee RPC (never the approval queue)
+  assert.match(committeeCode, /persistOwnCommitteeEdit/);
+  assert.doesNotMatch(committeeCode, /const result = await submitProfileEdit\(committeeId, snapshot\);/);
 
   // Plans and Reports canPublish is strictly restricted to President
   const adminCode = await readFile(new URL('../src/pages/AdminDashboard.tsx', import.meta.url), 'utf8');

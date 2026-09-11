@@ -28,10 +28,16 @@ const NON_PRESIDENT_EXECUTIVES = [
   'activities_head',
 ];
 
-test('executive event image migration is applied after every existing migration', () => {
+test('migrations stay in creation order and the own-committee migration is newest', () => {
+  const own = migrations.find((name) => name.endsWith('_executive_own_committee_direct_edit.sql'));
+  assert.ok(own, 'missing own-committee direct edit migration');
   assert.ok(
-    migrations.indexOf(fileName) === migrations.length - 1,
-    'executive event image migration must be the newest migration',
+    migrations.indexOf(fileName) < migrations.indexOf(own),
+    'executive event image migration must be applied before the own-committee direct edit migration',
+  );
+  assert.ok(
+    migrations.indexOf(own) === migrations.length - 1,
+    'own-committee direct edit migration must be the newest migration',
   );
 });
 
