@@ -1,0 +1,17 @@
+User-agent: *
+
+# Public website
+Allow: /
+
+# Private / authenticated areas
+Disallow: /admin
+Disallow: /admin/
+Disallow: /student
+Disallow: /student/
+
+# Authentication / account flows
+Disallow: /login
+Disallow: /forgot-password
+Disallow: /update-password
+
+Sitemap: https://ummet-genc.vercel.app/sitemap.xml
