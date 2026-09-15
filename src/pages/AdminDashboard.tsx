@@ -1082,6 +1082,15 @@ function BoardTab({ committees, setCommittees, students, currentUser, updateBoar
           const members = Array.isArray(c.members) ? c.members : [];
           return { ...c, members: [...members, { id: newMemberId, name: student.name, position: memberForm.position || t('admin.board.defaultMemberPosition', 'عضو'), photo }] };
         }));
+        const memberCanonicalNext = (committees ?? []).map((c) => {
+          if (c.id !== committeeId) return c;
+          const membersList = Array.isArray(c.members) ? c.members : [];
+          const hasMember = membersList.some((m) => m.id === newMemberId);
+          const members = hasMember
+            ? membersList
+            : [...membersList, { id: newMemberId, name: student.name, position: memberForm.position || t('admin.board.defaultMemberPosition', 'عضو'), photo }];
+          return { ...c, members };
+        });
         for (const loc of ['tr', 'en'] as const) {
           const trData = memberTranslations[loc];
           if (trData.position?.trim()) {
@@ -1097,9 +1106,9 @@ function BoardTab({ committees, setCommittees, students, currentUser, updateBoar
                 payload: list as unknown as JsonValue,
                 status: 'draft',
                 manualPaths: [`${newMemberId}.position`],
-                sourceHash: computeSourceHash(committees),
+                sourceHash: computeSourceHash(memberCanonicalNext),
                 updatedAt: new Date().toISOString(),
-              });
+              }, { committeeId });
             } catch {
               // non-blocking
             }
@@ -1360,6 +1369,7 @@ function BoardTab({ committees, setCommittees, students, currentUser, updateBoar
           <CmsEntityTranslationTabs
             target="committees"
             recordId={editMember?.member?.id ?? null}
+            committeeId={editMember?.committeeId}
             canonicalPayload={committees}
             fields={[
               {
@@ -1429,6 +1439,7 @@ function BoardTab({ committees, setCommittees, students, currentUser, updateBoar
           <CmsEntityTranslationTabs
             target="committees"
             recordId={headCommittee}
+            committeeId={headCommittee}
             canonicalPayload={committees}
             fields={[
               {
@@ -1500,6 +1511,7 @@ function BoardTab({ committees, setCommittees, students, currentUser, updateBoar
           <CmsEntityTranslationTabs
             target="committees"
             recordId={respTarget?.committeeId ?? null}
+            committeeId={respTarget?.committeeId}
             canonicalPayload={committees}
             fields={[
               {
@@ -4064,6 +4076,7 @@ function ProfileTab({ currentUser }: { currentUser: ReturnType<typeof useApp>["c
               <CmsEntityTranslationTabs
                 target="committees"
                 recordId={committee.id}
+                committeeId={committee.id}
                 canonicalPayload={committees.map((c) => c.id === committee.id ? { ...c, ...visionForm } : c)}
                 fields={[
                   {

@@ -52,6 +52,10 @@ function createMockSupabaseClient(initialRows = []) {
   return {
     rows,
     queryLogs,
+    rpc(fn, args) {
+      queryLogs.push({ type: 'rpc', method: fn, args });
+      return Promise.resolve({ data: null, error: null });
+    },
     from(table) {
       assert.equal(table, 'cms_localizations');
       let currentQuery = {
@@ -349,7 +353,7 @@ test('8. target is strictly preserved', async () => {
     locale: 'en',
     payload: [{ id: 'presidency', name: 'Presidency' }],
     status: 'draft',
-  });
+  }, { committeeId: 'presidency' });
 
   assert.equal(res.target, 'committees');
 });

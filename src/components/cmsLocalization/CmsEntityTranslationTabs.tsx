@@ -31,6 +31,7 @@ export interface CmsEntityFieldConfig {
 export interface CmsEntityTranslationTabsProps {
   target: CmsTarget | string;
   recordId: string | null;
+  committeeId?: string | null;
   canonicalPayload: unknown;
   fields: CmsEntityFieldConfig[];
   canEdit: boolean;
@@ -82,6 +83,7 @@ function statusStateFromScope(
 export function CmsEntityTranslationTabs({
   target,
   recordId,
+  committeeId,
   canonicalPayload,
   fields,
   canEdit,
@@ -171,13 +173,14 @@ export function CmsEntityTranslationTabs({
     updater((prev) => ({ ...prev, saving: true, saveError: null }));
 
     try {
-      const saved = await saveCmsEntityDraft({
+const saved = await saveCmsEntityDraft({
         repository,
         target,
         locale,
         canonicalPayload,
         recordId,
         fields: localeTranslations,
+        committeeId,
       });
       const publishedRecord = await repository.getPublished(target, locale);
       const scope = resolveCmsLocalizationScope({
@@ -216,13 +219,14 @@ export function CmsEntityTranslationTabs({
           .filter((field) => localeTranslations[field.name] !== undefined)
           .map((field) => [field.name, localeTranslations[field.name]]),
       );
-      await publishCmsEntityFields({
+await publishCmsEntityFields({
         repository,
         target,
         locale,
         canonicalPayload,
         recordId,
         fields: dirtyFields,
+        committeeId,
       });
       const [draftRecord, publishedRecord] = await Promise.all([
         repository.getDraft(target, locale),

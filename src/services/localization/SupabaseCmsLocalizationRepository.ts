@@ -82,6 +82,17 @@ export class SupabaseCmsLocalizationRepository implements CmsLocalizationReposit
     }
   }
 
+  private assertCommitteeWriteContext(
+    options?: SaveLocalizationOptions,
+  ): asserts options is Required<Pick<SaveLocalizationOptions, 'committeeId'>> {
+    if (!options?.committeeId) {
+      throw new CmsLocalizationRepositoryError(
+        'UNKNOWN',
+        'Committee localization writes require a committeeId (options.committeeId) to scope the server-enforced RPC.',
+      );
+    }
+  }
+
   // --- Published Operations ---
 
   public async getPublished<T = JsonValue>(
@@ -134,9 +145,37 @@ export class SupabaseCmsLocalizationRepository implements CmsLocalizationReposit
     const client = await this.getClient();
 
     try {
+      const targetKey = record.target.trim();
+      const isCommittees = targetKey === 'committees';
+
       if (options) {
         const existing = await this.getPublished<T>(record.target, record.locale);
         this.verifyConcurrency(existing, options);
+      }
+
+      // Committee localization publishes go exclusively through the narrow,
+      // server-enforced RPC so every write is scoped to the acting editor's
+      // current executive assignment (never the broad table upsert).
+      if (isCommittees) {
+        this.assertCommitteeWriteContext(options);
+        if (typeof client.rpc !== 'function') {
+          throw new CmsLocalizationRepositoryError(
+            'UNKNOWN',
+            'Committee localization saves require an RPC-capable query client.',
+          );
+        }
+        const { error } = await client.rpc('publish_own_committee_localization', {
+          p_committee_id: options.committeeId,
+          p_locale: record.locale,
+          p_localized_committees: record.payload,
+        });
+        if (error) {
+          throw new CmsLocalizationRepositoryError(
+            'UNKNOWN',
+            `Failed to save published committee localization: ${error.message}`,
+          );
+        }
+        return record;
       }
 
       const row = mapRecordToRow(record, 'published');
@@ -240,9 +279,37 @@ export class SupabaseCmsLocalizationRepository implements CmsLocalizationReposit
     const client = await this.getClient();
 
     try {
+      const targetKey = record.target.trim();
+      const isCommittees = targetKey === 'committees';
+
       if (options) {
         const existing = await this.getDraft<T>(record.target, record.locale);
         this.verifyConcurrency(existing, options);
+      }
+
+      // Committee localization drafts go exclusively through the narrow,
+      // server-enforced RPC so every write is scoped to the acting editor's
+      // current executive assignment (never the broad table upsert).
+      if (isCommittees) {
+        this.assertCommitteeWriteContext(options);
+        if (typeof client.rpc !== 'function') {
+          throw new CmsLocalizationRepositoryError(
+            'UNKNOWN',
+            'Committee localization saves require an RPC-capable query client.',
+          );
+        }
+        const { error } = await client.rpc('save_own_committee_draft_localization', {
+          p_committee_id: options.committeeId,
+          p_locale: record.locale,
+          p_localized_committees: record.payload,
+        });
+        if (error) {
+          throw new CmsLocalizationRepositoryError(
+            'UNKNOWN',
+            `Failed to save committee localization draft: ${error.message}`,
+          );
+        }
+        return record;
       }
 
       const row = mapRecordToRow(record, 'draft');
@@ -272,15 +339,42 @@ export class SupabaseCmsLocalizationRepository implements CmsLocalizationReposit
   public async deleteDraft(
     target: CmsTarget | string,
     locale: LocalizedCmsLocale,
+    options?: SaveLocalizationOptions,
   ): Promise<boolean> {
     this.assertSupportedLocalizedLocale(locale);
     const client = await this.getClient();
 
     try {
+      const targetKey = target.trim();
+      const isCommittees = targetKey === 'committees';
+
+      // Committee localization draft removal goes exclusively through the
+      // narrow, server-enforced RPC for the owning committee partition.
+      if (isCommittees) {
+        this.assertCommitteeWriteContext(options);
+        if (typeof client.rpc !== 'function') {
+          throw new CmsLocalizationRepositoryError(
+            'UNKNOWN',
+            'Committee localization writes require an RPC-capable query client.',
+          );
+        }
+        const { error } = await client.rpc('delete_own_committee_draft_localization', {
+          p_committee_id: options.committeeId,
+          p_locale: locale,
+        });
+        if (error) {
+          throw new CmsLocalizationRepositoryError(
+            'UNKNOWN',
+            `Failed to delete committee localization draft: ${error.message}`,
+          );
+        }
+        return true;
+      }
+
       const { error } = await client
         .from('cms_localizations')
         .delete()
-        .eq('target', target.trim())
+        .eq('target', targetKey)
         .eq('locale', locale)
         .eq('partition', 'draft');
 

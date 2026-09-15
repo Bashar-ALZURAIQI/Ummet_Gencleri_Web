@@ -63,6 +63,17 @@ export interface SaveLocalizationOptions {
    * If provided and does not match existing record, a CONFLICT error is thrown.
    */
   expectedSourceHash?: string;
+
+  /**
+   * Stable id of the committee that owns the localization write.
+   *
+   * Committee-targeted records are persisted exclusively through narrow,
+   * server-enforced RPCs (publish/save/delete own-committee localization) so
+   * each write is scoped and verified against the acting editor's current
+   * executive assignment. REQUIRED whenever `target === 'committees'`; the
+   * Supabase adapter fails closed with an error when it is missing.
+   */
+  committeeId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -130,6 +141,7 @@ export interface CmsLocalizationRepository {
   deleteDraft(
     target: CmsTarget | string,
     locale: LocalizedCmsLocale,
+    options?: SaveLocalizationOptions,
   ): Promise<boolean>;
 
   /**
@@ -320,6 +332,8 @@ export class InMemoryCmsLocalizationRepository implements CmsLocalizationReposit
   public async deleteDraft(
     target: CmsTarget | string,
     locale: LocalizedCmsLocale,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    options?: SaveLocalizationOptions,
   ): Promise<boolean> {
     this.assertSupportedLocalizedLocale(locale);
     const key = this.makeKey(target, locale);

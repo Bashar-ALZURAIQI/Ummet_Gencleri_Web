@@ -300,6 +300,7 @@ export interface ExecuteCmsPublishParams {
   manualPaths: readonly string[];
   sourceVersion?: string | number;
   preserveDraft?: boolean;
+  committeeId?: string | null;
 }
 
 /**
@@ -326,6 +327,7 @@ export async function executeCmsPublish(
     manualPaths,
     sourceVersion,
     preserveDraft = false,
+    committeeId,
   } = params;
 
   const recordToSave: CmsLocalizationRecord = {
@@ -340,12 +342,13 @@ export async function executeCmsPublish(
     updatedAt: new Date().toISOString(),
   };
 
-  const saved = await repository.savePublished(recordToSave);
+  const saveOptions = committeeId ? { committeeId } : undefined;
+  const saved = await repository.savePublished(recordToSave, saveOptions);
 
   // Consume/delete draft so it never overrides fresh published record
   if (!preserveDraft) {
     try {
-      await repository.deleteDraft(target, locale);
+      await repository.deleteDraft(target, locale, saveOptions);
     } catch {
       // Safe fallback if draft does not exist or delete is not permitted
     }
@@ -385,6 +388,7 @@ export interface PublishDirtyLocalizedFieldsParams {
   target: CmsTarget | string;
   canonicalPayload: unknown;
   changes: DirtyLocalizedFields;
+  committeeId?: string | null;
 }
 
 /**
@@ -395,7 +399,7 @@ export interface PublishDirtyLocalizedFieldsParams {
 export async function publishDirtyLocalizedFields(
   params: PublishDirtyLocalizedFieldsParams,
 ): Promise<Partial<Record<LocalizedCmsLocale, CmsLocalizationRecord>>> {
-  const { repository, target, canonicalPayload, changes } = params;
+  const { repository, target, canonicalPayload, changes, committeeId } = params;
   const published: Partial<Record<LocalizedCmsLocale, CmsLocalizationRecord>> = {};
 
   for (const locale of ['tr', 'en'] as const) {
@@ -419,6 +423,7 @@ export async function publishDirtyLocalizedFields(
           latestDraft,
           latestPublished,
           localeChanges.map(([path]) => path),
+          committeeId,
         );
       }
       continue;
@@ -430,6 +435,7 @@ export async function publishDirtyLocalizedFields(
       locale,
       canonicalPayload,
       changes: Object.fromEntries(pendingChanges),
+      committeeId,
     });
   }
 
@@ -670,13 +676,15 @@ async function reconcileConsumedDraft(
   draft: CmsLocalizationRecord | null,
   published: CmsLocalizationRecord,
   consumedPaths: readonly string[],
+  committeeId?: string | null,
 ): Promise<void> {
   if (!draft) return;
   const consumed = new Set(normalizeLocalizationPaths(consumedPaths));
   const remainingPaths = normalizeLocalizationPaths(draft.manualPaths ?? [])
     .filter((path) => !consumed.has(path));
+  const saveOptions = committeeId ? { committeeId } : undefined;
   if (remainingPaths.length === 0) {
-    await repository.deleteDraft(published.target, published.locale);
+    await repository.deleteDraft(published.target, published.locale, saveOptions);
     return;
   }
   let reconciledPayload = cloneJson(published.payload);
@@ -692,7 +700,7 @@ async function reconcileConsumedDraft(
     status: 'draft',
     manualPaths: remainingPaths,
     updatedAt: new Date().toISOString(),
-  });
+  }, saveOptions);
 }
 
 function patchesRootEntity(payload: unknown, recordId: string | null): boolean {
@@ -736,13 +744,14 @@ export interface SaveCmsEntityDraftParams extends Omit<UpdateCmsEntityFieldsPara
   repository: Pick<CmsLocalizationRepository, 'getDraft' | 'getPublished' | 'saveDraft'>;
   locale: LocalizedCmsLocale;
   canonicalPayload: unknown;
+  committeeId?: string | null;
 }
 
 /** Persists a scope-safe entity draft while preserving all published and unrelated draft content. */
 export async function saveCmsEntityDraft(
   params: SaveCmsEntityDraftParams,
 ): Promise<CmsLocalizationRecord> {
-  const { repository, target, locale, canonicalPayload, recordId, fields } = params;
+  const { repository, target, locale, canonicalPayload, recordId, fields, committeeId } = params;
   const [latestDraft, latestPublished] = await Promise.all([
     repository.getDraft(target, locale),
     repository.getPublished(target, locale),
@@ -766,7 +775,7 @@ export async function saveCmsEntityDraft(
     sourceHash: computeSourceHash(canonicalPayload),
     sourceVersion: latestDraft?.sourceVersion ?? latestPublished?.sourceVersion,
     updatedAt: new Date().toISOString(),
-  });
+  }, committeeId ? { committeeId } : undefined);
 }
 
 export interface PublishCmsLocalizationPatchParams {
@@ -775,13 +784,14 @@ export interface PublishCmsLocalizationPatchParams {
   locale: LocalizedCmsLocale;
   canonicalPayload: unknown;
   changes: Readonly<Record<string, string>>;
+  committeeId?: string | null;
 }
 
 /** Publishes only explicit paths over latest published state; drafts are never a publish base. */
 export async function publishCmsLocalizationPatch(
   params: PublishCmsLocalizationPatchParams,
 ): Promise<CmsLocalizationRecord> {
-  const { repository, target, locale, canonicalPayload, changes } = params;
+  const { repository, target, locale, canonicalPayload, changes, committeeId } = params;
   const [draft, latestPublished] = await Promise.all([
     repository.getDraft(target, locale),
     repository.getPublished(target, locale),
@@ -797,8 +807,9 @@ export async function publishCmsLocalizationPatch(
     repository, target, locale, canonicalPayload, payload, manualPaths,
     sourceVersion: latestPublished?.sourceVersion ?? draft?.sourceVersion,
     preserveDraft: true,
+    committeeId,
   });
-  await reconcileConsumedDraft(repository, draft, saved, Object.keys(changes));
+  await reconcileConsumedDraft(repository, draft, saved, Object.keys(changes), committeeId);
   return saved;
 }
 
@@ -809,6 +820,7 @@ export interface PublishCmsEntityFieldsParams {
   canonicalPayload: unknown;
   recordId: string | null;
   fields: Readonly<Record<string, string>>;
+  committeeId?: string | null;
 }
 
 export interface PublishCmsEntityLocalesParams extends Omit<PublishCmsEntityFieldsParams, 'locale' | 'fields'> {
@@ -837,10 +849,12 @@ export async function publishCmsEntityLocales(
 export async function publishCmsEntityFields(
   params: PublishCmsEntityFieldsParams,
 ): Promise<CmsLocalizationRecord> {
-  const { repository, target, locale, canonicalPayload, recordId, fields } = params;
+  const { repository, target, locale, canonicalPayload, recordId, fields, committeeId } = params;
   const patchesRootObject = patchesRootEntity(canonicalPayload, recordId);
   if (patchesRootObject) {
-    return publishCmsLocalizationPatch({ repository, target, locale, canonicalPayload, changes: fields });
+    return publishCmsLocalizationPatch({
+      repository, target, locale, canonicalPayload, changes: fields, committeeId,
+    });
   }
   const [draft, latestPublished] = await Promise.all([
     repository.getDraft(target, locale),
@@ -865,7 +879,8 @@ export async function publishCmsEntityFields(
     repository, target, locale, canonicalPayload, payload, manualPaths,
     sourceVersion: latestPublished?.sourceVersion ?? draft?.sourceVersion,
     preserveDraft: true,
+    committeeId,
   });
-  await reconcileConsumedDraft(repository, draft, saved, consumedPaths);
+  await reconcileConsumedDraft(repository, draft, saved, consumedPaths, committeeId);
   return saved;
 }

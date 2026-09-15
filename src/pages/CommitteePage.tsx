@@ -300,47 +300,63 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
     if (!editingMember) {
       if (isPresident) {
         try {
-          await publishCmsEntityLocales({
+await publishCmsEntityLocales({
             repository: localizationRepo, target: 'committees',
             canonicalPayload: (canonicalCommittees ?? committees).map((committee) =>
               committee.id === committeeId
-                ? { ...committee, members: [...(committee.members ?? []), { id: newMemberId, name: memberForm.name, position: memberForm.position, photo }] }
+                ? {
+                    ...committee,
+                    members: (Array.isArray(committee.members) ? committee.members : []).some((m) => m.id === newMemberId)
+                      ? committee.members
+                      : [...(committee.members ?? []), { id: newMemberId, name: memberForm.name, position: memberForm.position, photo }],
+                  }
                 : committee,
             ),
             recordId: newMemberId, translations: memberTranslations,
+            committeeId,
           });
           await refreshPublishedLocalizations();
         } catch {
           alert(t('cmsLocalization.publishFailed', 'تعذر نشر الترجمة.'));
           return;
         }
-      } else {
+} else {
+        const memberCanonicalNext = (committees ?? []).map((c) =>
+          c.id === committeeId
+            ? {
+                ...c,
+                members: (Array.isArray(c.members) ? c.members : []).some((m) => m.id === newMemberId)
+                  ? c.members
+                  : [...(c.members ?? []), { id: newMemberId, name: memberForm.name, position: memberForm.position, photo }],
+              }
+            : c,
+        );
         for (const loc of ['tr', 'en'] as const) {
           const trData = memberTranslations[loc];
           if (trData.position?.trim()) {
             try {
-            const latest = await localizationRepo.getDraft('committees', loc);
-            const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
-              ? JSON.parse(JSON.stringify(latest.payload))
-              : [];
-            const commIdx = list.findIndex((c) => c && c.id === committeeId);
-            if (commIdx >= 0) {
-              const commObj = list[commIdx];
-              const members = Array.isArray(commObj.members) ? [...commObj.members] : [];
-              members.push({ id: newMemberId, ...trData });
-              commObj.members = members;
-            } else {
-              list.push({ id: committeeId, members: [{ id: newMemberId, ...trData }] });
-            }
-            await localizationRepo.saveDraft({
-              target: 'committees',
-              locale: loc,
-              payload: list as unknown as JsonValue,
-              status: 'draft',
-              manualPaths: [`${newMemberId}.position`],
-              sourceHash: computeSourceHash(committees),
-              updatedAt: new Date().toISOString(),
-            });
+              const latest = await localizationRepo.getDraft('committees', loc);
+              const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
+                ? JSON.parse(JSON.stringify(latest.payload))
+                : [];
+              const commIdx = list.findIndex((c) => c && c.id === committeeId);
+              if (commIdx >= 0) {
+                const commObj = list[commIdx];
+                const members = Array.isArray(commObj.members) ? [...commObj.members] : [];
+                members.push({ id: newMemberId, ...trData });
+                commObj.members = members;
+              } else {
+                list.push({ id: committeeId, members: [{ id: newMemberId, ...trData }] });
+              }
+              await localizationRepo.saveDraft({
+                target: 'committees',
+                locale: loc,
+                payload: list as unknown as JsonValue,
+                status: 'draft',
+                manualPaths: [`${newMemberId}.position`],
+                sourceHash: computeSourceHash(memberCanonicalNext),
+                updatedAt: new Date().toISOString(),
+              }, { committeeId });
             } catch {
               // Draft-only roles keep their existing proposal workflow.
             }
@@ -597,6 +613,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               onPublished={refreshPublishedLocalizations}
               target="committees"
               recordId={committee.id}
+              committeeId={committee.id}
               canonicalPayload={canonicalCommittees ?? committees}
               fields={[
                 {
@@ -652,6 +669,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               onPublished={refreshPublishedLocalizations}
               target="committees"
               recordId={committee.id}
+              committeeId={committee.id}
               canonicalPayload={canonicalCommittees ?? committees}
               fields={[
                 {
@@ -699,6 +717,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               onPublished={refreshPublishedLocalizations}
               target="committees"
               recordId={committee.id ? `${committee.id}.stats.${statIdx}` : `stats.${statIdx}`}
+              committeeId={committee.id}
               canonicalPayload={canonicalCommittees ?? committees}
               fields={[
                 {
@@ -746,6 +765,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
               onPublished={refreshPublishedLocalizations}
               target="committees"
               recordId={editingMember?.id ?? null}
+              committeeId={committee.id}
               canonicalPayload={canonicalCommittees ?? committees}
               fields={[
                 {
