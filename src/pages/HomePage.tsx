@@ -59,14 +59,14 @@ export default function HomePage() {
         />
 
         <div className="container-app relative grid items-center gap-12 py-16 lg:grid-cols-2 lg:py-24">
-          <div className="text-center lg:text-right">
+          <div className="text-center lg:text-end">
             <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-xs font-semibold text-gold-300 backdrop-blur-sm">
               <Sparkles className="h-3.5 w-3.5" />
               <EditableField config={{ path: 'hero.badge', label: 'شارة الهيرو', target: 'site' }} currentValue={sc.hero.badge} canEdit={canEdit}>{sc.hero.badge}</EditableField>
             </span>
             <h1 className="dynamic-text-safe mt-6 text-4xl font-extrabold leading-tight text-white lg:text-6xl">
               <EditableField config={{ path: 'hero.title', label: 'العنوان الرئيسي', target: 'site' }} currentValue={sc.hero.title} canEdit={canEdit}>{sc.hero.title}</EditableField>
-              <span className="mt-2 block bg-gradient-to-l from-gold-300 to-gold-500 bg-clip-text text-2xl font-bold text-transparent lg:text-3xl">
+              <span className="mt-2 block bg-gradient-to-l rtl:bg-gradient-to-r from-gold-300 to-gold-500 bg-clip-text text-2xl font-bold text-transparent lg:text-3xl">
                 <EditableField config={{ path: 'hero.subtitle', label: 'العنوان الفرعي', target: 'site' }} currentValue={sc.hero.subtitle} canEdit={canEdit}>{sc.hero.subtitle}</EditableField>
               </span>
             </h1>
@@ -76,7 +76,7 @@ export default function HomePage() {
             <div className="mt-8 flex flex-wrap justify-center gap-3 lg:justify-start">
               <button onClick={() => setView({ kind: 'programs' })} className="btn-gold w-full sm:w-auto max-w-full">
                 <EditableField config={{ path: 'hero.primaryBtn', label: 'الزر الأساسي', target: 'site' }} currentValue={sc.hero.primaryBtn} canEdit={canEdit}>{sc.hero.primaryBtn}</EditableField>
-                <ArrowLeft className="h-4 w-4" />
+                <ArrowLeft className="h-4 w-4 rtl:rotate-180" />
               </button>
               <button
                 onClick={() => setView({ kind: 'about' })}
@@ -244,7 +244,7 @@ export default function HomePage() {
               className="mt-6 inline-flex items-center gap-1.5 text-sm font-bold text-navy-700 hover:text-navy-900"
             >
               {t('home.readMoreAbout')}
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-4 w-4 rtl:rotate-180" />
             </button>
           </div>
 
@@ -277,7 +277,7 @@ export default function HomePage() {
               className="hidden items-center gap-1.5 text-sm font-bold text-navy-700 hover:text-navy-900 sm:inline-flex"
             >
               {t('common.viewAll')}
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-4 w-4 rtl:rotate-180" />
             </button>
           </div>
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -299,7 +299,7 @@ export default function HomePage() {
             <article key={n.id} className="card group flex flex-col overflow-hidden transition-all hover:-translate-y-1 hover:shadow-xl">
               <div className="relative h-44 overflow-hidden">
                 <img src={n.image} alt={n.title} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
-                <span className="absolute top-3 right-3 rounded-full bg-white/90 px-3 py-1 text-xs font-bold text-navy-800 backdrop-blur-sm">{n.category}</span>
+                <span className="absolute top-3 end-3 rounded-full bg-white/90 px-3 py-1 text-xs font-bold text-navy-800 backdrop-blur-sm">{n.category}</span>
               </div>
               <div className="flex flex-1 flex-col p-5">
                 <div className="text-xs text-gray-400">{n.date}</div>
@@ -308,14 +308,14 @@ export default function HomePage() {
                 <div className="mt-4 flex items-center gap-2">
                   <button onClick={() => setActiveNews(n)} className="inline-flex items-center gap-1.5 text-sm font-bold text-navy-700 hover:text-navy-900">
                     {t('common.readMore')}
-                    <ChevronLeft className="h-4 w-4" />
+                    <ChevronLeft className="h-4 w-4 rtl:rotate-180" />
                   </button>
                   {n.externalUrl && (
                     <a
                       href={n.externalUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="mr-auto inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-l from-fuchsia-600 to-pink-500 px-3 py-1.5 text-xs font-bold text-white shadow-md transition-transform hover:scale-105"
+                      className="ms-auto inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-l rtl:bg-gradient-to-r from-fuchsia-600 to-pink-500 px-3 py-1.5 text-xs font-bold text-white shadow-md transition-transform hover:scale-105"
                     >
                       <ExternalLink className="h-3.5 w-3.5" />
                       {t('news.viewSource')}
@@ -351,7 +351,7 @@ export default function HomePage() {
                 <button
                   key={id}
                   onClick={() => setView({ kind: 'committee', committeeId: cid })}
-                  className="card group flex items-center gap-4 p-5 text-right transition-all hover:-translate-y-1 hover:shadow-lg"
+                  className="card group flex items-center gap-4 p-5 text-end transition-all hover:-translate-y-1 hover:shadow-lg"
                 >
                   <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${meta.color} text-white shadow-md transition-transform group-hover:scale-110`}>
                     <Icon className="h-6 w-6" />
@@ -370,7 +370,7 @@ export default function HomePage() {
               className="inline-flex items-center gap-1.5 text-sm font-bold text-navy-700 hover:text-navy-900"
             >
               {t('home.viewFullBoard')}
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-4 w-4 rtl:rotate-180" />
             </button>
           </div>
         </div>
@@ -380,7 +380,7 @@ export default function HomePage() {
 
       {/* CTA */}
       <section className="container-app pb-16">
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-navy-800 to-navy-950 px-6 py-12 text-center lg:px-16 lg:py-16">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-l rtl:bg-gradient-to-r from-navy-800 to-navy-950 px-6 py-12 text-center lg:px-16 lg:py-16">
           <div className="absolute -top-16 -right-16 h-64 w-64 rounded-full bg-gold-500/20 blur-3xl" />
           <div className="absolute -bottom-16 -left-16 h-64 w-64 rounded-full bg-navy-500/30 blur-3xl" />
           <div className="relative">
@@ -422,7 +422,7 @@ export default function HomePage() {
                 href={activeNews.externalUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-l from-fuchsia-600 to-pink-500 px-4 py-2.5 text-sm font-bold text-white shadow-md transition-transform hover:scale-105"
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-l rtl:bg-gradient-to-r from-fuchsia-600 to-pink-500 px-4 py-2.5 text-sm font-bold text-white shadow-md transition-transform hover:scale-105"
               >
                 <ExternalLink className="h-4 w-4" />
                 {t('news.viewSource')}
