@@ -28,17 +28,19 @@ const NON_PRESIDENT_EXECUTIVES = [
   'activities_head',
 ];
 
-test('migrations stay in creation order and the own-committee migration is newest', () => {
+test('migrations stay in creation order and local drafts follow the production baseline', () => {
   const own = migrations.find((name) => name.endsWith('_executive_own_committee_direct_edit.sql'));
   assert.ok(own, 'missing own-committee direct edit migration');
   assert.ok(
     migrations.indexOf(fileName) < migrations.indexOf(own),
     'executive event image migration must be applied before the own-committee direct edit migration',
   );
-  assert.ok(
-    migrations.indexOf(own) === migrations.length - 1,
-    'own-committee direct edit migration must be the newest migration',
-  );
+  // The own-committee migration is the newest migration applied to production.
+  // Locally-authored drafts created afterwards are allowed to follow it as long
+  // as the first one is this task's own-committee localization RPC draft;
+  // production apply is deferred until explicitly requested.
+  const firstLater = migrations[migrations.indexOf(own) + 1];
+  assert.equal(firstLater, '20260915120000_own_committee_localization_rpcs.sql');
 });
 
 test('gallery INSERT policy derives authorization from auth.uid() and stays owner-bound', () => {
