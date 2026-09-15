@@ -1,5 +1,5 @@
 export type ManagedAssetKind = 'image' | 'video' | 'document';
-export type ManagedAssetArea = 'news' | 'events' | 'gallery' | 'site' | 'plans' | 'reports' | 'avatar';
+export type ManagedAssetArea = 'news' | 'events' | 'gallery' | 'site' | 'plans' | 'reports' | 'avatar' | 'guide';
 export type ManagedAssetUsage =
   | 'avatar'
   | 'news-image'
@@ -9,6 +9,7 @@ export type ManagedAssetUsage =
   | 'site-logo'
   | 'plan-document'
   | 'report-document'
+  | 'guide-document'
   | 'video-file';
 
 export interface ManagedFileLike {
@@ -91,6 +92,7 @@ const ROUTES: Readonly<Record<ManagedAssetUsage, ManagedAssetRoute>> = {
   'site-logo': { bucket: 'site_assets', folder: 'branding', kind: 'image', area: 'site' },
   'plan-document': { bucket: 'gallery', folder: 'documents', kind: 'document', area: 'plans' },
   'report-document': { bucket: 'gallery', folder: 'documents', kind: 'document', area: 'reports' },
+  'guide-document': { bucket: 'gallery', folder: 'documents', kind: 'document', area: 'guide' },
   'video-file': { bucket: 'gallery', folder: 'videos', kind: 'video', area: 'gallery' },
 };
 
@@ -146,7 +148,9 @@ export function buildManagedAssetPath(input: {
   }
   const path = route.bucket === 'avatars'
     ? `${input.ownerId}/avatar-${input.assetId}.${rule.extension}`
-    : `${route.folder}/${input.ownerId}/${input.assetId}.${rule.extension}`;
+    : input.usage === 'guide-document'
+      ? `${route.folder}/${input.ownerId}/guide/${input.assetId}.${rule.extension}`
+      : `${route.folder}/${input.ownerId}/${input.assetId}.${rule.extension}`;
   return { ok: true, path };
 }
 
@@ -154,6 +158,14 @@ export function isOwnedManagedPath(path: string, ownerId: string): boolean {
   if (!UUID_PATTERN.test(ownerId)) return false;
   const escapedOwner = ownerId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const uuid = '[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}';
+  const segments = path.split('/');
+  if (segments.length === 4 && segments[0] === 'documents' && segments[2] === 'guide') {
+    const guidePattern = new RegExp(
+      `^documents/${escapedOwner}/guide/${uuid}\\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx)$`,
+      'i',
+    );
+    return guidePattern.test(path);
+  }
   const gallery = new RegExp(`^(?:news|events|albums|site|documents|videos)/${escapedOwner}/${uuid}\\.(?:jpg|png|webp|gif|mp4|webm|mov|pdf|doc|docx|xls|xlsx|ppt|pptx|txt)$`, 'i');
   const branding = new RegExp(`^branding/${escapedOwner}/${uuid}\\.(?:jpg|png|webp)$`, 'i');
   const avatar = new RegExp(`^${escapedOwner}/avatar-${uuid}\\.(?:jpg|png|webp)$`, 'i');

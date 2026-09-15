@@ -1,3 +1,5 @@
+import { DEFAULT_PROGRAMS_ACHIEVEMENTS, type ProgramsAchievements } from '../domain/programsAchievements.ts';
+
 export type EventCategory = 'workshop' | 'lecture' | 'volunteer' | 'training' | 'trip' | 'entertainment' | 'visit';
 
 export interface UEvent {
@@ -290,12 +292,15 @@ export interface ProgramsContent {
   badge: string;
   title: string;
   description: string;
+  /** Manual CMS-editable achievements — counts are never derived from events. */
+  achievements: ProgramsAchievements;
 }
 
 export const DEFAULT_PROGRAMS_CONTENT: ProgramsContent = {
   badge: 'أنشطتنا',
   title: 'البرامج والأنشطة',
   description: 'تصفح برامجنا القادمة وسجّل في ما يناسبك، أو استعرض إنجازاتنا في الفعاليات السابقة.',
+  achievements: { ...DEFAULT_PROGRAMS_ACHIEVEMENTS },
 };
 
 export const DEFAULT_GUIDE_QUICK_INFO =
@@ -1336,6 +1341,8 @@ export interface GuideContact {
   label: string;
   value: string;
   type: 'phone' | 'link';
+  /** Human-readable display title resolved from the link target, when known. */
+  title?: string;
 }
 
 export interface GuideItem {
@@ -1343,6 +1350,8 @@ export interface GuideItem {
   heading: string;
   body: string;
   tips: string[];
+  documentLabel?: string;
+  documentUrl?: string;
 }
 
 export interface GuideSectionData {

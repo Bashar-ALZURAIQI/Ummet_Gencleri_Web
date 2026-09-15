@@ -2,12 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   CalendarDays, CheckCircle2, History, Sparkles, Plus, Edit3, Trash2, Save,
-  CheckCircle2 as Check, X,
+  CheckCircle2 as Check, X, Users, Layers,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import EventCard from '../components/EventCard';
 import Modal from '../components/Modal';
 import SiteEditBanner from '../components/SiteEditBanner';
+import StatCounter from '../components/StatCounter';
 import { categoryLabels, type EventCategory, type UEvent, type ProgramsContent, type SiteEditDiff } from '../data/mockData';
 import RequiredMark from '../components/RequiredMark';
 import { validateRequired, clearInvalid, isInvalid, fieldId } from '../utils/formValidation';
@@ -25,6 +26,7 @@ import { useCmsLocalizationRepository } from '../context/CmsLocalizationContext'
 import { type LocalizedCmsLocale } from '../domain/cmsLocalization';
 import { publishCmsEntityLocales, resolveCanonicalEntityById } from '../domain/cmsLocalizationEditor';
 import { getEventCategoryLabel } from '../domain/eventCategoryPresentation';
+import { interpolateProgramsAchievementsText } from '../domain/programsAchievements.ts';
 
 type Tab = 'upcoming' | 'past';
 
@@ -47,8 +49,8 @@ export default function ProgramsPage() {
   const [editingHeader, setEditingHeader] = useState(false);
   const [headerForm, setHeaderForm] = useState<ProgramsContent>(canonicalProgramsContent ?? programsContent);
   const [headerTranslations, setHeaderTranslations] = useState<Record<LocalizedCmsLocale, Record<string, string>>>({
-    tr: { badge: '', title: '', description: '' },
-    en: { badge: '', title: '', description: '' },
+    tr: { badge: '', title: '', description: '', 'achievements.title': '', 'achievements.text': '' },
+    en: { badge: '', title: '', description: '', 'achievements.title': '', 'achievements.text': '' },
   });
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -301,14 +303,30 @@ export default function ProgramsPage() {
     await savePublishedSiteTarget('events', (canonicalEvents ?? events).filter((event) => event.id !== id));
   };
 
-  const saveHeader = async (e: React.FormEvent) => {
+const saveHeader = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateRequired({ ...headerForm }, ['badge', 'title', 'description'], setInvalid)) return;
+    const emptyAchievements = [
+      headerForm.achievements.title.trim() ? '' : 'achievements.title',
+      headerForm.achievements.text.trim() ? '' : 'achievements.text',
+    ].filter(Boolean);
+    if (emptyAchievements.length > 0) {
+      setInvalid(emptyAchievements);
+      const first = document.getElementById(`fld_${emptyAchievements[0]}`);
+      first?.focus();
+      alert('يرجى تعبئة كافة الحقول المطلوبة قبل الإرسال/الحفظ');
+      return;
+    }
     if (currentUser?.role === 'MEDIA_HEAD') {
       const diffs = [
         { label: 'الشارة', path: 'badge', oldValue: programsContent.badge, newValue: headerForm.badge },
         { label: 'العنوان الرئيسي', path: 'title', oldValue: programsContent.title, newValue: headerForm.title },
         { label: 'النص الوصفي', path: 'description', oldValue: programsContent.description, newValue: headerForm.description },
+        { label: 'عنوان الإنجازات', path: 'achievements.title', oldValue: programsContent.achievements.title, newValue: headerForm.achievements.title },
+        { label: 'نص الإنجازات', path: 'achievements.text', oldValue: programsContent.achievements.text, newValue: headerForm.achievements.text },
+        { label: 'عدد الفعاليات', path: 'achievements.eventsCount', oldValue: String(programsContent.achievements.eventsCount), newValue: String(headerForm.achievements.eventsCount) },
+        { label: 'عدد الطلاب المستفيدين', path: 'achievements.studentsCount', oldValue: String(programsContent.achievements.studentsCount), newValue: String(headerForm.achievements.studentsCount) },
+        { label: 'عدد الجامعات', path: 'achievements.universitiesCount', oldValue: String(programsContent.achievements.universitiesCount), newValue: String(headerForm.achievements.universitiesCount) },
       ].filter((d) => d.oldValue !== d.newValue);
       if (diffs.length) {
         const submitted = await submitSiteEdit({
@@ -372,6 +390,20 @@ export default function ProgramsPage() {
                     canonicalValue: headerForm.description,
                     placeholder: 'النص الوصفي',
                   },
+                  {
+                    name: 'achievements.title',
+                    label: t('programs.headerModal.achievementsTitle', 'عنوان الإنجازات'),
+                    kind: 'title',
+                    canonicalValue: headerForm.achievements.title,
+                    placeholder: 'عنوان الإنجازات',
+                  },
+                  {
+                    name: 'achievements.text',
+                    label: t('programs.headerModal.achievementsText', 'نص الإنجازات'),
+                    kind: 'description',
+                    canonicalValue: headerForm.achievements.text,
+                    placeholder: 'اكتب وصفًا للإنجازات ويمكن استخدام {events} و{students} و{universities} لامكانية وضعها داخل الجملة',
+                  },
                 ]}
                 canEdit={Boolean(isPresident)}
                 translations={headerTranslations}
@@ -413,6 +445,62 @@ export default function ProgramsPage() {
                     placeholder="النص الوصفي"
                   />
                 </div>
+                <div>
+                  <label className="mb-1.5 block text-right text-xs font-bold text-gold-300">عنوان الإنجازات <RequiredMark /></label>
+                  <input
+                    id={fieldId('achievements.title')}
+                    className={`${isInvalid(invalid, 'achievements.title') ? 'input-field-dark-error' : 'w-full rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm text-white placeholder:text-gray-400 focus:border-gold-400 focus:outline-none'}`}
+                    value={headerForm.achievements.title}
+                    onChange={(e) => { setHeaderForm((c) => ({ ...c, achievements: { ...c.achievements, title: e.target.value } })); clearInvalid(setInvalid, 'achievements.title'); }}
+                    placeholder="عنوان الإنجازات"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-right text-xs font-bold text-gold-300">نص الإنجازات <RequiredMark /></label>
+                  <textarea
+                    id={fieldId('achievements.text')}
+                    rows={2}
+                    className={`${isInvalid(invalid, 'achievements.text') ? 'input-field-dark-error resize-none' : 'w-full resize-none rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm text-white placeholder:text-gray-400 focus:border-gold-400 focus:outline-none'}`}
+                    value={headerForm.achievements.text}
+                    onChange={(e) => { setHeaderForm((c) => ({ ...c, achievements: { ...c.achievements, text: e.target.value } })); clearInvalid(setInvalid, 'achievements.text'); }}
+                    placeholder="اكتب وصفًا للإنجازات ويمكن استخدام {events} و{students} و{universities}"
+                  />
+                </div>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div>
+                    <label className="mb-1.5 block text-right text-xs font-bold text-gold-300">عدد الفعاليات</label>
+                    <input
+                      id={fieldId('achievements.eventsCount')}
+                      type="number"
+                      min="0"
+                      className="w-full rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm text-white placeholder:text-gray-400 focus:border-gold-400 focus:outline-none"
+                      value={headerForm.achievements.eventsCount}
+                      onChange={(e) => { setHeaderForm((c) => ({ ...c, achievements: { ...c.achievements, eventsCount: Math.max(0, Number(e.target.value)) } })); }}
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-right text-xs font-bold text-gold-300">عدد الطلاب المستفيدين</label>
+                    <input
+                      id={fieldId('achievements.studentsCount')}
+                      type="number"
+                      min="0"
+                      className="w-full rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm text-white placeholder:text-gray-400 focus:border-gold-400 focus:outline-none"
+                      value={headerForm.achievements.studentsCount}
+                      onChange={(e) => { setHeaderForm((c) => ({ ...c, achievements: { ...c.achievements, studentsCount: Math.max(0, Number(e.target.value)) } })); }}
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-right text-xs font-bold text-gold-300">عدد الجامعات</label>
+                    <input
+                      id={fieldId('achievements.universitiesCount')}
+                      type="number"
+                      min="0"
+                      className="w-full rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm text-white placeholder:text-gray-400 focus:border-gold-400 focus:outline-none"
+                      value={headerForm.achievements.universitiesCount}
+                      onChange={(e) => { setHeaderForm((c) => ({ ...c, achievements: { ...c.achievements, universitiesCount: Math.max(0, Number(e.target.value)) } })); }}
+                    />
+                  </div>
+                </div>
               </CmsEntityTranslationTabs>
               <div className="flex justify-center gap-2">
                 <button type="submit" className="inline-flex items-center gap-1.5 rounded-lg bg-gold-400 px-4 py-2 text-sm font-bold text-navy-950 hover:bg-gold-300">
@@ -432,8 +520,8 @@ export default function ProgramsPage() {
                     onClick={() => {
                       setHeaderForm(programsContent);
                       setHeaderTranslations({
-                        tr: { badge: '', title: '', description: '' },
-                        en: { badge: '', title: '', description: '' },
+                        tr: { badge: '', title: '', description: '', 'achievements.title': '', 'achievements.text': '' },
+                        en: { badge: '', title: '', description: '', 'achievements.title': '', 'achievements.text': '' },
                       });
                       setEditingHeader(true);
                     }}
@@ -548,7 +636,7 @@ export default function ProgramsPage() {
           </div>
         )}
 
-        {/* Achievements banner for past tab */}
+        {/* Achievements banner for past tab — CMS-editable numbers, never derived from events */}
         {tab === 'past' && (
           <div className="mt-12 rounded-3xl border border-emerald-100 bg-emerald-50 p-8">
             <div className="flex items-start gap-4">
@@ -556,11 +644,30 @@ export default function ProgramsPage() {
                 <CheckCircle2 className="h-6 w-6" />
               </div>
               <div>
-                <h3 className="text-xl font-bold text-navy-900">{t('programs.achievementsTitle')}</h3>
+                <h3 className="text-xl font-bold text-navy-900">{programsContent.achievements.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-gray-600">
-                  {t('programs.achievementsText')}
+                  {interpolateProgramsAchievementsText(programsContent.achievements.text, programsContent.achievements)}
                 </p>
               </div>
+            </div>
+            <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <StatCounter
+                value={programsContent.achievements.eventsCount}
+                label={t('programs.achievementsStatEvents')}
+                icon={<CalendarDays className="h-5 w-5" />}
+              />
+              <StatCounter
+                value={programsContent.achievements.studentsCount}
+                label={t('programs.achievementsStatStudents')}
+                icon={<Users className="h-5 w-5" />}
+                suffix="+"
+              />
+              <StatCounter
+                value={programsContent.achievements.universitiesCount}
+                label={t('programs.achievementsStatUniversities')}
+                icon={<Layers className="h-5 w-5" />}
+                suffix="+"
+              />
             </div>
           </div>
         )}

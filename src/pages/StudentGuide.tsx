@@ -3,7 +3,7 @@ import {
   BookOpen, Home, Bus, Library, GraduationCap, MapPin, Phone, Clock,
   ExternalLink, ChevronLeft, Info, Plus, Edit3, Trash2, Save, X,
   Phone as PhoneIcon, Link as LinkIcon, UtensilsCrossed,
-  HeartPulse, ShoppingCart, Wallet, FileText, Building2, Car, Wifi,
+  HeartPulse, ShoppingCart, Wallet, FileText, Download, Building2, Car, Wifi,
   Coffee, Pill, BookMarked, Briefcase, Landmark, Mail, MessageCircle,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
@@ -12,6 +12,8 @@ import Modal from '../components/Modal';
 import SiteEditBanner from '../components/SiteEditBanner';
 import RequiredMark from '../components/RequiredMark';
 import GuideSuggestionCallout from '../components/GuideSuggestionCallout';
+import ManagedFileField from '../components/ManagedFileField';
+import SmartClickableText from '../components/SmartClickableText';
 import { validateChecks, clearInvalid, isInvalid, fieldId } from '../utils/formValidation';
 import { validateGuideContact, validateGuideItem, validateGuideSection } from '../domain/cmsValidation';
 import type { GuideSectionData, GuideItem, GuideContact, SiteEditDiff } from '../data/mockData';
@@ -20,6 +22,17 @@ import { CmsTranslationSection } from '../components/cmsLocalization/CmsTranslat
 import { useCmsLocalizationRepository } from '../context/CmsLocalizationContext';
 import { type LocalizedCmsLocale } from '../domain/cmsLocalization';
 import { publishCmsEntityLocales } from '../domain/cmsLocalizationEditor';
+import { resolveGuideLinkTitle } from '../services/guideLinkMetadataService';
+
+const toGuideHost = (value: string): string => {
+  if (!value || value.startsWith('mailto:')) return '';
+  try {
+    const url = new URL(value.startsWith('http') ? value : `https://${value}`);
+    return url.hostname.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+};
 
 const iconMap: Record<string, typeof BookOpen> = {
   BookOpen, Home, Bus, Library, GraduationCap, MapPin, Phone, Clock,
@@ -43,7 +56,7 @@ const colorOptions = [
 
 export default function StudentGuide() {
   const { t } = useTranslation();
-  const { currentUser, guideSections, guideQuickInfo, canonicalGuideSections, canonicalGuideQuickInfo, submitSiteEdit, savePublishedSiteTarget, refreshPublishedLocalizations } = useApp();
+  const { currentUser, guideSections, guideQuickInfo, canonicalGuideSections, canonicalGuideQuickInfo, submitSiteEdit, savePublishedSiteTarget, uploadManagedFile, refreshPublishedLocalizations } = useApp();
   const localizationRepo = useCmsLocalizationRepository();
   const canonicalSections = canonicalGuideSections ?? guideSections;
   const [activeSectionId, setActiveSectionId] = useState(guideSections[0]?.id ?? '');
@@ -84,7 +97,7 @@ export default function StudentGuide() {
 
   // Item form state
   const [itemForm, setItemForm] = useState({
-    heading: '', body: '', tips: [''],
+    heading: '', body: '', tips: [''], documentLabel: '', documentUrl: '',
   });
 
   // Contact form state
@@ -133,6 +146,7 @@ export default function StudentGuide() {
     const rows: [string, string, unknown, unknown, boolean][] = [
       ['عنوان المعلومة', 'heading', current?.heading, next.heading, true],
       ['الوصف الرئيسي', 'body', current?.body ?? '', next.body ?? '', true],
+      ['الملف المرفق', 'documentUrl', current?.documentUrl ?? '', next.documentUrl ?? '', false],
     ];
     const diffs: SiteEditDiff[] = [];
     for (const [label, path, oldV, newV, editable] of rows) {
@@ -244,7 +258,7 @@ export default function StudentGuide() {
   const openAddItem = () => {
     setEditingItem(null);
     setItemTranslations({ tr: {}, en: {} });
-    setItemForm({ heading: '', body: '', tips: [''] });
+    setItemForm({ heading: '', body: '', tips: [''], documentLabel: '', documentUrl: '' });
     setItemModalOpen(true);
   };
 
@@ -257,6 +271,8 @@ export default function StudentGuide() {
       heading: canonItem?.heading ?? item.heading,
       body: canonItem?.body ?? item.body,
       tips: (canonItem?.tips ?? item.tips).length ? [...(canonItem?.tips ?? item.tips)] : [''],
+      documentLabel: canonItem?.documentLabel ?? item.documentLabel ?? '',
+      documentUrl: canonItem?.documentUrl ?? item.documentUrl ?? '',
     });
     setItemModalOpen(true);
   };
@@ -268,10 +284,17 @@ export default function StudentGuide() {
     if (!itemForm.heading.trim()) return;
     const tips = itemForm.tips.filter((t) => t.trim());
     const newItemId = editingItem?.id ?? 'item' + Date.now();
-    if (currentUser?.role === 'MEDIA_HEAD') {
+if (currentUser?.role === 'MEDIA_HEAD') {
       const section = canonicalSections.find((s) => s.id === activeSectionId);
       if (!section) return;
-      const nextItem: GuideItem = { id: newItemId, heading: itemForm.heading, body: itemForm.body, tips };
+      const nextItem: GuideItem = {
+        id: newItemId,
+        heading: itemForm.heading,
+        body: itemForm.body,
+        tips,
+        documentLabel: itemForm.documentLabel.trim() ? itemForm.documentLabel.trim() : undefined,
+        documentUrl: itemForm.documentUrl.trim() ? itemForm.documentUrl.trim() : undefined,
+      };
       const next: GuideSectionData = editingItem
         ? { ...section, items: section.items.map((it) => it.id === editingItem.id ? nextItem : it) }
         : { ...section, items: [...section.items, nextItem] };
@@ -289,13 +312,20 @@ export default function StudentGuide() {
       setItemModalOpen(false);
       return;
     }
-    let nextSections: GuideSectionData[];
+let nextSections: GuideSectionData[];
+    const nextItemPatch = {
+      heading: itemForm.heading,
+      body: itemForm.body,
+      tips,
+      documentLabel: itemForm.documentLabel.trim() ? itemForm.documentLabel.trim() : undefined,
+      documentUrl: itemForm.documentUrl.trim() ? itemForm.documentUrl.trim() : undefined,
+    };
     if (editingItem) {
       nextSections = (canonicalGuideSections ?? guideSections).map((s) => s.id === activeSectionId ? {
-        ...s, items: s.items.map((it) => it.id === editingItem.id ? { ...it, heading: itemForm.heading, body: itemForm.body, tips } : it),
+        ...s, items: s.items.map((it) => it.id === editingItem.id ? { ...it, ...nextItemPatch } : it),
       } : s);
     } else {
-      const newItem: GuideItem = { id: newItemId, heading: itemForm.heading, body: itemForm.body, tips };
+      const newItem: GuideItem = { id: newItemId, ...nextItemPatch };
       nextSections = (canonicalGuideSections ?? guideSections).map((s) => s.id === activeSectionId ? { ...s, items: [...s.items, newItem] } : s);
     }
     const saved = await savePublishedSiteTarget('guideSections', nextSections);
@@ -383,16 +413,35 @@ export default function StudentGuide() {
     setContactModalOpen(true);
   };
 
-  const saveContact = async (e: React.FormEvent) => {
+const saveContact = async (e: React.FormEvent) => {
     e.preventDefault();
     const validation = validateGuideContact(contactForm);
     if (!validateChecks(validation.invalid.map((key) => ({ key, ok: false })), setInvalid)) return;
     if (!contactForm.label.trim() || !contactForm.value.trim()) return;
+
+    // Resolve a human-readable title for link contacts. Failures (offline
+    // function, blocked/private targets, timeouts) degrade silently to the
+    // hostname fallback so the editor is never blocked from saving.
+    let resolvedTitle: string | undefined;
+    if (contactForm.type === 'link' && contactForm.value.trim()) {
+      try {
+        const metadata = await resolveGuideLinkTitle(contactForm.value.trim());
+        if (metadata.ok && metadata.title && metadata.host) {
+          resolvedTitle = metadata.title;
+        } else if (metadata.host) {
+          resolvedTitle = metadata.host;
+        }
+      } catch {
+        // keep undefined
+      }
+    }
+
     if (currentUser?.role === 'MEDIA_HEAD') {
       const section = canonicalSections.find((s) => s.id === activeSectionId);
       if (!section) return;
       const contactId = editingContact?.id ?? 'ct' + Date.now();
       const nextContact: GuideContact = { id: contactId, ...contactForm };
+      if (resolvedTitle) nextContact.title = resolvedTitle;
       const next: GuideSectionData = editingContact
         ? { ...section, contacts: section.contacts.map((c) => c.id === editingContact.id ? nextContact : c) }
         : { ...section, contacts: [...section.contacts, nextContact] };
@@ -414,10 +463,11 @@ export default function StudentGuide() {
     const contactId = editingContact?.id ?? 'ct' + Date.now();
     if (editingContact) {
       nextSections = (canonicalGuideSections ?? guideSections).map((s) => s.id === activeSectionId ? {
-        ...s, contacts: s.contacts.map((c) => c.id === editingContact.id ? { ...c, ...contactForm } : c),
+        ...s, contacts: s.contacts.map((c) => c.id === editingContact.id ? { ...c, ...contactForm, ...(resolvedTitle ? { title: resolvedTitle } : {}) } : c),
       } : s);
     } else {
       const newContact: GuideContact = { id: contactId, ...contactForm };
+      if (resolvedTitle) newContact.title = resolvedTitle;
       nextSections = (canonicalGuideSections ?? guideSections).map((s) => s.id === activeSectionId ? { ...s, contacts: [...s.contacts, newContact] } : s);
     }
     const saved = await savePublishedSiteTarget('guideSections', nextSections);
@@ -617,7 +667,7 @@ export default function StudentGuide() {
                   </div>
                 </div>
               ) : (
-                <p className="mt-2 text-xs leading-relaxed text-gray-600">{guideQuickInfo}</p>
+                <p className="mt-2 text-xs leading-relaxed text-gray-600"><SmartClickableText text={guideQuickInfo} /></p>
               )}
             </div>
           </aside>
@@ -680,16 +730,26 @@ export default function StudentGuide() {
                   </div>
                   <div className="flex-1">
                     <h3 className="text-base font-bold text-navy-900">{item.heading}</h3>
-                    <p className="mt-1 text-sm leading-relaxed text-gray-600">{item.body}</p>
+                    <p className="mt-1 text-sm leading-relaxed text-gray-600"><SmartClickableText text={item.body} /></p>
                     {item.tips.length > 0 && (
                       <ul className="mt-3 space-y-2">
                         {item.tips.map((tip, i) => (
                           <li key={i} className="flex items-start gap-2 text-sm text-gray-600">
                             <div className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gold-500" />
-                            {tip}
+                            <SmartClickableText text={tip} />
                           </li>
                         ))}
                       </ul>
+                    )}
+                    {item.documentUrl && (
+                      <a
+                        href={item.documentUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-3 inline-flex items-center gap-2 rounded-lg bg-navy-50 px-3 py-2 text-sm font-semibold text-navy-700 hover:bg-navy-100"
+                      >
+                        <Download className="h-4 w-4" /> {item.documentLabel?.trim() || 'تحميل الملف'}
+                      </a>
                     )}
                   </div>
                 </div>
@@ -731,7 +791,16 @@ export default function StudentGuide() {
                       </div>
                       <div className="flex-1">
                         <div className="text-xs text-gray-400">{contact.label}</div>
-                        <div className="text-sm font-bold text-navy-900" dir="ltr">{contact.value}</div>
+                        {contact.type === 'phone' ? (
+                          <a href={`tel:${contact.value.replace(/[^+\d]/g, '')}`} className="text-sm font-bold text-navy-900" dir="ltr">{contact.value}</a>
+                        ) : (
+                          <a href={contact.value.startsWith('http') ? contact.value : `https://${contact.value}`} target="_blank" rel="noopener noreferrer" className="flex flex-col text-sm font-bold text-navy-900 underline decoration-navy-200 hover:text-navy-700">
+                            <span className="truncate font-bold text-navy-900" dir="ltr">{contact.title || toGuideHost(contact.value) || contact.value}</span>
+                            {toGuideHost(contact.value) && (
+                              <span className="text-xs font-medium text-gray-400 no-underline" dir="ltr">{toGuideHost(contact.value)}</span>
+                            )}
+                          </a>
+                        )}
                       </div>
                       {isPresidentOrMedia && (
                         <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
@@ -941,6 +1010,32 @@ export default function StudentGuide() {
                 </button>
               </div>
             </div>
+            <div className="space-y-2">
+              <ManagedFileField
+                usage="guide-document"
+                label="ملف قابل للتحميل (اختياري)"
+                currentUrl={itemForm.documentUrl || undefined}
+                onUpload={(file, onProgress) => uploadManagedFile('guide-document', file, onProgress)}
+                onUploaded={(asset) => setItemForm((prev) => ({ ...prev, documentUrl: asset.publicUrl }))}
+              />
+              {itemForm.documentUrl && (
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    className="input-field"
+                    placeholder="عنوان الزر (اختياري) — مثال: نموذج التسجيل"
+                    value={itemForm.documentLabel}
+                    onChange={(e) => setItemForm({ ...itemForm, documentLabel: e.target.value })}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setItemForm({ ...itemForm, documentUrl: '', documentLabel: '' })}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50"
+                  >
+                    <X className="h-3.5 w-3.5" /> إزالة الملف
+                  </button>
+                </div>
+              )}
+            </div>
           </CmsEntityTranslationTabs>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setItemModalOpen(false)} className="btn-ghost">إلغاء</button>
@@ -985,7 +1080,7 @@ export default function StudentGuide() {
           </CmsEntityTranslationTabs>
           <div>
             <label htmlFor={fieldId('contactValue')} className="label-field">القيمة <RequiredMark /></label>
-            <input id={fieldId('contactValue')} required className={`input-field ${isInvalid(invalid, 'contactValue')}`} dir="ltr" value={contactForm.value} onChange={(e) => { setContactForm({ ...contactForm, value: e.target.value }); clearInvalid(setInvalid, 'contactValue'); }} placeholder="+90 442 231 0000" />
+            <input id={fieldId('contactValue')} required className={`input-field ${isInvalid(invalid, 'contactValue')}`} dir="ltr" value={contactForm.value} onChange={(e) => { setContactForm({ ...contactForm, value: e.target.value }); clearInvalid(setInvalid, 'contactValue'); }} placeholder={contactForm.type === 'phone' ? '+90 442 231 0000' : 'https://example.com'} />
           </div>
           <div>
             <label className="label-field">النوع</label>

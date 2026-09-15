@@ -13,7 +13,7 @@ export interface ManagedAssetReference {
   path: string;
   publicUrl: string;
   kind: 'image' | 'video' | 'document';
-  area: 'news' | 'events' | 'gallery' | 'site' | 'plans' | 'reports' | 'avatar';
+  area: 'news' | 'events' | 'gallery' | 'site' | 'plans' | 'reports' | 'avatar' | 'guide';
   mimeType: string;
   sizeBytes: number;
 }
@@ -75,7 +75,7 @@ function isManagedAssetKind(value: unknown): value is ManagedAssetReference['kin
 
 function isManagedAssetArea(value: unknown): value is ManagedAssetReference['area'] {
   return value === 'news' || value === 'events' || value === 'gallery' || value === 'site'
-    || value === 'plans' || value === 'reports' || value === 'avatar';
+    || value === 'plans' || value === 'reports' || value === 'avatar' || value === 'guide';
 }
 
 function mapManagedAssetReference(value: unknown): ServiceResult<ManagedAssetReference> {

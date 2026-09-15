@@ -112,6 +112,8 @@ export const CMS_TRANSLATABLE_SCHEMA: Record<string, readonly CmsTranslatableFie
     { pathPattern: 'badge', kind: 'title' },
     { pathPattern: 'title', kind: 'title' },
     { pathPattern: 'description', kind: 'description' },
+    { pathPattern: 'achievements.title', kind: 'title' },
+    { pathPattern: 'achievements.text', kind: 'description' },
   ],
 
   // 4. Events

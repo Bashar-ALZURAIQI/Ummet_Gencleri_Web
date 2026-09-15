@@ -95,6 +95,7 @@ import {
   startPresidentApplicationRefresh,
 } from '../domain/applicationEmailWorkflow';
 import { canUseMemberFeatures, resolveStudentAccess, type StudentAccessState } from '../domain/studentAccess';
+import { withProgramsAchievements } from '../domain/programsAchievements.ts';
 import { executeMemberRemoval } from '../domain/memberRemoval';
 import {
   createEditedApprovalNote,
@@ -1117,7 +1118,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   });
   const [programsContent, setProgramsContent] = useState<ProgramsContent>(() => {
     const bundle = safeParse<SiteContentBundle>(LS_SITE_CONTENT_KEY);
-    return bundle?.programsContent ?? DEFAULT_PROGRAMS_CONTENT;
+    return withProgramsAchievements(bundle?.programsContent ?? DEFAULT_PROGRAMS_CONTENT);
   });
   const [guideQuickInfo, setGuideQuickInfo] = useState<string>(() => {
     const bundle = safeParse<SiteContentBundle>(LS_SITE_CONTENT_KEY);
@@ -1499,7 +1500,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (bundle.siteContent) setSiteContent(bundle.siteContent);
     if (bundle.aboutContent) setAboutContent(bundle.aboutContent);
     if (bundle.generalInfo) setGeneralInfo(bundle.generalInfo);
-    if (bundle.programsContent) setProgramsContent(bundle.programsContent);
+    if (bundle.programsContent) setProgramsContent(withProgramsAchievements(bundle.programsContent));
     if (Array.isArray(bundle.galleryAlbums)) setGalleryAlbums(bundle.galleryAlbums);
     if (Array.isArray(bundle.galleryCategories)) setGalleryCategories(bundle.galleryCategories);
     if (Array.isArray(bundle.contactCards)) setContactCards(bundle.contactCards);
@@ -3251,7 +3252,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     switch (target) {
       case 'site': setSiteContent(value as SiteContent); break;
       case 'about': setAboutContent(value as AboutContent); break;
-      case 'programsContent': setProgramsContent(value as ProgramsContent); break;
+      case 'programsContent': setProgramsContent(withProgramsAchievements(value as ProgramsContent)); break;
       case 'events': setEvents(value as UEvent[]); break;
       case 'galleryAlbums': setGalleryAlbums(value as GalleryAlbum[]); break;
       case 'galleryCategories': setGalleryCategories(value as GalleryCategory[]); break;
