@@ -1,7 +1,46 @@
-# Ümmet Gençleri Web (اتحاد شباب الأمة)
+# 🌐 Ümmet Gençleri Web
 
-Official website and management platform of Ümmet Gençleri.
-تطبيق React وSupabase لإدارة حسابات الطلاب، ملفاتهم العامة، الهيئة التنفيذية، طلبات الانضمام، وسجل التعديلات والقرارات.
+### Multilingual Student Organization and Management Platform
+
+Ümmet Gençleri Web is a full-stack web platform designed to support the public website and internal management workflows of Ümmet Gençleri.
+
+The platform combines a modern multilingual user interface with secure authentication, student profiles, executive role management, membership workflows, content management, notifications, and Supabase-backed authorization.
+
+---
+
+## 🚀 Project Overview
+
+The platform supports both public-facing content and authenticated organization management.
+
+### Main Capabilities
+
+* Arabic, Turkish, and English multilingual support
+* Student registration and authentication
+* Student profiles and account management
+* Executive board and role management
+* Membership and application workflows
+* Content and website management
+* Secure authorization using Supabase
+* Row Level Security and protected server-side operations
+* Web Push notifications
+* Automated testing and validation
+* Responsive web interface
+
+---
+
+## 🛠️ Core Technologies
+
+`React` · `TypeScript` · `Vite` · `Tailwind CSS` · `Supabase` · `PostgreSQL` · `Git` · `GitHub`
+
+---
+
+## 🔗 Live Website
+
+The current deployed version is available at:
+
+https://ummet-genc.vercel.app
+
+---
 
 ## Technology
 
