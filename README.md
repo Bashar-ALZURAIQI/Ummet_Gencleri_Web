@@ -2,9 +2,9 @@
 
 ### Multilingual Student Organization and Management Platform
 
-Ümmet Gençleri Web is a full-stack web platform designed to support the public website and internal management workflows of Ümmet Gençleri.
+Ümmet Gençleri Web is a full-stack web platform designed to support both the public website and the internal management workflows of Ümmet Gençleri.
 
-The platform combines a modern multilingual user interface with secure authentication, student profiles, executive role management, membership workflows, content management, notifications, and Supabase-backed authorization.
+The platform combines a multilingual user experience with secure authentication, student profiles, executive role management, membership workflows, content management, notifications, and Supabase-backed authorization.
 
 ---
 
@@ -18,13 +18,14 @@ The platform supports both public-facing content and authenticated organization 
 * Student registration and authentication
 * Student profiles and account management
 * Executive board and role management
-* Membership and application workflows
-* Content and website management
+* Membership application workflows
+* Website and content management
 * Secure authorization using Supabase
-* Row Level Security and protected server-side operations
+* Row Level Security
+* Protected server-side operations
 * Web Push notifications
 * Automated testing and validation
-* Responsive web interface
+* Responsive user interface
 
 ---
 
@@ -36,41 +37,39 @@ The platform supports both public-facing content and authenticated organization 
 
 ## 🔗 Live Website
 
-The current deployed version is available at:
+The deployed version is available at:
 
-https://ummet-genc.vercel.app
+https://ummet-genc.vercel.app/
 
 ---
 
-## Technology
+## 💻 Local Development
 
-- React
-- TypeScript
-- Vite
-- Tailwind CSS
-- Supabase
+### Requirements
 
-## Local Development
+* Node.js 22 or later
+* A configured Supabase project
+* The required environment variables
 
-Install dependencies:
+### Install Dependencies
 
 ```bash
 npm install
 ```
 
-Start development server:
+### Start the Development Server
 
 ```bash
 npm run dev
 ```
 
-Build:
+### Build the Project
 
 ```bash
 npm run build
 ```
 
-Run test suite:
+### Run Tests and Validation
 
 ```bash
 npm test
@@ -78,11 +77,11 @@ npm run typecheck
 npm run lint
 ```
 
-## متطلبات التشغيل والبيئة (Environment Variables)
+---
 
-- Node.js 22 أو أحدث.
-- Supabase project حقيقي ومربوط بهذه النسخة قبل تطبيق أي تغيير على قاعدة البيانات.
-- Create a local `.env` file:
+## 🔐 Environment Variables
+
+Create a local `.env` file:
 
 ```text
 VITE_SUPABASE_URL=<your-project-url>
@@ -90,25 +89,51 @@ VITE_SUPABASE_ANON_KEY=<your-anon-key>
 VITE_VAPID_PUBLIC_KEY=<your-public-vapid-key>
 ```
 
-Never commit `.env` or private credentials. لا يوضع مفتاح إداري أو سري في متغيرات `VITE_` أو في كود المتصفح. ملف `.env` مستثنى من التتبع.
+Never commit `.env` files, private credentials, administrative keys, or secret values.
 
-## إشعارات الطلاب المقبولين (Web Push)
+Administrative or private keys must never be exposed through variables beginning with `VITE_`, because those variables are accessible to browser-side code.
 
-الميزة متاحة حصرياً للطالب الذي حالته الرسمية `accepted` وملفه `active`. لا يظهر زر الاشتراك للزائر أو للطلب المعلق أو المقابلة أو المرفوض أو المطرود. رسائل المقابلة والقبول والرفض تستمر عبر البريد الإلكتروني فقط.
+The local `.env` file must remain excluded from Git.
 
-ولّد زوج VAPID مرة واحدة واحتفظ به دائماً؛ تغيير الزوج يلغي الاشتراكات القديمة:
+---
 
-```text
+## 🔔 Web Push Notifications
+
+Web Push notifications are available only to students whose official application status is `accepted` and whose profile is `active`.
+
+The subscription control is not available to:
+
+* Visitors
+* Pending applicants
+* Applicants awaiting interviews
+* Rejected applicants
+* Removed or inactive users
+
+Interview, acceptance, and rejection notifications continue to use email where applicable.
+
+### Generate VAPID Keys
+
+Generate the VAPID key pair once:
+
+```bash
 npx --yes web-push@3.6.5 generate-vapid-keys --json
 ```
 
-ضع المفتاح العام فقط في `.env`:
+Keep the same key pair permanently. Changing the keys invalidates previous browser subscriptions.
+
+Place only the public key in the frontend `.env` file:
 
 ```text
 VITE_VAPID_PUBLIC_KEY=<publicKey>
 ```
 
-وفي Supabase Dashboard افتح **Edge Functions > Secrets** وأضف:
+### Supabase Edge Function Secrets
+
+In:
+
+`Supabase Dashboard → Edge Functions → Secrets`
+
+add:
 
 ```text
 VAPID_PUBLIC_KEY=<publicKey>
@@ -117,64 +142,141 @@ VAPID_SUBJECT=mailto:president@ummet.org
 PUSH_WEBHOOK_SECRET=<random-32-byte-base64url-value>
 ```
 
-المفتاح الخاص و`PUSH_WEBHOOK_SECRET` لا يوضعان في `.env` الخاص بـVite ولا في أي متغير يبدأ بـ`VITE_`.
+Never place `VAPID_PRIVATE_KEY` or `PUSH_WEBHOOK_SECRET` in the Vite frontend environment.
 
-للتشغيل المحلي للدالة، أنشئ ملفاً محلياً مستثنى باسم `supabase/functions/.env.local` بالقيم الأربع السابقة، ثم شغّل:
+### Local Edge Function Development
+
+Create the ignored file:
 
 ```text
+supabase/functions/.env.local
+```
+
+Add the required secret values, then run:
+
+```bash
 npx supabase functions serve send-web-push --env-file supabase/functions/.env.local
 ```
 
-بعد تطبيق ملفات migration ونشر `send-web-push`، أضف قيمتين في **Supabase Vault** بالأسماء الدقيقة التالية:
+### Supabase Vault Configuration
+
+After applying the required database migrations and deploying the `send-web-push` Edge Function, configure the following Vault values:
 
 ```text
-accepted_student_push_webhook_url=https://rscunkzvbsdbjzhnuria.supabase.co/functions/v1/send-web-push
-accepted_student_push_webhook_secret=<نفس قيمة PUSH_WEBHOOK_SECRET>
+accepted_student_push_webhook_url=<your-send-web-push-function-url>
+accepted_student_push_webhook_secret=<same PUSH_WEBHOOK_SECRET value>
 ```
 
-ينشئ migration الخاص بـ`secure_accepted_student_push_dispatch` مشغّل `pg_net` على حدث `INSERT` في
-`public.push_notifications` ويقرأ العنوان والسر من Vault. لا تنشئ Webhook ثانياً من الواجهة، حتى لا يتم إرسال الإشعار مرتين.
+The secure push-dispatch migration uses `pg_net` when new rows are inserted into:
 
-يعمل Service Worker على `localhost` باعتباره سياقاً آمناً للتطوير. في الإنتاج يلزم HTTPS. على iPhone وiPad يلزم iOS/iPadOS 16.4 أو أحدث وإضافة الموقع إلى الشاشة الرئيسية ثم فتحه من الأيقونة قبل الضغط على «تفعيل الإشعارات».
+```text
+public.push_notifications
+```
 
-## إعداد Supabase
+The webhook URL and secret are read securely from Supabase Vault.
 
-طبّق ملفات `supabase/migrations` بالترتيب على المشروع الصحيح بعد مراجعته وربطه. الترحيل الرئيسي يجهز ما يلي:
+Do not create a second duplicate webhook through the dashboard, because doing so may cause notifications to be sent twice.
 
-- ملفات `profiles` المرتبطة بمعرّف Auth UUID.
-- مناصب `executive_assignments` المنفصلة عن بيانات الملف.
-- سجل `edit_requests` بسياسات RLS.
-- bucket عام باسم `avatars` للعرض، مع رفع وتعديل وحذف داخل مجلد UUID الخاص بصاحب الحساب فقط، وحد 5MB وصيغ JPEG وPNG وWebP.
-- قنوات Realtime اللازمة لتحديث الملف والمنصب ودليل الهيئة العام.
-- سياسات طلبات الطلاب: الطالب يقرأ طلبه فقط، والرئيس الحالي يقرأ جميع الطلبات؛ لا يوجد INSERT أو UPDATE أو DELETE مباشر من المتصفح.
-- RPCs محمية للرئيس لجدولة المقابلة واتخاذ القرار. قبول الطلب يحدّث `profiles.status='active'` للـUUID نفسه داخل المعاملة ذاتها.
+### Browser Requirements
 
-بعد تطبيق migrations، تأكد من إعدادات Data API ومن إضافة الجداول المطلوبة إلى Realtime في المشروع المستهدف. لا تفترض أن قاعدة بعيدة محدثة لمجرد وجود ملفات SQL محليًا.
+The Service Worker can operate on `localhost` during development because browsers treat it as a secure development context.
 
-## تهيئة الرئيس الأول
+Production deployments require HTTPS.
 
-في قاعدة جديدة لا يوجد رئيس يستطيع منح الصلاحيات بعد. أنشئ أولًا حساب الرئيس بالطريقة العادية في Supabase Auth، ثم نفّذ الإجراء التالي مرة واحدة فقط من SQL Editor بصلاحية مالك المشروع، بعد استبدال UUID بالمعرّف الحقيقي لذلك الحساب. لا يُنفذ هذا من المتصفح ولا يوضع له مفتاح إداري في التطبيق.
+For iPhone and iPad devices, Web Push requires iOS/iPadOS 16.4 or later. The website must be added to the Home Screen and opened from the installed icon before notification permission can be enabled.
+
+---
+
+## 🗄️ Supabase Setup
+
+Apply the files inside:
+
+```text
+supabase/migrations
+```
+
+in the correct order after confirming that the local project is connected to the intended Supabase environment.
+
+The database structure includes:
+
+* `profiles` linked to Supabase Auth UUIDs
+* `executive_assignments` for organization roles
+* `edit_requests` with Row Level Security
+* Public avatar storage
+* Realtime synchronization
+* Protected membership application access
+* Secure administrative RPC functions
+
+### Avatar Storage
+
+The public `avatars` bucket supports:
+
+* JPEG
+* PNG
+* WebP
+
+Users can manage files only inside the folder associated with their own UUID.
+
+The current file-size limit is:
+
+```text
+5 MB
+```
+
+### Membership Application Security
+
+Students can access only their own application data.
+
+The currently authorized president can access the complete application workflow.
+
+Direct browser-side modification of protected application records is not permitted.
+
+Administrative actions are handled through protected server-side functions and reviewed database policies.
+
+---
+
+## 👤 Initial President Bootstrap
+
+A new database does not initially contain a president account with administrative authority.
+
+First, create the president account normally through Supabase Authentication.
+
+Then execute the following procedure once from the Supabase SQL Editor using project-owner privileges.
+
+Replace the placeholder UUID with the real Auth UUID of the first president.
 
 ```sql
 DO $bootstrap_first_president$
 DECLARE
   v_first_president uuid := '00000000-0000-4000-8000-000000000000'::uuid;
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE id = v_first_president) THEN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM auth.users
+    WHERE id = v_first_president
+  ) THEN
     RAISE EXCEPTION 'The selected Auth user does not exist';
   END IF;
 
   IF EXISTS (
-    SELECT 1 FROM public.executive_assignments
+    SELECT 1
+    FROM public.executive_assignments
     WHERE position_key = 'PRESIDENT'
   ) THEN
     RAISE EXCEPTION 'A president is already assigned';
   END IF;
 
   INSERT INTO public.executive_assignments (
-    user_id, position_key, committee_key, assigned_by
-  ) VALUES (
-    v_first_president, 'PRESIDENT', 'presidency', NULL
+    user_id,
+    position_key,
+    committee_key,
+    assigned_by
+  )
+  VALUES (
+    v_first_president,
+    'PRESIDENT',
+    'presidency',
+    NULL
   );
 
   UPDATE public.profiles
@@ -188,55 +290,185 @@ END
 $bootstrap_first_president$;
 ```
 
-بعد نجاح التهيئة، كل نقل لاحق للرئاسة أو للمناصب يتم من واجهة الرئيس عبر RPC المحمية، ولا يُعاد تشغيل إجراء التهيئة.
+This procedure must not be executed from the browser.
 
-## الحساب والملف الشخصي
+Do not expose administrative database credentials to frontend code.
 
-- بريد الدخول محفوظ في Supabase Auth وغير قابل للتغيير من صفحة الملف.
-- البريد للتواصل حقل عام مستقل ويمكن لصاحب الحساب تعديله دون تغيير بريد الدخول.
-- الاسم والجامعة والتخصص والسنة والهاتف والنبذة والصورة بيانات ملف قابلة للتعديل من صاحب الحساب.
-- يمكن رفع صورة للملف أو حذفها، وتظهر الصورة والبيانات العامة في المواضع العامة بعد تأكيد الخادم.
-- تغيير كلمة المرور يثبت كلمة المرور الحالية في جلسة معزولة ثم يغيّر كلمة مرور الحساب نفسه؛ لا توجد كلمة مرور مشتركة أو تجريبية.
+After the first president is initialized, future executive-role transfers must use the application's protected role-management workflow.
 
-## نقل المناصب
+---
 
-المنصب والصلاحية مرتبطان بصف `executive_assignments` ومعرّف المستخدم UUID، وليس بالبريد أو الاسم.
+## 👤 Accounts and Profiles
 
-لاختبار نقل الرئيس بحسابين:
+Authentication credentials are managed by Supabase Auth.
 
-1. سجّل الدخول بحساب الرئيس الحالي.
-2. اختر حسابًا طالبًا نشطًا مختلفًا وانقل إليه منصب الرئيس، ثم وافق على سحب الصلاحيات.
-3. يجب أن تتحول جلسة الرئيس السابق إلى طالب عادي فور تحديث الهوية.
-4. سجّل الدخول بالحساب الثاني باستخدام بريد الدخول وكلمة المرور الخاصين به؛ يجب أن تظهر له لوحة وصلاحيات الرئيس.
-5. أعد فتح الموقع أو سجّل الخروج والدخول على جهاز آخر وتأكد أن الاسم والصورة والمنصب بقيت متزامنة من Supabase.
+The login email is separate from the public contact email stored in the user's profile.
 
-تغيير الاسم أو البريد للتواصل لا ينقل المنصب، وتغيير المنصب لا يغيّر بيانات تسجيل الدخول.
+Users can manage profile information such as:
 
-## طلبات الانضمام
+* Name
+* University
+* Academic major
+* Academic year
+* Phone number
+* Public biography
+* Profile picture
+* Public contact email
 
-إنشاء المستخدم والملف ونسخة طلب الانضمام يتم من trigger مرتبط بـAuth، وليس عبر INSERT من المتصفح. تعرض الواجهة فقط الصفوف التي تسمح بها RLS، وتنتظر نتيجة RPC قبل إظهار نجاح الجدولة أو القرار. لا تستخدم `localStorage` كمصدر لطلبات الطلاب أو قراراتها.
+Changing public profile information does not change authentication identity.
 
-## سجل التعديلات والقرارات
+Password changes apply only to the authenticated user's own account.
 
-- الرئيس الحالي يرى سجل التعديلات والقرارات كاملًا.
-- كل عضو حالي في الهيئة التنفيذية يرى التعديلات التي قدمها UUID الخاص به فقط.
-- الطالب والزائر لا يريان السجل.
-- السجل المحلي القديم غير الموثق لا يمنح ملكية أو صلاحية، ويظل ظاهرًا للرئيس فقط عند الحاجة إلى المراجعة.
+The application does not use a shared administrative password.
 
-## المسار الإداري القديم
+---
 
-الدالة `setup-board-accounts` disabled نهائيًا وتعيد HTTP 410. لا تنشئ حسابات، ولا تحمل عناوين دخول جاهزة، ولا تستخدم كلمة مرور مشتركة. إنشاء الحسابات يتم عبر Supabase Auth، ونقل المناصب يتم عبر RPC الرئيس المراجع.
+## 🏛️ Executive Role Management
 
-## التحقق المحلي والأمان (Security & Verification)
-
-Administrative operations are protected by Supabase authentication,
-Row Level Security and server-side authorization.
+Executive roles are stored in:
 
 ```text
+executive_assignments
+```
+
+and are associated with the user's UUID.
+
+Roles are not determined by:
+
+* Display name
+* Public email
+* Contact email
+
+This prevents identity changes from accidentally changing permissions.
+
+### President Transfer Testing
+
+To test a president transfer:
+
+1. Sign in as the current president.
+2. Select another active student account.
+3. Transfer the president role.
+4. Confirm the authorization change.
+5. Verify that the previous president loses president privileges.
+6. Sign in using the new president account.
+7. Verify that the new account receives the correct dashboard and permissions.
+8. Restart the application or test from another device to confirm that the role persists correctly.
+
+Changing a user's name or contact email must not transfer executive authority.
+
+---
+
+## 📝 Membership Applications
+
+User creation, profile creation, and the initial membership application record are handled through the authenticated backend workflow.
+
+The frontend displays only records permitted by Row Level Security policies.
+
+Protected decisions such as interview scheduling, acceptance, and rejection use server-side authorization.
+
+The application does not use `localStorage` as the authoritative source for official student applications or administrative decisions.
+
+---
+
+## 📜 Edit and Decision Logs
+
+Access to administrative logs depends on the user's current role.
+
+### President
+
+The current president can review the complete edit and decision history.
+
+### Executive Members
+
+Executive members can access only the authorized records associated with their own identity and permissions.
+
+### Students and Visitors
+
+Students and visitors do not have access to protected administrative logs.
+
+Legacy local records are not treated as authoritative permission data.
+
+---
+
+## 🗑️ Deprecated Administrative Flow
+
+The legacy:
+
+```text
+setup-board-accounts
+```
+
+function is permanently disabled and returns:
+
+```text
+HTTP 410
+```
+
+It must not:
+
+* Create privileged accounts
+* Distribute predefined login addresses
+* Use shared passwords
+* Grant administrative access
+
+Accounts are created through Supabase Auth.
+
+Executive roles are assigned through the protected role-management system.
+
+---
+
+## 🛡️ Security
+
+Administrative operations are protected using:
+
+* Supabase Authentication
+* Row Level Security
+* Server-side authorization
+* Protected RPC functions
+* UUID-based identity
+* Supabase Vault
+* Edge Function secrets
+* Controlled Storage policies
+
+Private credentials must never be committed to the repository.
+
+---
+
+## ✅ Verification
+
+Run the following checks before production deployment:
+
+```bash
 npm test
 npm run typecheck
 npm run lint
 npm run build
 ```
 
-هذه الأوامر تتحقق من قواعد الهوية، RLS/RPCs، دورة الصورة وكلمة المرور، وعدم رجوع مسارات الدخول التجريبية.
+These checks help verify:
+
+* Authentication behavior
+* Authorization rules
+* RLS and RPC behavior
+* Profile workflows
+* Password workflows
+* Role management
+* Application behavior
+* TypeScript correctness
+* Production build integrity
+
+---
+
+## 📌 Project Direction
+
+The project is being developed as a secure, maintainable, and multilingual platform for managing both the public presence and internal workflows of Ümmet Gençleri.
+
+Future development will continue to focus on:
+
+* Security
+* Reliability
+* User experience
+* Multilingual accessibility
+* Maintainable architecture
+* Automated testing
+* Clear administrative workflows
