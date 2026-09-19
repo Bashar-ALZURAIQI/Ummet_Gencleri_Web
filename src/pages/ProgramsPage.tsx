@@ -181,6 +181,15 @@ export default function ProgramsPage() {
     setModalOpen(true);
   };
 
+  const openHeaderEditor = () => {
+    setHeaderForm(programsContent);
+    setHeaderTranslations({
+      tr: { badge: '', title: '', description: '', 'achievements.title': '', 'achievements.text': '' },
+      en: { badge: '', title: '', description: '', 'achievements.title': '', 'achievements.text': '' },
+    });
+    setEditingHeader(true);
+  };
+
   const fmtVal = (v: unknown): string => {
     if (v === null || v === undefined) return '';
     if (typeof v === 'boolean') return v ? 'نعم' : 'لا';
@@ -517,14 +526,7 @@ const saveHeader = async (e: React.FormEvent) => {
                 <span className="text-sm font-bold uppercase tracking-wider text-gold-300">{programsContent.badge}</span>
                 {isPresident && (
                   <button
-                    onClick={() => {
-                      setHeaderForm(programsContent);
-                      setHeaderTranslations({
-                        tr: { badge: '', title: '', description: '', 'achievements.title': '', 'achievements.text': '' },
-                        en: { badge: '', title: '', description: '', 'achievements.title': '', 'achievements.text': '' },
-                      });
-                      setEditingHeader(true);
-                    }}
+                    onClick={openHeaderEditor}
                     className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 text-gold-300 transition-colors hover:bg-white/20"
                     title="تعديل الترويسة"
                   >
@@ -638,7 +640,16 @@ const saveHeader = async (e: React.FormEvent) => {
 
         {/* Achievements banner for past tab — CMS-editable numbers, never derived from events */}
         {tab === 'past' && (
-          <div className="mt-12 rounded-3xl border border-emerald-100 bg-emerald-50 p-8">
+          <div className="relative mt-12 rounded-3xl border border-emerald-100 bg-emerald-50 p-8">
+            {isPresident && (
+              <button
+                onClick={openHeaderEditor}
+                className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-lg bg-white text-navy-700 shadow-sm ring-1 ring-emerald-200 transition-colors hover:bg-emerald-50"
+                title={t('programs.headerModal.achievementsTitle', 'تعديل الإنجازات')}
+              >
+                <Edit3 className="h-4 w-4" />
+              </button>
+            )}
             <div className="flex items-start gap-4">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-white">
                 <CheckCircle2 className="h-6 w-6" />

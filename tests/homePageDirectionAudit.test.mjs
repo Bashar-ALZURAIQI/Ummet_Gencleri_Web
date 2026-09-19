@@ -13,12 +13,15 @@ const read = async (relPath) => {
 // ArrowLeft/ChevronLeft, bg-gradient-to-l) do NOT respond to dir and must be replaced by
 // logical properties or direction-aware variants.
 
-test('Issue 1.1: HomePage hero text alignment uses logical text-end, never physical text-right', async () => {
+test('Issue 1.1: HomePage hero text alignment follows the writing direction (text-start/end), never frozen to a physical side', async () => {
   const home = await read('src/pages/HomePage.tsx');
 
-  // Text alignment must follow the written direction
-  assert.match(home, /lg:text-end/);
+  // Text alignment must follow the written direction: start-aligned universally so the
+  // section reads from the correct side in both rtl (ar) and ltr (tr/en)
+  assert.match(home, /lg:text-start/);
+  assert.doesNotMatch(home, /lg:text-end/);
   assert.doesNotMatch(home, /lg:text-right/);
+  assert.doesNotMatch(home, /lg:text-left/);
   assert.doesNotMatch(home, /className="[^"]*\btext-right\b[^"]*"/);
 
   // Responsive width constraint removed on large screens must stay symmetric

@@ -59,7 +59,7 @@ export default function HomePage() {
         />
 
         <div className="container-app relative grid items-center gap-12 py-16 lg:grid-cols-2 lg:py-24">
-          <div className="text-center lg:text-end">
+          <div className="text-center lg:text-start">
             <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-xs font-semibold text-gold-300 backdrop-blur-sm">
               <Sparkles className="h-3.5 w-3.5" />
               <EditableField config={{ path: 'hero.badge', label: 'شارة الهيرو', target: 'site' }} currentValue={sc.hero.badge} canEdit={canEdit}>{sc.hero.badge}</EditableField>
