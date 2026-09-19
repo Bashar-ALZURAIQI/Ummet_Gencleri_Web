@@ -310,11 +310,11 @@ test('pending approval requests no longer gate institutional editing', () => {
   assert.match(canEdit, /allowedCommitteeManager/);
 });
 
-test('the president still publishes directly and owns translation publication', () => {
+test('the president still publishes directly while authorized own-committee editors can publish translations', () => {
   const source = readFileSync(new URL('../src/pages/CommitteePage.tsx', import.meta.url), 'utf8');
   assert.match(source, /persistPresidentCommitteeEdit/);
   assert.match(source, /savePublishedSiteTarget\('committees',/);
-  assert.match(source, /canPublish=\{Boolean\(isPresident\)\}/);
+  assert.match(source, /canPublish=\{Boolean\(canEditContent\)\}/);
 });
 
 test('the personal profile editor is untouched by the institutional direct path', () => {

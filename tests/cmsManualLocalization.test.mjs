@@ -590,10 +590,10 @@ test('37. Invariant 5: Media Head cannot bypass proposal workflow to publish New
   assert.match(alignSql, /authz\.is_president/);
 });
 
-test('38. Invariant 6: Committee/other special direct-publish permissions exactly match canonical workflow', async () => {
+test('38. Invariant 6: Committee special direct-publish permissions match scoped own-committee workflow', async () => {
   const committeeCode = await readFile(new URL('../src/pages/CommitteePage.tsx', import.meta.url), 'utf8');
-  // Committee page translation tabs canPublish is President-only
-  assert.match(committeeCode, /canPublish=\{Boolean\(isPresident\)\}/);
+  // Committee page translation tabs use the same scoped own-committee authority as editing.
+  assert.match(committeeCode, /canPublish=\{Boolean\(canEditContent\)\}/);
 
   // Committee institutional edits by a current executive publish directly to their
   // own committee through the narrow publish_own_committee RPC (never the approval queue)

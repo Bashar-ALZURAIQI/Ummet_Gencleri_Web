@@ -4,7 +4,7 @@ import {
   Plus, Search, Trash2, Edit3, Mail, GraduationCap, CheckCircle2, Clock, FileText, Target, ChevronLeft, User,
   Video, UserCheck, UserX, CalendarClock, Link2, Inbox, Info, Crown, Save, Image, MessageSquareReply, Send,
   Download, Eye, EyeOff, Lightbulb, MessageCircle, ClipboardCheck, RefreshCw,
-  Images, Camera, Film, MapPin, Globe2,
+  Images, Camera, Film, MapPin, Globe2, AlertCircle, Loader2,
 } from 'lucide-react';
 import TranslationMonitoringTab from '../components/cmsLocalization/TranslationMonitoringTab';
 import { useApp } from '../context/AppContext';
@@ -4033,6 +4033,8 @@ function ProfileTab({ currentUser }: { currentUser: ReturnType<typeof useApp>["c
     ownProfileOperationResults,
     clearOwnProfileOperationResult,
     updateCommitteeVision,
+    savePublishedSiteTarget,
+    saveOwnCommitteeVision,
   } = useApp();
   const myCommittee = currentUser?.committee;
   const committee = committees.find((c) => c.id === myCommittee);
@@ -4046,11 +4048,39 @@ function ProfileTab({ currentUser }: { currentUser: ReturnType<typeof useApp>["c
   });
   const [invalid, setInvalid] = useState<string[]>([]);
   const [savedAt, setSavedAt] = useState<number | null>(null);
-  const saveVision = (e: React.FormEvent) => {
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const saveVision = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving) return;
     if (!validateRequired(visionForm, ['vision', 'goals'], setInvalid)) return;
-    if (myCommittee) updateCommitteeVision(myCommittee, { ...visionForm });
-    setSavedAt(Date.now());
+    if (!committee) return;
+    const next = {
+      vision: visionForm.vision.trim(),
+      goals: visionForm.goals.trim(),
+    };
+    setSaveError(null);
+    setSaving(true);
+    try {
+      const saved = currentUser?.role === 'PRESIDENT'
+        ? await savePublishedSiteTarget(
+            'committees',
+            committees.map((c) => c.id === committee.id ? { ...c, ...next } : c),
+          )
+        : await saveOwnCommitteeVision(committee.id, next.vision, next.goals);
+      if (saved.ok) {
+        setVisionForm(next);
+        updateCommitteeVision(committee.id, next);
+        setSavedAt(Date.now());
+      } else {
+        setSaveError(saved.error ?? t('admin.vision.saveFailed', 'تعذر حفظ الرؤية والأهداف.'));
+      }
+    } catch (err) {
+      console.error('Vision/goals save failed', err);
+      setSaveError(t('admin.vision.saveFailed', 'تعذر حفظ الرؤية والأهداف.'));
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -4077,7 +4107,7 @@ function ProfileTab({ currentUser }: { currentUser: ReturnType<typeof useApp>["c
                 target="committees"
                 recordId={committee.id}
                 committeeId={committee.id}
-                canonicalPayload={committees.map((c) => c.id === committee.id ? { ...c, ...visionForm } : c)}
+                canonicalPayload={committees}
                 fields={[
                   {
                     name: 'vision',
@@ -4112,7 +4142,16 @@ function ProfileTab({ currentUser }: { currentUser: ReturnType<typeof useApp>["c
                   <textarea id={fieldId('goals')} rows={4} value={visionForm.goals} onChange={(e) => { setVisionForm({ ...visionForm, goals: e.target.value }); clearInvalid(setInvalid, 'goals'); }} className={`${isInvalid(invalid, 'goals') ? 'input-field-error' : 'input-field'} resize-none`} placeholder={t('admin.vision.goalsPlaceholder', 'أهداف اللجنة الاستراتيجية...')} />
                 </div>
               </CmsEntityTranslationTabs>
-              <button type="submit" className="btn-primary"><Save className="h-4 w-4" /> {t('admin.vision.saveButton', 'حفظ الرؤية والأهداف')}</button>
+              {saveError && (
+                <div className="flex items-start gap-2 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{saveError}</span>
+                </div>
+              )}
+              <button type="submit" disabled={saving} className="btn-primary">
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                {t('admin.vision.saveButton', 'حفظ الرؤية والأهداف')}
+              </button>
             </form>
           ) : (
             <p className="text-sm text-gray-400">{t('admin.vision.noCommittee', 'لا توجد لجنة مرتبطة بحسابك.')}</p>

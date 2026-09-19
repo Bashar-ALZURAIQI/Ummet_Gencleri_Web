@@ -875,6 +875,27 @@ export async function publishCmsEntityFields(
     manualPaths = recordManualPath(manualPaths, logicalPath);
   }
   assertLocalizationShapeCompatible(canonicalPayload, payload);
+  if (
+    import.meta.env?.DEV
+    && target === 'committees'
+    && committeeId === recordId
+    && (Object.prototype.hasOwnProperty.call(fields, 'vision')
+      || Object.prototype.hasOwnProperty.call(fields, 'goals'))
+  ) {
+    const canonicalEntity = findCmsEntityScope(canonicalPayload, recordId);
+    console.log('[VISION_GOALS_TRANSLATION_DEBUG]', {
+      target,
+      recordId,
+      committeeId,
+      locale,
+      dirtyFields: fields,
+      localizedVision: entity.vision,
+      localizedGoals: entity.goals,
+      canonicalVision: canonicalEntity?.vision,
+      canonicalGoals: canonicalEntity?.goals,
+      sourceHash: computeSourceHash(canonicalPayload),
+    });
+  }
   const saved = await executeCmsPublish({
     repository, target, locale, canonicalPayload, payload, manualPaths,
     sourceVersion: latestPublished?.sourceVersion ?? draft?.sourceVersion,

@@ -47,6 +47,36 @@ interface OwnCommitteePersistenceDependencies<TResult> {
   publish(committeeId: string, snapshot: ExecutiveContentSnapshot): Promise<TResult>;
 }
 
+/**
+ * Preserves the stable member identity produced by the canonical add flow so
+ * the existing entity-localization editor can immediately address that member.
+ */
+export function createNewCommitteeMemberTranslationBinding<TMember extends { id: string }>(input: {
+  committeeId: string;
+  member: TMember;
+}): { committeeId: string; recordId: string; member: TMember } {
+  return {
+    committeeId: input.committeeId,
+    recordId: input.member.id,
+    member: { ...input.member },
+  };
+}
+
+/**
+ * Builds an institutional committee edit exclusively from the raw canonical
+ * collection. Locale-resolved presentation data must never be accepted as a
+ * fallback because the resulting snapshot is persisted as Arabic canonical
+ * content.
+ */
+export function prepareCanonicalCommitteeEdit<TCommittee extends { id: string }>(
+  canonicalCommittees: readonly TCommittee[] | null | undefined,
+  committeeId: string,
+  mutate: (committee: TCommittee) => TCommittee,
+): TCommittee | null {
+  const canonicalCommittee = canonicalCommittees?.find((committee) => committee.id === committeeId);
+  return canonicalCommittee ? mutate(canonicalCommittee) : null;
+}
+
 export async function persistPresidentCommitteeEdit<
   TCommittee extends { id: string },
   TResult,

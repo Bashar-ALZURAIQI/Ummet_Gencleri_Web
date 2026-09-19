@@ -25,3 +25,10 @@ export const createPublishedEvent = (event: unknown, expectedVersion: number) =>
 export const publishOwnCommittee = (committeeId: string, snapshot: unknown, expectedVersion: number) => (
   repository.publishOwnCommittee(committeeId, snapshot, expectedVersion)
 );
+export const publishOwnCommitteeFields = (
+  committeeId: string,
+  fields: { vision?: string; goals?: string },
+  expectedVersion: number,
+) => (
+  repository.publishOwnCommitteeFields(committeeId, fields, expectedVersion)
+);

@@ -247,11 +247,12 @@ await publishCmsEntityFields({
 
       onDraftSaved?.(locale);
       onPublished?.(locale);
-    } catch {
+    } catch (err) {
+      console.error('Failed to publish translation', err);
       updater((prev) => ({
         ...prev,
         publishing: false,
-        publishError: t('cmsLocalization.publishFailed', 'تعذر نشر الترجمة.'),
+        publishError: t('cmsLocalization.publishFailed', 'تم حفظ المحتوى العربي، لكن تعذر نشر الترجمة.'),
       }));
     }
   };

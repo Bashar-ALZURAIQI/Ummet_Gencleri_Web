@@ -46,6 +46,7 @@ import {
   loadStudentGuideContent,
   createPublishedEvent as createPublishedEventService,
   publishOwnCommittee,
+  publishOwnCommitteeFields,
   publishCmsTarget,
 } from '../services/sectionContentService';
 import {
@@ -724,6 +725,11 @@ interface AppContextValue {
   saveOwnCommitteeContent: (
     committeeId: CommitteeId,
     snapshot: ExecutiveContentSnapshot,
+  ) => Promise<{ ok: boolean; error?: string }>;
+  saveOwnCommitteeVision: (
+    committeeId: CommitteeId,
+    vision: string,
+    goals: string,
   ) => Promise<{ ok: boolean; error?: string }>;
   createPublishedEvent: (event: UEvent) => Promise<{ ok: boolean; error?: string }>;
   canonicalSiteContent?: SiteContent;
@@ -3357,6 +3363,66 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return { ok: true };
   };
 
+  /**
+   * Direct canonical vision/goals save for the acting executive's own committee
+   * (or any committee for the president). Only the vision/goals keys of the
+   * matching committee element are replaced under a version lock; the server
+   * enforces the assignment and preserves every other committee field.
+   */
+  const saveOwnCommitteeVision: AppContextValue['saveOwnCommitteeVision'] = async (committeeId, vision, goals) => {
+    const owner = captureConfirmedAuthOwner();
+    if (!owner
+      || !currentUser
+      || currentUser.userId !== owner.userId
+      || !canManageCouncilContent(owner, committeeId)) {
+      return { ok: false, error: 'يمكنك تعديل محتوى لجنتك الحالية فقط عبر حساب مرتبط بتكليف حالي.' };
+    }
+    const expectedVersion = selectCmsExpectedVersion('committees', currentCmsVersions());
+    if (expectedVersion < 1) {
+      return { ok: false, error: 'لم تكتمل مزامنة النسخة الرسمية بعد. حدّث الصفحة ثم أعد المحاولة.' };
+    }
+    const result = await publishOwnCommitteeFields(committeeId, { vision, goals }, expectedVersion);
+    const currentOwner = captureConfirmedAuthOwner();
+    if (!currentOwner
+      || currentOwner.userId !== owner.userId
+      || currentOwner.epoch !== owner.epoch
+      || !canManageCouncilContent(currentOwner, committeeId)) {
+      return { ok: false, error: 'تغير تكليفك أثناء الحفظ؛ لم تُنشر النتيجة في هذه الجلسة.' };
+    }
+    if (!result.ok) {
+      if (import.meta.env.DEV) {
+        const authenticated = await supabase.auth.getUser();
+        console.error('[saveOwnCommitteeVision] persistence failed', {
+          rpcError: {
+            code: result.error.code,
+            message: result.error.message,
+            details: result.error.details,
+            hint: result.error.hint,
+          },
+          authUserId: authenticated.data.user?.id ?? null,
+          appContextCurrentUserId: currentUser.userId,
+          profileId: currentUser.userId,
+          executiveAssignmentUserId: owner.userId,
+          confirmedOwnerUserId: owner.userId,
+          currentUserRole: currentUser.role,
+          confirmedOwnerRole: owner.role,
+          currentUserCommittee: currentUser.committee ?? null,
+          confirmedOwnerCommittee: owner.committee ?? null,
+          editedCommitteeId: committeeId,
+          rpcCommitteeId: committeeId,
+        });
+      }
+      const error = result.error.code === 'CONTENT_VERSION_CONFLICT'
+        ? result.error.message
+        : result.error.message || 'تعذر حفظ محتوى الهيئة في قاعدة البيانات.';
+      setContentError(error);
+      return { ok: false, error };
+    }
+    applyCmsPublication('committees', result.data.payload, result.data.version);
+    setContentError(null);
+    return { ok: true };
+  };
+
   const createPublishedEvent: AppContextValue['createPublishedEvent'] = async (event) => {
     const owner = captureConfirmedAuthOwner();
     if (!owner || !isLeadershipRole(owner.role)) {
@@ -3909,6 +3975,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       replaceManagedMemberAvatar,
       savePublishedSiteTarget,
       saveOwnCommitteeContent,
+      saveOwnCommitteeVision,
       createPublishedEvent,
   };
 

@@ -20,8 +20,16 @@ import {
 export interface CmsLocalizationQueryClient {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   from(table: string): any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  rpc?(fn: string, args?: Record<string, unknown>): PromiseLike<{ data: any; error: { message: string } | null }>;
+  rpc?(fn: string, args?: Record<string, unknown>): PromiseLike<{
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    data: any;
+    error: {
+      code?: string;
+      message: string;
+      details?: string;
+      hint?: string;
+    } | null;
+  }>;
 }
 
 export class SupabaseCmsLocalizationRepository implements CmsLocalizationRepository {
@@ -168,8 +176,17 @@ export class SupabaseCmsLocalizationRepository implements CmsLocalizationReposit
           p_committee_id: options.committeeId,
           p_locale: record.locale,
           p_localized_committees: record.payload,
+          p_source_hash: record.sourceHash ?? null,
         });
         if (error) {
+          if (import.meta.env?.DEV) {
+            console.error('[VISION_GOALS_TRANSLATION_ERROR]', {
+              code: error.code,
+              message: error.message,
+              details: error.details,
+              hint: error.hint,
+            });
+          }
           throw new CmsLocalizationRepositoryError(
             'UNKNOWN',
             `Failed to save published committee localization: ${error.message}`,
@@ -302,6 +319,7 @@ export class SupabaseCmsLocalizationRepository implements CmsLocalizationReposit
           p_committee_id: options.committeeId,
           p_locale: record.locale,
           p_localized_committees: record.payload,
+          p_source_hash: record.sourceHash ?? null,
         });
         if (error) {
           throw new CmsLocalizationRepositoryError(

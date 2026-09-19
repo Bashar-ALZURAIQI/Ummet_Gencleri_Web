@@ -20,6 +20,8 @@ import {
 import {
   persistOwnCommitteeEdit,
   persistPresidentCommitteeEdit,
+  prepareCanonicalCommitteeEdit,
+  createNewCommitteeMemberTranslationBinding,
 } from '../domain/executiveEditCoordinator';
 import {
   getExecutiveSectionLabel,
@@ -89,7 +91,8 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
   const [reviewOpen, setReviewOpen] = useState(false);
 
   const committee = committees.find((c) => c.id === committeeId);
-  const canonicalCommittee = (canonicalCommittees ?? committees).find((c) => c.id === committeeId);
+  const canonicalCommittee = canonicalCommittees?.find((c) => c.id === committeeId);
+  const activeMemberRecordId = editingMember ? editingMember.id : null;
   if (!committee) return null;
 
   const allowedCommitteeManager = !!currentUser && canManageCouncilContent(currentUser, committeeId);
@@ -115,14 +118,20 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
   // directly to their own committee through the SQL-enforced own-committee RPC.
   const submitOrApply = async (mutate: (c: Committee) => Committee): Promise<boolean> => {
     if (!canEditContent || contentSubmitting) return false;
-    const next = mutate(committee);
+    const next = prepareCanonicalCommitteeEdit(canonicalCommittees, committeeId, mutate);
+    if (!next || !canonicalCommittees) {
+      const error = 'تعذر تحميل المصدر العربي الأصلي. أعد تحميل الصفحة ثم حاول مرة أخرى.';
+      console.error('[ExecutiveBoardEditModal] Canonical committee source unavailable', { committeeId });
+      setSubmissionFeedback({ id: Date.now(), type: 'error', text: error });
+      return false;
+    }
     if (isPresident) {
       setContentSubmitting(true);
       setSubmissionFeedback(null);
       try {
         const result = await persistPresidentCommitteeEdit({
           publishCommittees: (nextCommittees) => savePublishedSiteTarget('committees', nextCommittees),
-        }, canonicalCommittees ?? committees, committeeId, next);
+        }, canonicalCommittees, committeeId, next);
         if (!result.ok) {
           const message = result.error ?? 'تعذر حفظ بيانات الهيئة في قاعدة البيانات.';
           console.error('[ExecutiveBoardEditModal] Supabase president publication failed', message);
@@ -215,6 +224,26 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
         return;
       }
     }
+    const headCanonicalNext = (canonicalCommittees ?? committees).map((c) =>
+      c.id === committeeId
+        ? { ...c, head: { ...c.head, name: headForm.name, bio: headForm.bio, email: headForm.email } }
+        : c,
+    );
+    try {
+      await publishCmsEntityLocales({
+        repository: localizationRepo,
+        target: 'committees',
+        canonicalPayload: headCanonicalNext,
+        recordId: committee.id,
+        translations: headTranslations,
+        committeeId,
+      });
+      await refreshPublishedLocalizations();
+    } catch {
+      setContentSubmitting(false);
+      setSubmissionFeedback({ id: Date.now(), type: 'error', text: t('cmsLocalization.publishFailed', 'تعذر نشر الترجمة.') });
+      return;
+    }
     setContentSubmitting(false);
     setHeadModal(false);
   };
@@ -237,7 +266,27 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
       else items.push(respText);
       return { ...c, responsibilities: items };
     }))) return;
-    setRespModal(false);
+    const respCanonicalNext = (canonicalCommittees ?? []).map((c) => {
+      if (c.id !== committeeId) return c;
+      const items = [...(c.responsibilities ?? [])];
+      if (respIdx >= 0) items[respIdx] = respText;
+      else items.push(respText);
+      return { ...c, responsibilities: items };
+    });
+    try {
+      await publishCmsEntityLocales({
+        repository: localizationRepo,
+        target: 'committees',
+        canonicalPayload: respCanonicalNext,
+        recordId: committee.id,
+        translations: respTranslations,
+        committeeId,
+      });
+      await refreshPublishedLocalizations();
+      setRespModal(false);
+    } catch {
+      alert(t('cmsLocalization.publishFailed', 'تعذر نشر الترجمة.'));
+    }
   };
   const deleteResp = async (i: number) => {
     if (!confirm(t('committee.confirmDeleteItem', 'حذف هذا البند؟'))) return;
@@ -263,7 +312,25 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
       stats[statIdx] = { ...statForm };
       return { ...c, stats };
     }))) return;
-    setStatModal(false);
+    const statCanonicalNext = (canonicalCommittees ?? []).map((c) =>
+      c.id === committeeId
+        ? { ...c, stats: (c.stats ?? []).map((s, i) => (i === statIdx ? { ...s, ...statForm } : s)) }
+        : c,
+    );
+    try {
+      await publishCmsEntityLocales({
+        repository: localizationRepo,
+        target: 'committees',
+        canonicalPayload: statCanonicalNext,
+        recordId: `${committee.id}.stats.${statIdx}`,
+        translations: statTranslations,
+        committeeId,
+      });
+      await refreshPublishedLocalizations();
+      setStatModal(false);
+    } catch {
+      alert(t('cmsLocalization.publishFailed', 'تعذر نشر الترجمة.'));
+    }
   };
 
   // Members
@@ -278,9 +345,9 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
     setMemberTranslations({ tr: {}, en: {} });
     const canonMember = canonicalCommittee?.members?.find((x) => x.id === m.id);
     setMemberForm({
-      name: m.name ?? '',
+      name: canonMember?.name ?? m.name ?? '',
       position: canonMember?.position ?? m.position ?? '',
-      photo: m.photo ?? '',
+      photo: canonMember?.photo ?? m.photo ?? '',
     });
     setMemberModal(true);
   };
@@ -289,6 +356,7 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
     if (!memberForm.name.trim()) return;
     if (!validateRequired(memberForm, ['name', 'position', 'photo'], setInvalid)) return;
     const photo = memberForm.photo;
+    const isNewMember = !editingMember;
     const newMemberId = editingMember?.id ?? 'cm' + Date.now();
     if (!(await submitOrApply((c) => {
       if (editingMember) {
@@ -297,69 +365,69 @@ export default function CommitteePage({ committeeId }: { committeeId: CommitteeI
       return { ...c, members: [...(c.members ?? []), { id: newMemberId, name: memberForm.name, position: memberForm.position, photo }] };
     }))) return;
 
-    if (!editingMember) {
-      if (isPresident) {
-        try {
-await publishCmsEntityLocales({
-            repository: localizationRepo, target: 'committees',
-            canonicalPayload: (canonicalCommittees ?? committees).map((committee) =>
-              committee.id === committeeId
-                ? {
-                    ...committee,
-                    members: (Array.isArray(committee.members) ? committee.members : []).some((m) => m.id === newMemberId)
-                      ? committee.members
-                      : [...(committee.members ?? []), { id: newMemberId, name: memberForm.name, position: memberForm.position, photo }],
-                  }
-                : committee,
-            ),
-            recordId: newMemberId, translations: memberTranslations,
-            committeeId,
-          });
-          await refreshPublishedLocalizations();
-        } catch {
-          alert(t('cmsLocalization.publishFailed', 'تعذر نشر الترجمة.'));
-          return;
-        }
-} else {
-        const memberCanonicalNext = (committees ?? []).map((c) =>
-          c.id === committeeId
-            ? {
-                ...c,
-                members: (Array.isArray(c.members) ? c.members : []).some((m) => m.id === newMemberId)
-                  ? c.members
-                  : [...(c.members ?? []), { id: newMemberId, name: memberForm.name, position: memberForm.position, photo }],
-              }
-            : c,
-        );
-        for (const loc of ['tr', 'en'] as const) {
-          const trData = memberTranslations[loc];
-          if (trData.position?.trim()) {
-            try {
-              const latest = await localizationRepo.getDraft('committees', loc);
-              const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
-                ? JSON.parse(JSON.stringify(latest.payload))
-                : [];
-              const commIdx = list.findIndex((c) => c && c.id === committeeId);
-              if (commIdx >= 0) {
-                const commObj = list[commIdx];
-                const members = Array.isArray(commObj.members) ? [...commObj.members] : [];
-                members.push({ id: newMemberId, ...trData });
-                commObj.members = members;
-              } else {
-                list.push({ id: committeeId, members: [{ id: newMemberId, ...trData }] });
-              }
-              await localizationRepo.saveDraft({
-                target: 'committees',
-                locale: loc,
-                payload: list as unknown as JsonValue,
-                status: 'draft',
-                manualPaths: [`${newMemberId}.position`],
-                sourceHash: computeSourceHash(memberCanonicalNext),
-                updatedAt: new Date().toISOString(),
-              }, { committeeId });
-            } catch {
-              // Draft-only roles keep their existing proposal workflow.
+    if (isNewMember) {
+      const binding = createNewCommitteeMemberTranslationBinding({
+        committeeId,
+        member: { id: newMemberId, name: memberForm.name, position: memberForm.position, photo },
+      });
+      setEditingMember(binding.member);
+      return;
+    }
+
+    const memberCanonicalNext = (canonicalCommittees ?? []).map((c) =>
+      c.id === committeeId
+        ? {
+            ...c,
+            members: (Array.isArray(c.members) ? c.members : []).some((m) => m.id === newMemberId)
+              ? (c.members ?? []).map((m) => (m.id === newMemberId ? { ...m, ...memberForm, photo } : m))
+              : [...(c.members ?? []), { id: newMemberId, name: memberForm.name, position: memberForm.position, photo }],
+          }
+        : c,
+    );
+    if (isPresident) {
+      try {
+        await publishCmsEntityLocales({
+          repository: localizationRepo, target: 'committees',
+          canonicalPayload: memberCanonicalNext,
+          recordId: newMemberId, translations: memberTranslations,
+          committeeId,
+        });
+        await refreshPublishedLocalizations();
+      } catch {
+        alert(t('cmsLocalization.publishFailed', 'تعذر نشر الترجمة.'));
+        return;
+      }
+    } else {
+      for (const loc of ['tr', 'en'] as const) {
+        const trData = memberTranslations[loc];
+        if (trData.position?.trim()) {
+          try {
+            const latest = await localizationRepo.getDraft('committees', loc);
+            const list: Record<string, unknown>[] = Array.isArray(latest?.payload)
+              ? JSON.parse(JSON.stringify(latest.payload))
+              : [];
+            const commIdx = list.findIndex((c) => c && c.id === committeeId);
+            if (commIdx >= 0) {
+              const commObj = list[commIdx];
+              const members = Array.isArray(commObj.members) ? [...commObj.members] : [];
+              const existingIdx = members.findIndex((m) => m && (m as { id?: unknown }).id === newMemberId);
+              if (existingIdx >= 0) members.splice(existingIdx, 1);
+              members.push({ id: newMemberId, ...trData });
+              commObj.members = members;
+            } else {
+              list.push({ id: committeeId, members: [{ id: newMemberId, ...trData }] });
             }
+            await localizationRepo.saveDraft({
+              target: 'committees',
+              locale: loc,
+              payload: list as unknown as JsonValue,
+              status: 'draft',
+              manualPaths: [`${newMemberId}.position`],
+              sourceHash: computeSourceHash(memberCanonicalNext),
+              updatedAt: new Date().toISOString(),
+            }, { committeeId });
+          } catch {
+            // Draft-only roles keep their existing proposal workflow.
           }
         }
       }
@@ -419,7 +487,7 @@ await publishCmsEntityLocales({
               {canEditPersonalProfile && (
                 <button
                   onClick={openHead}
-                  className="absolute left-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white text-navy-700 opacity-0 shadow ring-1 ring-gray-200 transition-opacity hover:bg-navy-50 group-hover/head:opacity-100"
+                  className="absolute left-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white text-navy-700 shadow ring-1 ring-gray-200 transition-colors hover:bg-navy-50"
                   title={t('committee.editHeadTitle', 'تعديل بيانات المسؤول')}
                 >
                   <Edit3 className="h-4 w-4" />
@@ -454,7 +522,7 @@ await publishCmsEntityLocales({
                   className={`card group/stat relative p-3 text-center ${canEditContent ? 'cursor-pointer hover:ring-2 hover:ring-navy-200' : 'cursor-default'}`}
                 >
                   {canEditContent && (
-                    <Edit3 className="absolute left-1.5 top-1.5 h-3 w-3 text-gray-300 opacity-0 transition-opacity group-hover/stat:opacity-100" />
+                    <Edit3 className="absolute left-1.5 top-1.5 h-3 w-3 text-gray-300" />
                   )}
                   <div className="text-lg font-extrabold text-navy-900">{formatStatisticNumber(s.value, locale)}</div>
                   <div className="dynamic-text-safe text-[10px] text-gray-500">{getExecutiveMetricLabel(s.label, t)}</div>
@@ -504,7 +572,7 @@ await publishCmsEntityLocales({
                     <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
                     <span className="dynamic-text-safe min-w-0 flex-1">{r ?? ''}</span>
                     {canEditContent && (
-                      <div className="flex gap-1 opacity-0 transition-opacity group-hover/item:opacity-100">
+                      <div className="flex gap-1">
                         <button onClick={() => openEditResp(i)} className="flex h-6 w-6 items-center justify-center rounded-md text-navy-600 hover:bg-navy-50" title={t('common.edit')}>
                           <Edit3 className="h-3.5 w-3.5" />
                         </button>
@@ -539,7 +607,7 @@ await publishCmsEntityLocales({
                       <div className="dynamic-text-safe text-xs text-gray-500">{m.position || ''}</div>
                     </div>
                     {canEditContent && (
-                      <div className="absolute left-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover/memitem:opacity-100">
+                      <div className="absolute left-2 top-2 flex gap-1">
                         <button onClick={() => openEditMember(m)} className="flex h-6 w-6 items-center justify-center rounded-md bg-white text-navy-600 shadow-sm ring-1 ring-gray-200 hover:bg-navy-50" title={t('common.edit')}>
                           <Edit3 className="h-3 w-3" />
                         </button>
@@ -681,7 +749,7 @@ await publishCmsEntityLocales({
                 },
               ]}
               canEdit={Boolean(canEditContent)}
-              canPublish={Boolean(isPresident)}
+              canPublish={Boolean(canEditContent)}
               translations={respTranslations}
               onTranslationChange={(loc, name, val) => {
                 setRespTranslations((prev) => ({
@@ -729,7 +797,7 @@ await publishCmsEntityLocales({
                 },
               ]}
               canEdit={Boolean(canEditContent)}
-              canPublish={Boolean(isPresident)}
+              canPublish={Boolean(canEditContent)}
               translations={statTranslations}
               onTranslationChange={(loc, name, val) => {
                 setStatTranslations((prev) => ({
@@ -764,10 +832,17 @@ await publishCmsEntityLocales({
             <CmsEntityTranslationTabs
               onPublished={refreshPublishedLocalizations}
               target="committees"
-              recordId={editingMember?.id ?? null}
+              recordId={activeMemberRecordId}
               committeeId={committee.id}
               canonicalPayload={canonicalCommittees ?? committees}
               fields={[
+                {
+                  name: 'name',
+                  label: t('committee.memberModal.name', 'الاسم'),
+                  kind: 'text',
+                  canonicalValue: memberForm.name,
+                  placeholder: t('committee.memberModal.name', 'الاسم'),
+                },
                 {
                   name: 'position',
                   label: t('committee.memberModal.position', 'المسؤولية'),
@@ -777,7 +852,7 @@ await publishCmsEntityLocales({
                 },
               ]}
               canEdit={Boolean(canEditContent)}
-              canPublish={Boolean(isPresident)}
+              canPublish={Boolean(canEditContent)}
               translations={memberTranslations}
               onTranslationChange={(loc, name, val) => {
                 setMemberTranslations((prev) => ({

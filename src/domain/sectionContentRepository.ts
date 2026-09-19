@@ -2,6 +2,7 @@ export interface RepositoryError {
   code: string;
   message: string;
   details?: string;
+  hint?: string;
 }
 
 export type RepositoryResult<T> =
@@ -32,6 +33,7 @@ interface ErrorLike {
   code?: unknown;
   message?: unknown;
   details?: unknown;
+  hint?: unknown;
 }
 
 interface QueryResponse {
@@ -48,7 +50,7 @@ interface SingletonQuery {
 export interface SectionContentClient {
   from(table: 'student_guide' | 'faq'): SingletonQuery;
   rpc(
-    name: 'publish_cms_target' | 'create_published_event' | 'publish_own_committee',
+    name: 'publish_cms_target' | 'create_published_event' | 'publish_own_committee' | 'publish_own_committee_fields',
     args: Record<string, unknown>,
   ): Promise<QueryResponse>;
 }
@@ -59,6 +61,7 @@ const fail = <T>(code: string, message: string, error?: ErrorLike | null): Repos
     code,
     message,
     ...(typeof error?.details === 'string' && error.details ? { details: error.details } : {}),
+    ...(typeof error?.hint === 'string' && error.hint ? { hint: error.hint } : {}),
   },
 });
 
@@ -212,8 +215,7 @@ export function createSectionContentRepository(client: SectionContentClient) {
       if (response.error) {
         const conflict = response.error.code === '40001'
           || response.error.message === 'CONTENT_VERSION_CONFLICT';
-        const forbidden = response.error.code === '42501'
-          || (typeof response.error.message === 'string' && response.error.message.includes('OWN_COMMITTEE_FORBIDDEN'));
+        const forbidden = response.error.message === 'OWN_COMMITTEE_FORBIDDEN';
         return fail(
           conflict
             ? 'CONTENT_VERSION_CONFLICT'
@@ -227,6 +229,52 @@ export function createSectionContentRepository(client: SectionContentClient) {
             : forbidden
               ? 'يمكنك تعديل محتوى لجنتك الحالية فقط.'
               : 'تعذر حفظ محتوى الهيئة على الخادم.',
+          response.error,
+        );
+      }
+      const publication = parseCmsPublication(response.data);
+      return publication?.target === 'committees'
+        ? { ok: true, data: publication }
+        : fail('SECTION_CONTENT_RESPONSE_INVALID', 'أعاد الخادم نتيجة نشر غير صالحة.');
+    },
+
+    async publishOwnCommitteeFields(
+      committeeId: string,
+      fields: { vision?: string; goals?: string },
+      expectedVersion: number,
+    ): Promise<RepositoryResult<CmsPublication>> {
+      const response = await client.rpc('publish_own_committee_fields', {
+        p_committee_id: committeeId,
+        p_fields: fields,
+        p_expected_version: expectedVersion,
+      });
+      if (response.error) {
+        const conflict = response.error.code === '40001'
+          || response.error.message === 'CONTENT_VERSION_CONFLICT';
+        const forbidden = response.error.message === 'OWN_COMMITTEE_FORBIDDEN';
+        if (import.meta.env?.DEV) {
+          console.error('[publish_own_committee_fields] RPC failed', {
+            code: response.error.code,
+            message: response.error.message,
+            details: response.error.details,
+            hint: response.error.hint,
+          });
+        }
+        return fail(
+          conflict
+            ? 'CONTENT_VERSION_CONFLICT'
+            : forbidden
+              ? 'OWN_COMMITTEE_FORBIDDEN'
+              : typeof response.error.code === 'string'
+                ? response.error.code
+                : 'OWN_COMMITTEE_PUBLISH_FAILED',
+          conflict
+            ? 'نُشر تعديل أحدث. حدّث الصفحة ثم أعد المحاولة.'
+            : forbidden
+              ? 'يمكنك تعديل محتوى لجنتك الحالية فقط.'
+              : typeof response.error.message === 'string' && response.error.message
+                ? response.error.message
+                : 'تعذر حفظ محتوى الهيئة على الخادم.',
           response.error,
         );
       }
